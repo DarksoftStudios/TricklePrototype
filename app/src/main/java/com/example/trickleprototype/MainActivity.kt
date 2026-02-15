@@ -7,7 +7,6 @@ import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -22,10 +21,13 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.delay
+import kotlin.math.roundToInt
 import kotlin.random.Random
+import com.example.trickleprototype.ui.theme.TricklePrototypeTheme
 
-// ✅ Smooth fade between colors (same order, loops cleanly)
-// ✅ Randomized ONCE per app run (stable)
+
+//  Smooth fade between colors (same order, loops cleanly)
+//  Randomized ONCE per app run (stable)
 @Composable
 private fun CyclingFadingColorTitle() {
     val colors = remember {
@@ -63,7 +65,19 @@ private fun CyclingFadingColorTitle() {
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContent { MaterialTheme { TrickleApp() } }
+
+        // IMPORTANT: Use your app theme here so system dark mode works.
+        // If your theme function name differs, adjust it.
+        setContent {
+            TricklePrototypeTheme {
+                Surface(
+                    modifier = Modifier.fillMaxSize(),
+                    color = MaterialTheme.colorScheme.background
+                ) {
+                    TrickleApp()
+                }
+            }
+        }
     }
 }
 
@@ -71,7 +85,7 @@ class MainActivity : ComponentActivity() {
 private fun TrickleApp() {
     val engine = remember { GameEngine() }
 
-    // ✅ safe context for SharedPreferences / persistence
+    //  safe context for SharedPreferences / persistence
     val appContext = LocalContext.current.applicationContext
     val statsStore = remember { StatsStore(appContext) }
     LaunchedEffect(Unit) {
@@ -89,6 +103,7 @@ private fun TrickleApp() {
 
     var showHowToPlay by remember { mutableStateOf(false) }
     var showTips by remember { mutableStateOf(false) }
+    var showArchetypes by remember { mutableStateOf(false) }
     var showStats by remember { mutableStateOf(false) }
 
     // locks (prevents “mid-submit changing mind”)
@@ -136,7 +151,12 @@ private fun TrickleApp() {
     }
     if (showTips) {
         SimpleDialog(title = "ADVANCED TIPS", onClose = { showTips = false }) {
-            AdvancedTipsText() // ✅ General tips first, Hat rule after
+            AdvancedTipsText()
+        }
+    }
+    if (showArchetypes) {
+        SimpleDialog(title = "ARCHETYPES", onClose = { showArchetypes = false }) {
+            ArchetypesText()
         }
     }
     if (showStats) {
@@ -151,7 +171,6 @@ private fun TrickleApp() {
             .padding(12.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        // ✅ Title with smooth fade between colors
         CyclingFadingColorTitle()
 
         Spacer(Modifier.height(10.dp))
@@ -203,6 +222,15 @@ private fun TrickleApp() {
             Spacer(Modifier.height(8.dp))
 
             Text(
+                "ARCHETYPES",
+                modifier = Modifier.clickable { showArchetypes = true },
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.SemiBold
+            )
+
+            Spacer(Modifier.height(8.dp))
+
+            Text(
                 "STATS",
                 modifier = Modifier.clickable { showStats = true },
                 style = MaterialTheme.typography.bodyMedium,
@@ -216,7 +244,7 @@ private fun TrickleApp() {
         // GAME SCREEN
         // -------------------------
         val playerScore = players.firstOrNull { it.id == GameEngine.HUMAN_ID }?.marbles ?: 0
-        Text("Player score: $playerScore", style = MaterialTheme.typography.bodyMedium)
+        Text("Your marbles: $playerScore", style = MaterialTheme.typography.bodyMedium)
         Spacer(Modifier.height(10.dp))
 
         val isPlayerTurn = (phase == EnginePhase.PLAYER_TURN)
@@ -229,7 +257,7 @@ private fun TrickleApp() {
         ) {
             Column(modifier = Modifier.weight(1f)) {
 
-                Text("Player chooses:", style = MaterialTheme.typography.bodyMedium)
+                Text("Your choice:", style = MaterialTheme.typography.bodyMedium)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     val dieEnabled = !gameOver && !startLocked
                     SmallChoiceButton("0", selected = (choice == 0), enabled = dieEnabled) { choice = 0 }
@@ -275,7 +303,7 @@ private fun TrickleApp() {
 
                 Spacer(Modifier.height(10.dp))
 
-                Text("Player guesses:", style = MaterialTheme.typography.bodyMedium)
+                Text("Your guess:", style = MaterialTheme.typography.bodyMedium)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     SmallChoiceButton("1", selected = (guess == 1), enabled = inputsEnabled) { guess = 1 }
                     SmallChoiceButton("3", selected = (guess == 3), enabled = inputsEnabled) { guess = 3 }
@@ -360,6 +388,7 @@ private fun TrickleApp() {
 
         Spacer(Modifier.height(12.dp))
 
+        // Log
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -367,13 +396,10 @@ private fun TrickleApp() {
                 .verticalScroll(scrollState)
                 .padding(8.dp)
         ) {
-            val hScroll = rememberScrollState()
-
             Text(
                 text = logText.ifBlank { "(log will appear here)" },
                 fontFamily = FontFamily.Monospace,
-                softWrap = false,
-                modifier = Modifier.horizontalScroll(hScroll)
+                softWrap = true
             )
         }
     }
@@ -401,10 +427,22 @@ private fun buildLogText(result: RoundResult): String {
 
 @Composable
 private fun SimpleDialog(title: String, onClose: () -> Unit, content: @Composable () -> Unit) {
+    val scroll = rememberScrollState()
+
     AlertDialog(
         onDismissRequest = onClose,
         title = { Text(title) },
-        text = { content() },
+        text = {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 420.dp)   // <- keeps the dialog sane
+                    .verticalScroll(scroll)    // <- lets long stats scroll
+                    .padding(end = 6.dp)       // <- avoids scroll clipping
+            ) {
+                content()
+            }
+        },
         confirmButton = {
             TextButton(onClick = onClose) { Text("Close") }
         }
@@ -414,33 +452,121 @@ private fun SimpleDialog(title: String, onClose: () -> Unit, content: @Composabl
 @Composable
 private fun HowToPlayText() {
     Text(
-        "Pick a die (0/1/3), then take turns.\n\n" +
-                "On your turn you may PASS or TARGET someone and guess 1 or 3.\n" +
-                "Correct guess = you gain that many marbles.\n" +
-                "Wrong guess:\n" +
-                "• If they had 1 or 3: they gain that many.\n" +
-                "• If they had 0: you lose 1 and the Hat may move.\n\n" +
-                "Anyone not targeted gains their die value at the end of the round.\n" +
-                "First to 13+ wins."
+        "Pick a number(0/1/3), then wait for your turn. On your turn, you may PASS(do nothing) or TARGET someone and guess their number.\n\n" +
+                "If you're correct = you gain that many marbles.\n\n" +
+                "If you're wrong...\n" +
+                "...and they chose 1 or 3: they gain that many marbles.\n" +
+                "...and they chose 0: you lose 1 marble and take the Jester's Hat.\n\n" +
+                "Anyone who wasn't targeted gains marbles equal to their choice at the end of the round.\n\n" +
+                "First to 13+ marbles wins."
     )
 }
 
-// ✅ General tips first, hat rules after (as requested)
 @Composable
 private fun AdvancedTipsText() {
     Text(
         "GENERAL TIPS:\n" +
-                "• Passing keeps you from making enemies.\n" +
-                "• Targeting exposes info — but paints a target on you.\n" +
-                "• If you suspect a Spite-style bot, avoid poking them unless you're ready for heat.\n" +
-                "• 0 is the landmine: watch who gets ‘safe’ trickles and who gets punished.\n" +
-                "• If you’re ahead, sometimes the best move is to pass and let others fight.\n\n" +
-                "HAT RULE (0 trap):\n" +
-                "If you guess 1 or 3 on someone who actually chose 0, you lose 1 marble and you take the Jester Hat.\n" +
-                "Next round, the Hat-holder starts — BUT only if the Hat ended the round on a different person than it started.\n" +
-                "Boomerang edge case: if someone starts with the Hat, loses it, then gets it back that same round, the Hat does NOT override the next starter."
+                "• Choosing (3) gains marbles fast, but makes you easy to steal from.\n" +
+                "• Targeting is a great way to gain extra marbles, and enemies!\n" +
+                "• If you're repeatedly targeted, choose a (0) to fight back.\n" +
+                "• At the start of the game, a player is randomly chosen to go first, and normally each round begins with the next player on the list.\n\n" +
+                "BOTS & ARCHETYPES:\n" +
+                "• Each game, bots are randomly assigned an Archetype.\n" +
+                "• On Easy mode, bots have their names replaced with their Archetype (and you can see their score totals).\n" +
+                "• On Normal mode, bots have their names and scores hidden.\n" +
+                "• On Hard mode, bots will also gang up on you as the finish line approaches.\n\n" +
+                "JESTER'S HAT RULE:\n" +
+                "• If you guess 1 or 3 on someone who actually chose 0, you lose 1 marble and take the Jester's Hat.\n" +
+                "• Next round, the Hat-holder goes first — BUT only if the Hat ended the round on a different person than it started.\n"
     )
 }
+
+@Composable
+private fun ArchetypesText() {
+    Text(
+        "Accretion:\n" +
+                "• Starts slow, but ramps up fast\n" +
+                "• Chooses: 1, 1, 3, 3, 3...\n" +
+                "• Targeting Behavior: Passes until the very last moment\n\n" +
+
+                "Avenger:\n" +
+                "• Retaliation engine. Goes after attackers/agitators.\n" +
+                "• Chooses: 1 or 3 (0 only if attacked).\n" +
+                "• Targeting Behavior: Passes round 1; targets from round 2.\n\n" +
+
+                "Auditor:\n" +
+                "• Hates coasters. Targets anyone who passes too much.\n" +
+                "• Chooses: 1 or 3.\n" +
+                "• Targeting Behavior: Passes rounds 1–2; targets pass-streak players after.\n\n" +
+
+                "Chaos Grandma:\n" +
+                "• Pure chaos. No grudges, no fear.\n" +
+                "• Chooses: Random (0/1/3 evenly).\n" +
+                "• Targeting Behavior: 50/50 pass vs target.\n\n" +
+
+                "Hat Farmer:\n" +
+                "• Hunts chaos: targets players who were involved in guesses last round.\n" +
+                "• Chooses: Baseline behavior.\n" +
+                "• Targeting Behavior: Passes first; then targets “recently guessed” players.\n\n" +
+
+                "Juliet (Colluder):\n" +
+                "• Baseline bot logic, but never targets Romeo.\n" +
+                "• Chooses: Baseline behavior.\n" +
+                "• Targeting Behavior: Baseline behavior (avoids partner).\n\n" +
+
+                "Kingmaker:\n" +
+                "• Picks a ‘king’ and only attacks people who attack that king.\n" +
+                "• Chooses: 50/50 between 1 and 3.\n" +
+                "• Targeting Behavior: Usually passes; targets only to defend king.\n\n" +
+
+                "Limper:\n" +
+                "• Defensive turtle. Refuses to engage.\n" +
+                "• Chooses: 1 (0 if attacked and defending).\n" +
+                "• Targeting Behavior: Always passes.\n\n" +
+
+                "Opportunist:\n" +
+                "• Waits, watches, then punishes repeated 3 behavior.\n" +
+                "• Chooses: 1 (unless close to winning).\n" +
+                "• Targeting Behavior: Passes for 3 rounds, then targets repeat-3 players.\n\n" +
+
+                "Pacifist Collector:\n" +
+                "• Greedy but peaceful. Tries to win by trickle alone.\n" +
+                "• Chooses: 3.\n" +
+                "• Targeting Behavior: Always passes.\n" +
+
+                "Romeo (Colluder):\n" +
+                "• Baseline bot logic, but never targets Juliet.\n" +
+                "• Chooses: Baseline behavior.\n" +
+                "• Targeting Behavior: Baseline behavior (avoids partner).\n\n" +
+
+                "Scout:\n" +
+                "• Always hunting for info. Locks onto last-round 3s.\n" +
+                "• Chooses: 1 or 3.\n" +
+                "• Targeting Behavior: Always targets.\n\n" +
+
+                "Spite Player:\n" +
+                "• Quiet until provoked. Then it tunnels one person forever.\n" +
+                "• Chooses: 1 or 3.\n" +
+                "• Targeting Behavior: Passes until attacked; then focuses the first attacker.\n\n" +
+
+                "Strobe:\n" +
+                "• Alternates like a metronome and attacks in a repeating rhythm.\n" +
+                "• Chooses: Alternates 1,3,1,3...\n" +
+                "• Targeting Behavior: Alternates pass/target with pattern-based guesses.\n\n" +
+
+                "Teacher:\n" +
+                "• Lets others learn the game, then shows them how to lose.\n" +
+                "• Chooses: 1, 1, 1, 3, 3...\n" +
+                "• Targeting Behavior: Passes for 3 rounds, then targets known 3-choosers.\n\n" +
+
+                "Three-Pusher:\n" +
+                "• Greedy hammer. Loves 3 and assumes everyone else does too.\n" +
+                "• Chooses: 3.\n" +
+                "• Targeting Behavior: Targets from round 2 onward, always guessing 3.\n\n"
+    )
+}
+
+
 
 @Composable
 private fun StatsText(stats: PlayerStats) {
@@ -456,8 +582,10 @@ private fun StatsText(stats: PlayerStats) {
                 "Perfect games: ${stats.perfectGames}\n\n" +
                 "Easy games: ${stats.easyGames} (wins ${stats.easyWins})\n" +
                 "Normal games: ${stats.normalGames} (wins ${stats.normalWins})\n" +
-                "Hard games: ${stats.hardGames} (wins ${stats.hardWins})"
+                "Hard games: ${stats.hardGames} (wins ${stats.hardWins})\n\n"
     )
+
+
 }
 
 // -------------------- UI components --------------------
@@ -544,8 +672,8 @@ private fun DifficultyDropdownNullable(
     var expanded by remember { mutableStateOf(false) }
 
     val label = when (selected) {
-        Difficulty.EASY -> "Easy (show information)"
-        Difficulty.NORMAL -> "Normal (hide information)"
+        Difficulty.EASY -> "Easy (show archetypes and scores)"
+        Difficulty.NORMAL -> "Normal (hides archetypes and scores)"
         Difficulty.HARD -> "Hard (bots block your win)"
         null -> "Select difficulty…"
     }
@@ -568,11 +696,11 @@ private fun DifficultyDropdownNullable(
             onDismissRequest = { expanded = false }
         ) {
             DropdownMenuItem(
-                text = { Text("Easy (show information)") },
+                text = { Text("Easy (show archetypes and scores)") },
                 onClick = { onSelect(Difficulty.EASY); expanded = false }
             )
             DropdownMenuItem(
-                text = { Text("Normal (hide information)") },
+                text = { Text("Normal (hide archetypes and scores)") },
                 onClick = { onSelect(Difficulty.NORMAL); expanded = false }
             )
             DropdownMenuItem(

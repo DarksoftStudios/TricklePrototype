@@ -39,6 +39,7 @@ data class RoundResult(
     val currentActorId: Int?,
     val lastEventKind: LogEventKind?
 )
+
 // ----------------------------
 // Engine
 // ----------------------------
@@ -412,7 +413,7 @@ class GameEngine(
                     val c = selectionsThisRound[p.id]!!
                     revealedThisRound[p.id] = c
                     p.marbles += c
-                    log += RoundLogEvent("${displayNameFor(p.id)} was not targeted and trickles $c.")
+                    log += RoundLogEvent("${displayNameFor(p.id)} wasn't targeted, trickles $c.")
                 }
             }
         }
@@ -437,7 +438,6 @@ class GameEngine(
                 log += RoundLogEvent("WINNER: $winnersText with $top")
                 log += RoundLogEvent("-----------------------------------------------")
                 log += RoundLogEvent("")
-
 
                 // Persist stats (end of game)
                 statsStore?.let { store ->
@@ -514,6 +514,14 @@ class GameEngine(
         archetypeById.clear()
         memById.clear()
 
+        // Lock Romeo/Juliet to fixed IDs so the "never target each other" partnerId wiring is always correct.
+        val romeoId = 12
+        val julietId = 13
+
+        val fixedRomeo = Colluder(code = "J", displayName = "Romeo", partnerId = julietId)
+        val fixedJuliet = Colluder(code = "R", displayName = "Juliet", partnerId = romeoId)
+
+        // Everything else can be sampled randomly.
         val pool: MutableList<Archetype> = mutableListOf(
             Teacher(),
             Strobe(),
@@ -525,20 +533,37 @@ class GameEngine(
             Accretion(),
             Auditor(),
             Kingmaker(),
-            Colluder(code = "J", displayName = "Romeo", partnerId = 13),
-            Colluder(code = "R", displayName = "Juliet", partnerId = 12),
-            Limper()
+            Limper(),
+
+            // NEW archetypes:
+            Scout(),
+            HatFarmer(),
+            PacifistCollector()
         )
 
         pool.shuffle(rng)
-        val selected = pool.take(12)
+
+        // We need 10 more bots besides Romeo+Juliet.
+        val selected = pool.take(10)
 
         val botIds = (2..13).toList()
-        for (i in botIds.indices) {
-            val pid = botIds[i]
+
+        // Assign all non-fixed bot ids in shuffled order
+        val nonFixedIds = botIds.filter { it != romeoId && it != julietId }.toMutableList()
+        nonFixedIds.shuffle(rng)
+
+        for (i in nonFixedIds.indices) {
+            val pid = nonFixedIds[i]
             archetypeById[pid] = selected[i]
             memById[pid] = BotMemory()
         }
+
+        // Assign fixed colluders
+        archetypeById[romeoId] = fixedRomeo
+        memById[romeoId] = BotMemory()
+
+        archetypeById[julietId] = fixedJuliet
+        memById[julietId] = BotMemory()
     }
 
     private fun buildTurnOrderFromStarter(): List<Int> {
