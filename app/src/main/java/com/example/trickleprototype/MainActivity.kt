@@ -9,52 +9,72 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.delay
-import kotlin.math.roundToInt
 import kotlin.random.Random
 import com.example.trickleprototype.ui.theme.TricklePrototypeTheme
+import androidx.compose.foundation.BorderStroke
 
-
-//  Smooth fade between colors (same order, loops cleanly)
-//  Randomized ONCE per app run (stable)
+/**
+ * Title color logic (per MENU VISIT):
+ * - Starting color randomized each time you see the main menu.
+ * - Pattern cycles: PRIMARY -> BLACK -> PRIMARY -> WHITE -> repeat
+ * - PRIMARY randomly chosen from (Red, Yellow, Blue) each time it appears.
+ * - Hold time is randomized continuously during that menu visit.
+ */
 @Composable
-private fun CyclingFadingColorTitle() {
-    val colors = remember {
-        listOf(Color.Red, Color.White, Color.Yellow, Color.Black, Color.Blue)
-    }
+private fun CyclingFadingColorTitle(
+    menuVisitKey: Int,
+    modifier: Modifier = Modifier
+) {
+    val primaries = remember(menuVisitKey) { listOf(Color.Red, Color.Yellow, Color.Blue) }
 
-    var idx by remember { mutableIntStateOf(0) }
+    // step: 0=primary, 1=black, 2=primary, 3=white
+    var step by remember(menuVisitKey) { mutableIntStateOf(0) }
 
-    // Random ONCE per app run (stable)
-    val holdMs = remember { Random.nextLong(1333L, 13333L) }          // pause on each color
-    val fadeMs = remember { Random.nextLong(1333L, 13333L).toInt() }  // fade duration
-
-    LaunchedEffect(Unit) {
-        while (true) {
-            delay(holdMs)
-            idx = (idx + 1) % colors.size
-        }
-    }
+    // starting primary each menu visit
+    var targetColor by remember(menuVisitKey) { mutableStateOf(primaries.random()) }
 
     val animatedColor by animateColorAsState(
-        targetValue = colors[idx],
-        animationSpec = tween(durationMillis = fadeMs, easing = LinearEasing),
+        targetValue = targetColor,
+        animationSpec = tween(durationMillis = 1200, easing = LinearEasing),
         label = "titleColorFade"
     )
 
+    LaunchedEffect(menuVisitKey) {
+        step = 0
+        targetColor = primaries.random()
+
+        while (true) {
+            val holdMs = Random.nextLong(900L, 4200L)
+            delay(holdMs)
+
+            step = (step + 1) % 4
+            targetColor = when (step) {
+                0 -> primaries.random()
+                1 -> Color.Black
+                2 -> primaries.random()
+                else -> Color.White
+            }
+        }
+    }
+
     Text(
         text = "TR1CKL3",
+        modifier = modifier.fillMaxWidth(),
         style = MaterialTheme.typography.titleLarge,
         fontWeight = FontWeight.Black,
         textAlign = TextAlign.Center,
@@ -65,9 +85,6 @@ private fun CyclingFadingColorTitle() {
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-
-        // IMPORTANT: Use your app theme here so system dark mode works.
-        // If your theme function name differs, adjust it.
         setContent {
             TricklePrototypeTheme {
                 Surface(
@@ -85,7 +102,6 @@ class MainActivity : ComponentActivity() {
 private fun TrickleApp() {
     val engine = remember { GameEngine() }
 
-    //  safe context for SharedPreferences / persistence
     val appContext = LocalContext.current.applicationContext
     val statsStore = remember { StatsStore(appContext) }
     LaunchedEffect(Unit) {
@@ -106,23 +122,28 @@ private fun TrickleApp() {
     var showArchetypes by remember { mutableStateOf(false) }
     var showStats by remember { mutableStateOf(false) }
 
-    // locks (prevents “mid-submit changing mind”)
+    // locks
     var humanActionLocked by remember { mutableStateOf(false) }
     var startLocked by remember { mutableStateOf(false) }
+
+    // TURBO
+    var turbo by remember { mutableStateOf(false) }
+
+    // increments every time we return to main menu
+    var menuVisitKey by remember { mutableIntStateOf(0) }
+    LaunchedEffect(difficulty) {
+        if (difficulty == null) menuVisitKey += 1
+    }
 
     val phase = lastResult?.phase ?: engine.getPhase()
     val players = lastResult?.players ?: engine.getPlayersSnapshot()
     val gameOver = (phase == EnginePhase.GAME_OVER)
 
     val scrollState = rememberScrollState()
+    LaunchedEffect(logText) { scrollState.scrollTo(0) }
 
-    // keep log pinned to top (newest at top)
-    LaunchedEffect(logText) {
-        scrollState.scrollTo(0)
-    }
-
-    // BOT stepping (1 sec default, 0.3 sec for passes)
-    LaunchedEffect(phase) {
+    // BOT stepping with turbo
+    LaunchedEffect(phase, turbo) {
         if (phase == EnginePhase.BOT_TURN) {
             while (true) {
                 val current = lastResult?.phase ?: engine.getPhase()
@@ -133,7 +154,8 @@ private fun TrickleApp() {
                 logText = buildLogText(result)
 
                 if (result.phase == EnginePhase.BOT_TURN) {
-                    val ms = if (result.lastEventKind == LogEventKind.PASS) 300L else 1000L
+                    val base = if (result.lastEventKind == LogEventKind.PASS) 300L else 1000L
+                    val ms = if (turbo) (base / 4).coerceAtLeast(35L) else base
                     delay(ms)
                 }
             }
@@ -145,39 +167,43 @@ private fun TrickleApp() {
 
     // dialogs
     if (showHowToPlay) {
-        SimpleDialog(title = "HOW TO PLAY", onClose = { showHowToPlay = false }) {
-            HowToPlayText()
-        }
+        SimpleDialog(title = "HOW TO PLAY", onClose = { showHowToPlay = false }) { HowToPlayText() }
     }
     if (showTips) {
-        SimpleDialog(title = "ADVANCED TIPS", onClose = { showTips = false }) {
-            AdvancedTipsText()
-        }
+        SimpleDialog(title = "ADVANCED TIPS", onClose = { showTips = false }) { AdvancedTipsText() }
     }
     if (showArchetypes) {
-        SimpleDialog(title = "ARCHETYPES", onClose = { showArchetypes = false }) {
-            ArchetypesText()
-        }
+        SimpleDialog(title = "ARCHETYPES", onClose = { showArchetypes = false }) { ArchetypesText() }
     }
     if (showStats) {
-        SimpleDialog(title = "STATS", onClose = { showStats = false }) {
-            StatsText(statsStore.load())
-        }
+        SimpleDialog(title = "PLAYER STATS", onClose = { showStats = false }) { StatsText(statsStore.load()) }
     }
 
     Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(12.dp),
+        modifier = Modifier.fillMaxSize().padding(12.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        CyclingFadingColorTitle()
+        // Header: title truly centered, turbo pinned right
+        Box(modifier = Modifier.fillMaxWidth()) {
+            CyclingFadingColorTitle(
+                menuVisitKey = menuVisitKey,
+                modifier = Modifier.align(Alignment.Center)
+            )
+
+            TextButton(
+                onClick = { turbo = !turbo },
+                modifier = Modifier.align(Alignment.CenterEnd)
+            ) {
+                Text(
+                    text = if (turbo) "TURBO: ON" else "TURBO: OFF",
+                    maxLines = 1
+                )
+            }
+        }
 
         Spacer(Modifier.height(10.dp))
 
-        // -------------------------
-        // MAIN MENU (difficulty null)
-        // -------------------------
+        // MAIN MENU
         if (difficulty == null) {
             DifficultyDropdownNullable(
                 selected = null,
@@ -201,48 +227,21 @@ private fun TrickleApp() {
             Spacer(Modifier.height(8.dp))
             Text("(Pick a difficulty to begin.)", style = MaterialTheme.typography.bodySmall)
 
+            Spacer(Modifier.height(12.dp))
+
+            // Chunkier arcade buttons WITH your theme pop restored
+            MenuLinkButton(text = "HOW TO PLAY") { showHowToPlay = true }
             Spacer(Modifier.height(10.dp))
-
-            Text(
-                "HOW TO PLAY",
-                modifier = Modifier.clickable { showHowToPlay = true },
-                style = MaterialTheme.typography.bodyMedium,
-                fontWeight = FontWeight.SemiBold
-            )
-
-            Spacer(Modifier.height(8.dp))
-
-            Text(
-                "ADVANCED TIPS",
-                modifier = Modifier.clickable { showTips = true },
-                style = MaterialTheme.typography.bodyMedium,
-                fontWeight = FontWeight.SemiBold
-            )
-
-            Spacer(Modifier.height(8.dp))
-
-            Text(
-                "ARCHETYPES",
-                modifier = Modifier.clickable { showArchetypes = true },
-                style = MaterialTheme.typography.bodyMedium,
-                fontWeight = FontWeight.SemiBold
-            )
-
-            Spacer(Modifier.height(8.dp))
-
-            Text(
-                "STATS",
-                modifier = Modifier.clickable { showStats = true },
-                style = MaterialTheme.typography.bodyMedium,
-                fontWeight = FontWeight.SemiBold
-            )
+            MenuLinkButton(text = "ADVANCED TIPS") { showTips = true }
+            Spacer(Modifier.height(10.dp))
+            MenuLinkButton(text = "ARCHETYPES") { showArchetypes = true }
+            Spacer(Modifier.height(10.dp))
+            MenuLinkButton(text = "PLAYER STATS") { showStats = true }
 
             return@Column
         }
 
-        // -------------------------
         // GAME SCREEN
-        // -------------------------
         val playerScore = players.firstOrNull { it.id == GameEngine.HUMAN_ID }?.marbles ?: 0
         Text("Your marbles: $playerScore", style = MaterialTheme.typography.bodyMedium)
         Spacer(Modifier.height(10.dp))
@@ -275,16 +274,18 @@ private fun TrickleApp() {
                 ) {
                     Button(
                         onClick = { targetId = null },
-                        enabled = inputsEnabled && !isPassing
-                    ) { Text("Pass") }
+                        enabled = inputsEnabled && !isPassing,
+                        modifier = Modifier.heightIn(min = 48.dp)
+                    ) { OneLineButtonText("Pass") }
 
                     Button(
                         onClick = {
                             val firstTarget = players.firstOrNull { it.id != GameEngine.HUMAN_ID }?.id
                             targetId = firstTarget
                         },
-                        enabled = inputsEnabled && isPassing
-                    ) { Text("Target") }
+                        enabled = inputsEnabled && isPassing,
+                        modifier = Modifier.heightIn(min = 48.dp)
+                    ) { OneLineButtonText("Target") }
                 }
 
                 Spacer(Modifier.height(8.dp))
@@ -311,25 +312,37 @@ private fun TrickleApp() {
 
                 Spacer(Modifier.height(12.dp))
 
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    when (phase) {
-                        EnginePhase.SELECT, EnginePhase.ROUND_END -> {
-                            Button(
-                                enabled = !gameOver && !startLocked,
-                                onClick = {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    val leftLabel = when (phase) {
+                        EnginePhase.SELECT, EnginePhase.ROUND_END -> "Start Round"
+                        EnginePhase.PLAYER_TURN -> "Submit Turn"
+                        EnginePhase.BOT_TURN -> "Bots Acting…"
+                        EnginePhase.GAME_OVER -> "Game Over"
+                        EnginePhase.SETUP -> "Setup…"
+                    }
+
+                    val leftEnabled = when (phase) {
+                        EnginePhase.SELECT, EnginePhase.ROUND_END -> !gameOver && !startLocked
+                        EnginePhase.PLAYER_TURN -> !gameOver && !humanActionLocked
+                        else -> false
+                    }
+
+                    Button(
+                        modifier = Modifier.weight(1f).heightIn(min = 48.dp),
+                        enabled = leftEnabled,
+                        onClick = {
+                            when (phase) {
+                                EnginePhase.SELECT, EnginePhase.ROUND_END -> {
                                     startLocked = true
                                     val result = engine.startRound(choice)
                                     lastResult = result
                                     logText = buildLogText(result)
                                     targetId = null
                                 }
-                            ) { Text("Start Round") }
-                        }
-
-                        EnginePhase.PLAYER_TURN -> {
-                            Button(
-                                enabled = !gameOver && !humanActionLocked,
-                                onClick = {
+                                EnginePhase.PLAYER_TURN -> {
                                     humanActionLocked = true
                                     val frozenTarget = targetId
                                     val frozenGuess = if (frozenTarget == null) null else guess
@@ -347,23 +360,13 @@ private fun TrickleApp() {
                                         targetId = null
                                     }
                                 }
-                            ) { Text("Submit Turn") }
+                                else -> Unit
+                            }
                         }
-
-                        EnginePhase.BOT_TURN -> {
-                            Button(enabled = false, onClick = {}) { Text("Bots Acting…") }
-                        }
-
-                        EnginePhase.GAME_OVER -> {
-                            Button(enabled = false, onClick = {}) { Text("Game Over") }
-                        }
-
-                        EnginePhase.SETUP -> {
-                            Button(enabled = false, onClick = {}) { Text("Setup…") }
-                        }
-                    }
+                    ) { OneLineButtonText(leftLabel) }
 
                     Button(
+                        modifier = Modifier.weight(1f).heightIn(min = 48.dp),
                         onClick = {
                             engine.reset()
                             difficulty = null
@@ -377,18 +380,22 @@ private fun TrickleApp() {
                             humanActionLocked = false
                             startLocked = false
                         }
-                    ) { Text(if (gameOver) "New Game" else "Main Menu") }
+                    ) { OneLineButtonText(if (gameOver) "New Game" else "Main Menu") }
                 }
             }
 
             if (difficulty == Difficulty.EASY) {
-                MarblesBox(players = players, modifier = Modifier.widthIn(min = 140.dp, max = 200.dp))
+                MarblesBox(
+                    players = players,
+                    modifier = Modifier
+                        .wrapContentWidth()
+                        .widthIn(max = 200.dp)
+                )
             }
         }
 
         Spacer(Modifier.height(12.dp))
 
-        // Log
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -403,6 +410,53 @@ private fun TrickleApp() {
             )
         }
     }
+}
+
+@Composable
+private fun MenuLinkButton(text: String, onClick: () -> Unit) {
+    // Hard-coded colors for each button - no theme dependency issues
+    val borderColor = when (text) {
+        "HOW TO PLAY"     -> Color(0xFFFFFFFF)  // white
+        "ADVANCED TIPS"   -> Color(0xFFFFD60A)  // yellow
+        "ARCHETYPES"      -> Color(0xFFFF0000)// red
+        "PLAYER STATS"    -> Color(0xFF007AFF)// blue
+        else              -> Color.Gray
+    }
+
+    OutlinedButton(
+        onClick = onClick,
+        modifier = Modifier
+            .fillMaxWidth()
+            .widthIn(max = 360.dp)
+            .heightIn(min = 68.dp),
+        shape = RoundedCornerShape(28.dp),
+        border = BorderStroke(3.dp, borderColor),
+        colors = ButtonDefaults.outlinedButtonColors(
+            containerColor = Color.Black,          // consistent dark background
+            contentColor = Color.White             // always white text
+        ),
+        contentPadding = PaddingValues(vertical = 18.dp, horizontal = 24.dp)
+    ) {
+        Text(
+            text = text.uppercase(),
+            fontWeight = FontWeight.Black,
+            letterSpacing = 2.sp,
+            fontSize = 20.sp,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            textAlign = TextAlign.Center
+        )
+    }
+}
+
+@Composable
+private fun OneLineButtonText(text: String) {
+    Text(
+        text = text,
+        maxLines = 1,
+        softWrap = false,
+        overflow = TextOverflow.Ellipsis
+    )
 }
 
 private fun engineSnapshot(engine: GameEngine): RoundResult {
@@ -436,12 +490,10 @@ private fun SimpleDialog(title: String, onClose: () -> Unit, content: @Composabl
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .heightIn(max = 420.dp)   // <- keeps the dialog sane
-                    .verticalScroll(scroll)    // <- lets long stats scroll
-                    .padding(end = 6.dp)       // <- avoids scroll clipping
-            ) {
-                content()
-            }
+                    .heightIn(max = 420.dp)
+                    .verticalScroll(scroll)
+                    .padding(end = 6.dp)
+            ) { content() }
         },
         confirmButton = {
             TextButton(onClick = onClose) { Text("Close") }
@@ -450,7 +502,7 @@ private fun SimpleDialog(title: String, onClose: () -> Unit, content: @Composabl
 }
 
 @Composable
-private fun HowToPlayText() {
+private fun HowToPlayText() { /* unchanged */
     Text(
         "Pick a number(0/1/3), then wait for your turn. On your turn, you may PASS(do nothing) or TARGET someone and guess their number.\n\n" +
                 "If you're correct = you gain that many marbles.\n\n" +
@@ -463,7 +515,7 @@ private fun HowToPlayText() {
 }
 
 @Composable
-private fun AdvancedTipsText() {
+private fun AdvancedTipsText() { /* unchanged */
     Text(
         "GENERAL TIPS:\n" +
                 "• Choosing (3) gains marbles fast, but makes you easy to steal from.\n" +
@@ -482,91 +534,74 @@ private fun AdvancedTipsText() {
 }
 
 @Composable
-private fun ArchetypesText() {
+private fun ArchetypesText() { /* unchanged */
     Text(
         "Accretion:\n" +
                 "• Starts slow, but ramps up fast\n" +
                 "• Chooses: 1, 1, 3, 3, 3...\n" +
                 "• Targeting Behavior: Passes until the very last moment\n\n" +
-
                 "Avenger:\n" +
-                "• Retaliation engine. Goes after attackers/agitators.\n" +
-                "• Chooses: 1 or 3 (0 only if attacked).\n" +
-                "• Targeting Behavior: Passes round 1; targets from round 2.\n\n" +
-
+                "• Retaliates against attackers, even if they didn't attack him\n" +
+                "• Chooses: 1 or 3\n" +
+                "• Targeting Behavior: Passes round 1; targets attackers from round 2 on\n\n" +
                 "Auditor:\n" +
-                "• Hates coasters. Targets anyone who passes too much.\n" +
+                "• Hates wallflowers. Targets anyone who passes too much\n" +
                 "• Chooses: 1 or 3.\n" +
                 "• Targeting Behavior: Passes rounds 1–2; targets pass-streak players after.\n\n" +
-
                 "Chaos Grandma:\n" +
-                "• Pure chaos. No grudges, no fear.\n" +
-                "• Chooses: Random (0/1/3 evenly).\n" +
-                "• Targeting Behavior: 50/50 pass vs target.\n\n" +
-
+                "• The Matriarch of Chaos. All random everything\n" +
+                "• Chooses: Random (0/1/3 evenly)\n" +
+                "• Targeting Behavior: 50/50 pass vs target\n\n" +
                 "Hat Farmer:\n" +
-                "• Hunts chaos: targets players who were involved in guesses last round.\n" +
+                "• Will gladly pay a marble to snag the Jester's Hat\n" +
                 "• Chooses: Baseline behavior.\n" +
-                "• Targeting Behavior: Passes first; then targets “recently guessed” players.\n\n" +
-
+                "• Targeting Behavior: Passes first; then targets “recently guessed” players\n\n" +
                 "Juliet (Colluder):\n" +
-                "• Baseline bot logic, but never targets Romeo.\n" +
-                "• Chooses: Baseline behavior.\n" +
-                "• Targeting Behavior: Baseline behavior (avoids partner).\n\n" +
-
+                "• She's in it to win it, or at least watch Romeo win\n" +
+                "• Chooses: 1 or 3\n" +
+                "• Targeting Behavior: Anyone but Romeo\n\n" +
                 "Kingmaker:\n" +
-                "• Picks a ‘king’ and only attacks people who attack that king.\n" +
-                "• Chooses: 50/50 between 1 and 3.\n" +
-                "• Targeting Behavior: Usually passes; targets only to defend king.\n\n" +
-
+                "• Picks a ‘king’ and only attacks people who attack that king\n" +
+                "• Chooses: 50/50 between 1 and 3\n" +
+                "• Targeting Behavior: Usually passes; targets only to avenge their king\n\n" +
                 "Limper:\n" +
-                "• Defensive turtle. Refuses to engage.\n" +
+                "• Seems like maybe they don't want to play\n" +
                 "• Chooses: 1 (0 if attacked and defending).\n" +
-                "• Targeting Behavior: Always passes.\n\n" +
-
+                "• Targeting Behavior: Always passes\n\n" +
                 "Opportunist:\n" +
-                "• Waits, watches, then punishes repeated 3 behavior.\n" +
-                "• Chooses: 1 (unless close to winning).\n" +
-                "• Targeting Behavior: Passes for 3 rounds, then targets repeat-3 players.\n\n" +
-
+                "• Waits, watches, then punishes repeated 3 behavior\n" +
+                "• Chooses: 1 (unless close to winning)\n" +
+                "• Targeting Behavior: Passes for 3 rounds, then targets repeat-3 players\n\n" +
                 "Pacifist Collector:\n" +
-                "• Greedy but peaceful. Tries to win by trickle alone.\n" +
-                "• Chooses: 3.\n" +
-                "• Targeting Behavior: Always passes.\n" +
-
+                "• Greedy but peaceful. Tries to win by Trickle alone\n" +
+                "• Chooses: 3\n" +
+                "• Targeting Behavior: Always passes\n\n" +
                 "Romeo (Colluder):\n" +
-                "• Baseline bot logic, but never targets Juliet.\n" +
-                "• Chooses: Baseline behavior.\n" +
-                "• Targeting Behavior: Baseline behavior (avoids partner).\n\n" +
-
+                "• His eyes are on the prize(and on Juliet, of course)\n" +
+                "• Chooses: 1 or 3\n" +
+                "• Targeting Behavior: Juliet is safe, every else is a target\n\n" +
                 "Scout:\n" +
-                "• Always hunting for info. Locks onto last-round 3s.\n" +
+                "• Will gladly be the first to act\n" +
                 "• Chooses: 1 or 3.\n" +
-                "• Targeting Behavior: Always targets.\n\n" +
-
+                "• Targeting Behavior: Always targets, even on round 1\n\n" +
                 "Spite Player:\n" +
-                "• Quiet until provoked. Then it tunnels one person forever.\n" +
+                "• Cut this guy off and he is tailgating you to your house\n" +
                 "• Chooses: 1 or 3.\n" +
-                "• Targeting Behavior: Passes until attacked; then focuses the first attacker.\n\n" +
-
+                "• Targeting Behavior: Passes until attacked; then relentlessly seeks revenge\n\n" +
                 "Strobe:\n" +
                 "• Alternates like a metronome and attacks in a repeating rhythm.\n" +
                 "• Chooses: Alternates 1,3,1,3...\n" +
                 "• Targeting Behavior: Alternates pass/target with pattern-based guesses.\n\n" +
-
                 "Teacher:\n" +
                 "• Lets others learn the game, then shows them how to lose.\n" +
                 "• Chooses: 1, 1, 1, 3, 3...\n" +
                 "• Targeting Behavior: Passes for 3 rounds, then targets known 3-choosers.\n\n" +
-
                 "Three-Pusher:\n" +
-                "• Greedy hammer. Loves 3 and assumes everyone else does too.\n" +
-                "• Chooses: 3.\n" +
+                "• Bigger number better number, right?\n" +
+                "• Chooses: Always 3.\n" +
                 "• Targeting Behavior: Targets from round 2 onward, always guessing 3.\n\n"
     )
 }
-
-
 
 @Composable
 private fun StatsText(stats: PlayerStats) {
@@ -576,16 +611,14 @@ private fun StatsText(stats: PlayerStats) {
     Text(
         "Total games: ${stats.totalGames}\n" +
                 "Wins: ${stats.totalWins}\n\n" +
-                "Total marbles gained (end-of-game totals): ${stats.totalMarblesAcrossGames}\n\n" +
+                "Total marbles gained: ${stats.totalMarblesAcrossGames}\n\n" +
                 "Accuracy: $acc (${stats.correctGuesses}/${stats.totalGuesses})\n" +
                 "Tricked by 0: ${stats.timesTrickedByZero}\n" +
-                "Perfect games: ${stats.perfectGames}\n\n" +
+                "Perfect games(Win with no wrong guesses): ${stats.perfectGames}\n\n" +
                 "Easy games: ${stats.easyGames} (wins ${stats.easyWins})\n" +
                 "Normal games: ${stats.normalGames} (wins ${stats.normalWins})\n" +
                 "Hard games: ${stats.hardGames} (wins ${stats.hardWins})\n\n"
     )
-
-
 }
 
 // -------------------- UI components --------------------
@@ -608,15 +641,28 @@ private fun SmallChoiceButton(
     enabled: Boolean = true,
     onClick: () -> Unit
 ) {
+    val cs = MaterialTheme.colorScheme
+    val container = if (selected) cs.primary else cs.surfaceVariant
+    val content = if (selected) cs.onPrimary else cs.onSurfaceVariant
+
     Button(
         onClick = onClick,
         enabled = enabled,
-        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp),
+        modifier = Modifier.heightIn(min = 44.dp),
+        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 10.dp),
         colors = ButtonDefaults.buttonColors(
-            containerColor = if (selected) MaterialTheme.colorScheme.primary
-            else MaterialTheme.colorScheme.secondaryContainer
+            containerColor = container,
+            contentColor = content,
+            disabledContainerColor = cs.surfaceVariant,
+            disabledContentColor = cs.onSurfaceVariant.copy(alpha = 0.4f)
         )
-    ) { Text(label) }
+    ) {
+        Text(
+            text = label,
+            maxLines = 1,
+            softWrap = false
+        )
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)

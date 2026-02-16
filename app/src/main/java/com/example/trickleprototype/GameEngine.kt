@@ -1,12 +1,7 @@
 package com.example.trickleprototype
 
-import android.content.Context
 import kotlin.random.Random
-import org.json.JSONObject
 
-// ----------------------------
-// Core data
-// ----------------------------
 data class PlayerState(
     val id: Int,
     val baseName: String,
@@ -40,9 +35,6 @@ data class RoundResult(
     val lastEventKind: LogEventKind?
 )
 
-// ----------------------------
-// Engine
-// ----------------------------
 class GameEngine(
     private val rng: Random = Random.Default
 ) {
@@ -67,23 +59,20 @@ class GameEngine(
     private var starterIndex: Int = 0
     private var phase: EnginePhase = EnginePhase.SETUP
 
-    // per-round
-    private val selectionsThisRound = mutableMapOf<Int, Int>()   // pid -> 0/1/3
-    private val revealedThisRound = mutableMapOf<Int, Int>()     // pid -> revealed value
-    private val targetedThisRound = mutableSetOf<Int>()          // who has been targeted
-    private val attacksThisRound = mutableMapOf<Int, Int>()      // actorId -> targetId (0 pass)
+    private val selectionsThisRound = mutableMapOf<Int, Int>()
+    private val revealedThisRound = mutableMapOf<Int, Int>()
+    private val targetedThisRound = mutableSetOf<Int>()
+    private val attacksThisRound = mutableMapOf<Int, Int>()
 
     private var turnOrder: List<Int> = emptyList()
     private var turnCursor: Int = 0
 
-    // Hat state
     private var hatHolderId: Int? = null
     private var hatStartOfRoundHolderId: Int? = null
 
     // stats: per-game trackers
     private var gameWrongGuesses: Int = 0
 
-    // bot memory kept
     private var lastRoundChoices: Map<Int, Int> = emptyMap()
     private var lastRoundAttacks: Map<Int, Int> = emptyMap()
     private val passStreaks = mutableMapOf<Int, Int>()
@@ -95,7 +84,6 @@ class GameEngine(
     private var bannerText: String? = null
     private var winnerIds: List<Int> = emptyList()
 
-    // ONE-event stepping support
     private data class PendingLog(
         val kind: LogEventKind,
         val apply: () -> Unit
@@ -104,16 +92,11 @@ class GameEngine(
     private val pending = ArrayDeque<PendingLog>()
     private var lastEventKind: LogEventKind? = null
 
-    // stats store (set by UI)
     private var statsStore: StatsStore? = null
 
-    init {
-        reset()
-    }
+    init { reset() }
 
-    fun attachStatsStore(store: StatsStore) {
-        statsStore = store
-    }
+    fun attachStatsStore(store: StatsStore) { statsStore = store }
 
     fun setDifficulty(d: Difficulty) {
         difficulty = d
@@ -159,15 +142,10 @@ class GameEngine(
         assignRandomArchetypesToBots()
     }
 
-    // ----------------------------
-    // Public stepped API
-    // ----------------------------
-
     fun startRound(humanChoice: Int): RoundResult {
         if (phase == EnginePhase.GAME_OVER) return snapshot()
         if (phase != EnginePhase.SELECT && phase != EnginePhase.ROUND_END) return snapshot()
 
-        // fresh round
         selectionsThisRound.clear()
         revealedThisRound.clear()
         targetedThisRound.clear()
@@ -183,7 +161,6 @@ class GameEngine(
         turnOrder = buildTurnOrderFromStarter()
         turnCursor = 0
 
-        // selections
         selectionsThisRound[HUMAN_ID] = humanChoice
         for (pid in 2..13) {
             val arch = archetypeById[pid]!!
@@ -206,14 +183,12 @@ class GameEngine(
             selectionsThisRound[pid] = arch.chooseDie(pub, mem).v
         }
 
-        // round header (ONE log event, not duplicated)
         enqueueOther {
             log += RoundLogEvent("")
             log += RoundLogEvent("=== ROUND $roundNumber | Starter: ${displayNameFor(starterId)} ===")
         }
 
         phase = EnginePhase.BOT_TURN
-        // Emit the header immediately as the first step (so UI sees it without waiting)
         return stepInternalOrSnapshot()
     }
 
@@ -227,7 +202,6 @@ class GameEngine(
         val actorId = turnOrder.getOrNull(turnCursor) ?: return snapshot()
         if (actorId != HUMAN_ID) return snapshot()
 
-        // Build this human action as queued log+effects
         if (targetId == null) {
             queuePass(actorId = HUMAN_ID)
         } else {
@@ -242,17 +216,10 @@ class GameEngine(
 
         turnCursor++
         phase = EnginePhase.BOT_TURN
-
-        // emit first event immediately
         return stepInternalOrSnapshot()
     }
 
-    // ----------------------------
-    // Internal: stepping
-    // ----------------------------
-
     private fun stepInternalOrSnapshot(): RoundResult {
-        // If we have a pending log/effect, execute ONE and return
         if (pending.isNotEmpty()) {
             val p = pending.removeFirst()
             p.apply.invoke()
@@ -260,23 +227,18 @@ class GameEngine(
             return snapshot()
         }
 
-        // No pending events: decide what to do next
         if (turnCursor >= turnOrder.size) {
-            // End of round -> queue TRICKLE + resolve + maybe game over
             queueTrickleAndEndRound()
-            // Execute one immediately
             return stepInternalOrSnapshot()
         }
 
         val actorId = turnOrder[turnCursor]
 
-        // If human is up, pause for input
         if (actorId == HUMAN_ID) {
             phase = EnginePhase.PLAYER_TURN
             return snapshot()
         }
 
-        // Bot takes its turn, but we only execute ONE queued event per engine.step() call
         queueBotTurn(actorId)
         turnCursor++
         return stepInternalOrSnapshot()
@@ -287,7 +249,6 @@ class GameEngine(
         val arch = archetypeById[actorId]!!
         val mem = memById.getOrPut(actorId) { BotMemory() }
 
-        // HARD: block human at 10+
         val playerMarbles = if (difficulty == Difficulty.HARD) players.first { it.id == HUMAN_ID }.marbles else null
         val humanTargetable = (HUMAN_ID !in targetedThisRound) && (HUMAN_ID != actorId)
 
@@ -329,7 +290,6 @@ class GameEngine(
     }
 
     private fun queueGuess(actorId: Int, targetId: Int, guess: Int) {
-        // If already targeted, this becomes a pass-style event (fast)
         if (targetId in targetedThisRound) {
             pending.addLast(
                 PendingLog(kind = LogEventKind.PASS) {
@@ -341,17 +301,14 @@ class GameEngine(
             return
         }
 
-        // Mark targeted immediately so later actors can’t pick them (but logging happens in order)
         targetedThisRound += targetId
         attacksThisRound[actorId] = targetId
         passStreaks[actorId] = 0
 
-        // 1) actor line
         enqueueOther {
             log += RoundLogEvent("${displayNameFor(actorId)} targets ${displayNameFor(targetId)} and guesses $guess.")
         }
 
-        // 2) reveal line
         enqueueOther {
             if (!revealedThisRound.containsKey(targetId)) {
                 val c = selectionsThisRound[targetId]!!
@@ -361,23 +318,19 @@ class GameEngine(
             log += RoundLogEvent("${displayNameFor(targetId)} is revealed: $actual")
         }
 
-        // 3) resolution line (+ stats/hat)
         enqueueOther {
             val actor = players.first { it.id == actorId }
             val target = players.first { it.id == targetId }
             val actual = revealedThisRound[targetId]!!
 
-            // stats only for HUMAN guesses
             if (actorId == HUMAN_ID) {
-                val store = statsStore
-                if (store != null) {
+                statsStore?.let { store ->
                     val s = store.load()
                     s.totalGuesses += 1
                     if (guess == actual) s.correctGuesses += 1
                     if (actual == 0 && guess != 0) s.timesTrickedByZero += 1
                     store.save(s)
                 }
-
                 if (guess != actual) gameWrongGuesses += 1
             }
 
@@ -387,7 +340,6 @@ class GameEngine(
                 return@enqueueOther
             }
 
-            // wrong guess
             if (actual == 0) {
                 if (actor.marbles > 0) actor.marbles -= 1
                 hatHolderId = actorId
@@ -400,13 +352,11 @@ class GameEngine(
     }
 
     private fun queueTrickleAndEndRound() {
-        // TRICKLE header
         enqueueOther {
             log += RoundLogEvent("")
             log += RoundLogEvent("TRICKLE ----------------------------------------")
         }
 
-        // trickle events (one per player, one per step)
         for (p in players) {
             if (!revealedThisRound.containsKey(p.id)) {
                 enqueueOther {
@@ -418,7 +368,6 @@ class GameEngine(
             }
         }
 
-        // end-of-round finalize (winners + hat override + next starter + cleanup)
         enqueueOther {
             lastRoundChoices = selectionsThisRound.toMap()
             lastRoundAttacks = attacksThisRound.toMap()
@@ -439,7 +388,6 @@ class GameEngine(
                 log += RoundLogEvent("-----------------------------------------------")
                 log += RoundLogEvent("")
 
-                // Persist stats (end of game)
                 statsStore?.let { store ->
                     val s = store.load()
                     val humanFinal = players.first { it.id == HUMAN_ID }.marbles
@@ -449,41 +397,27 @@ class GameEngine(
                     if (humanWon) s.totalWins += 1
                     s.totalMarblesAcrossGames += humanFinal.toLong()
 
-                    if (gameWrongGuesses == 0) s.perfectGames += 1
+                    // FIX: perfect game requires WIN + 0 wrong guesses
+                    if (humanWon && gameWrongGuesses == 0) s.perfectGames += 1
 
                     when (difficulty) {
-                        Difficulty.EASY -> {
-                            s.easyGames += 1
-                            if (humanWon) s.easyWins += 1
-                        }
-                        Difficulty.NORMAL -> {
-                            s.normalGames += 1
-                            if (humanWon) s.normalWins += 1
-                        }
-                        Difficulty.HARD -> {
-                            s.hardGames += 1
-                            if (humanWon) s.hardWins += 1
-                        }
+                        Difficulty.EASY -> { s.easyGames += 1; if (humanWon) s.easyWins += 1 }
+                        Difficulty.NORMAL -> { s.normalGames += 1; if (humanWon) s.normalWins += 1 }
+                        Difficulty.HARD -> { s.hardGames += 1; if (humanWon) s.hardWins += 1 }
                     }
 
                     store.save(s)
                 }
             }
 
-            // Hat override with boomerang exception
             val startHolder = hatStartOfRoundHolderId
             val endHolder = hatHolderId
             val overrideEligible = (startHolder != endHolder) && (endHolder != null)
 
             roundNumber += 1
 
-            starterIndex = if (overrideEligible) {
-                indexOfId(endHolder!!)
-            } else {
-                (starterIndex + 1) % players.size
-            }
+            starterIndex = if (overrideEligible) indexOfId(endHolder!!) else (starterIndex + 1) % players.size
 
-            // cleanup for next round
             selectionsThisRound.clear()
             revealedThisRound.clear()
             targetedThisRound.clear()
@@ -492,10 +426,8 @@ class GameEngine(
             turnCursor = 0
             hatStartOfRoundHolderId = null
 
-            // If game over, phase changes now; else back to SELECT
             phase = if (winnerIds.isNotEmpty()) EnginePhase.GAME_OVER else EnginePhase.SELECT
 
-            // reset per-game wrong guesses if game ended
             if (phase == EnginePhase.GAME_OVER) {
                 gameWrongGuesses = 0
             }
@@ -507,22 +439,13 @@ class GameEngine(
     }
 
     // ----------------------------
-    // Utilities
+    // Archetype assignment (FIXED: colluders not forced, not always paired)
     // ----------------------------
-
     private fun assignRandomArchetypesToBots() {
         archetypeById.clear()
         memById.clear()
 
-        // Lock Romeo/Juliet to fixed IDs so the "never target each other" partnerId wiring is always correct.
-        val romeoId = 12
-        val julietId = 13
-
-        val fixedRomeo = Colluder(code = "J", displayName = "Romeo", partnerId = julietId)
-        val fixedJuliet = Colluder(code = "R", displayName = "Juliet", partnerId = romeoId)
-
-        // Everything else can be sampled randomly.
-        val pool: MutableList<Archetype> = mutableListOf(
+        val nonColluderPool: MutableList<Archetype> = mutableListOf(
             Teacher(),
             Strobe(),
             ChaosGrandma(),
@@ -534,36 +457,62 @@ class GameEngine(
             Auditor(),
             Kingmaker(),
             Limper(),
-
-            // NEW archetypes:
             Scout(),
             HatFarmer(),
             PacifistCollector()
         )
 
-        pool.shuffle(rng)
+        // Decide colluder presence:
+        //  - 45%: none
+        //  - 30%: single (random Romeo/Juliet)
+        //  - 25%: both
+        val roll = rng.nextInt(100)
+        val includeBoth = roll >= 75
+        val includeSingle = roll in 45..74
 
-        // We need 10 more bots besides Romeo+Juliet.
-        val selected = pool.take(10)
+        val colludersToAdd = when {
+            includeBoth -> 2
+            includeSingle -> 1
+            else -> 0
+        }
 
-        val botIds = (2..13).toList()
+        val neededFromNonColluders = 12 - colludersToAdd
+        nonColluderPool.shuffle(rng)
+        val selected = nonColluderPool.take(neededFromNonColluders).toMutableList()
 
-        // Assign all non-fixed bot ids in shuffled order
-        val nonFixedIds = botIds.filter { it != romeoId && it != julietId }.toMutableList()
-        nonFixedIds.shuffle(rng)
+        // Pick which bot IDs get colluders, if any
+        val botIds = (2..13).toMutableList()
+        botIds.shuffle(rng)
 
-        for (i in nonFixedIds.indices) {
-            val pid = nonFixedIds[i]
+        val colluderIds = botIds.take(colludersToAdd)
+        val remainingIds = botIds.drop(colludersToAdd)
+
+        // Create colluder instances with partner wiring if both present.
+        val NO_PARTNER = -999
+
+        if (colludersToAdd == 1) {
+            val id = colluderIds[0]
+            val isRomeo = rng.nextBoolean()
+            val arch = if (isRomeo) Colluder(code = "J", displayName = "Romeo", partnerId = NO_PARTNER)
+            else Colluder(code = "R", displayName = "Juliet", partnerId = NO_PARTNER)
+            archetypeById[id] = arch
+            memById[id] = BotMemory()
+        } else if (colludersToAdd == 2) {
+            val a = colluderIds[0]
+            val b = colluderIds[1]
+            archetypeById[a] = Colluder(code = "J", displayName = "Romeo", partnerId = b)
+            memById[a] = BotMemory()
+            archetypeById[b] = Colluder(code = "R", displayName = "Juliet", partnerId = a)
+            memById[b] = BotMemory()
+        }
+
+        // Assign remaining archetypes randomly to remaining bot IDs
+        selected.shuffle(rng)
+        for (i in remainingIds.indices) {
+            val pid = remainingIds[i]
             archetypeById[pid] = selected[i]
             memById[pid] = BotMemory()
         }
-
-        // Assign fixed colluders
-        archetypeById[romeoId] = fixedRomeo
-        memById[romeoId] = BotMemory()
-
-        archetypeById[julietId] = fixedJuliet
-        memById[julietId] = BotMemory()
     }
 
     private fun buildTurnOrderFromStarter(): List<Int> {
