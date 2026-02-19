@@ -6,7 +6,8 @@ import androidx.activity.compose.setContent
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.tween
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -23,10 +24,10 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.DialogProperties
 import kotlinx.coroutines.delay
 import kotlin.random.Random
 import com.example.trickleprototype.ui.theme.TricklePrototypeTheme
-import androidx.compose.foundation.BorderStroke
 
 /**
  * Title color logic (per MENU VISIT):
@@ -104,7 +105,9 @@ private fun TrickleApp() {
 
     val appContext = LocalContext.current.applicationContext
     val statsStore = remember { StatsStore(appContext) }
-    LaunchedEffect(Unit) {
+
+    // ✅ FIX: attach synchronously (no async race)
+    SideEffect {
         engine.attachStatsStore(statsStore)
     }
 
@@ -167,20 +170,41 @@ private fun TrickleApp() {
 
     // dialogs
     if (showHowToPlay) {
-        SimpleDialog(title = "HOW TO PLAY", onClose = { showHowToPlay = false }) { HowToPlayText() }
+        SimpleDialog(
+            title = "HOW TO PLAY",
+            onClose = { showHowToPlay = false },
+            accentColor = Color(0xFFFFFFFF)
+        ) { HowToPlayText() }
     }
+
     if (showTips) {
-        SimpleDialog(title = "ADVANCED TIPS", onClose = { showTips = false }) { AdvancedTipsText() }
+        SimpleDialog(
+            title = "ADVANCED TIPS",
+            onClose = { showTips = false },
+            accentColor = Color(0xFFFFD60A)
+        ) { AdvancedTipsText() }
     }
+
     if (showArchetypes) {
-        SimpleDialog(title = "ARCHETYPES", onClose = { showArchetypes = false }) { ArchetypesText() }
+        SimpleDialog(
+            title = "ARCHETYPES",
+            onClose = { showArchetypes = false },
+            accentColor = Color(0xFFFF0000)
+        ) { ArchetypesText() }
     }
+
     if (showStats) {
-        SimpleDialog(title = "PLAYER STATS", onClose = { showStats = false }) { StatsText(statsStore.load()) }
+        SimpleDialog(
+            title = "PLAYER STATS",
+            onClose = { showStats = false },
+            accentColor = Color(0xFF007AFF)
+        ) { StatsText(statsStore.load()) }
     }
 
     Column(
-        modifier = Modifier.fillMaxSize().padding(12.dp),
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(12.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         // Header: title truly centered, turbo pinned right
@@ -229,7 +253,6 @@ private fun TrickleApp() {
 
             Spacer(Modifier.height(12.dp))
 
-            // Chunkier arcade buttons WITH your theme pop restored
             MenuLinkButton(text = "HOW TO PLAY") { showHowToPlay = true }
             Spacer(Modifier.height(10.dp))
             MenuLinkButton(text = "ADVANCED TIPS") { showTips = true }
@@ -331,7 +354,9 @@ private fun TrickleApp() {
                     }
 
                     Button(
-                        modifier = Modifier.weight(1f).heightIn(min = 48.dp),
+                        modifier = Modifier
+                            .weight(1f)
+                            .heightIn(min = 48.dp),
                         enabled = leftEnabled,
                         onClick = {
                             when (phase) {
@@ -366,9 +391,14 @@ private fun TrickleApp() {
                     ) { OneLineButtonText(leftLabel) }
 
                     Button(
-                        modifier = Modifier.weight(1f).heightIn(min = 48.dp),
+                        modifier = Modifier
+                            .weight(1f)
+                            .heightIn(min = 48.dp),
                         onClick = {
                             engine.reset()
+                            // ✅ FIX: defensive re-attach (future-proof)
+                            engine.attachStatsStore(statsStore)
+
                             difficulty = null
                             lastResult = null
                             logText = ""
@@ -414,13 +444,12 @@ private fun TrickleApp() {
 
 @Composable
 private fun MenuLinkButton(text: String, onClick: () -> Unit) {
-    // Hard-coded colors for each button - no theme dependency issues
     val borderColor = when (text) {
-        "HOW TO PLAY"     -> Color(0xFFFFFFFF)  // white
-        "ADVANCED TIPS"   -> Color(0xFFFFD60A)  // yellow
-        "ARCHETYPES"      -> Color(0xFFFF0000)// red
-        "PLAYER STATS"    -> Color(0xFF007AFF)// blue
-        else              -> Color.Gray
+        "HOW TO PLAY" -> Color(0xFFFFFFFF)
+        "ADVANCED TIPS" -> Color(0xFFFFD60A)
+        "ARCHETYPES" -> Color(0xFFFF0000)
+        "PLAYER STATS" -> Color(0xFF0000FF)
+        else -> Color.Gray
     }
 
     OutlinedButton(
@@ -432,8 +461,8 @@ private fun MenuLinkButton(text: String, onClick: () -> Unit) {
         shape = RoundedCornerShape(28.dp),
         border = BorderStroke(3.dp, borderColor),
         colors = ButtonDefaults.outlinedButtonColors(
-            containerColor = Color.Black,          // consistent dark background
-            contentColor = Color.White             // always white text
+            containerColor = Color.Black,
+            contentColor = Color.White
         ),
         contentPadding = PaddingValues(vertical = 18.dp, horizontal = 24.dp)
     ) {
@@ -480,12 +509,24 @@ private fun buildLogText(result: RoundResult): String {
 // -------------------- Dialog + Text Blocks --------------------
 
 @Composable
-private fun SimpleDialog(title: String, onClose: () -> Unit, content: @Composable () -> Unit) {
+private fun SimpleDialog(
+    title: String,
+    onClose: () -> Unit,
+    accentColor: Color = Color.White,
+    content: @Composable () -> Unit
+) {
     val scroll = rememberScrollState()
 
     AlertDialog(
         onDismissRequest = onClose,
-        title = { Text(title) },
+        title = {
+            Text(
+                text = title,
+                color = accentColor,
+                fontWeight = FontWeight.Bold,
+                style = MaterialTheme.typography.titleLarge
+            )
+        },
         text = {
             Box(
                 modifier = Modifier
@@ -493,16 +534,37 @@ private fun SimpleDialog(title: String, onClose: () -> Unit, content: @Composabl
                     .heightIn(max = 420.dp)
                     .verticalScroll(scroll)
                     .padding(end = 6.dp)
-            ) { content() }
+            ) {
+                content()
+            }
         },
         confirmButton = {
-            TextButton(onClick = onClose) { Text("Close") }
-        }
+            TextButton(
+                onClick = onClose,
+                colors = ButtonDefaults.textButtonColors(
+                    contentColor = accentColor
+                )
+            ) {
+                Text("Close")
+            }
+        },
+        shape = RoundedCornerShape(16.dp),
+        containerColor = Color.Black.copy(alpha = 0.92f),
+        textContentColor = Color.White,
+        titleContentColor = accentColor,
+        properties = DialogProperties(
+            dismissOnBackPress = true,
+            dismissOnClickOutside = true
+        ),
+        modifier = Modifier.border(
+            BorderStroke(2.dp, accentColor),
+            shape = RoundedCornerShape(16.dp)
+        )
     )
 }
 
 @Composable
-private fun HowToPlayText() { /* unchanged */
+private fun HowToPlayText() {
     Text(
         "Pick a number(0/1/3), then wait for your turn. On your turn, you may PASS(do nothing) or TARGET someone and guess their number.\n\n" +
                 "If you're correct = you gain that many marbles.\n\n" +
@@ -515,7 +577,7 @@ private fun HowToPlayText() { /* unchanged */
 }
 
 @Composable
-private fun AdvancedTipsText() { /* unchanged */
+private fun AdvancedTipsText() {
     Text(
         "GENERAL TIPS:\n" +
                 "• Choosing (3) gains marbles fast, but makes you easy to steal from.\n" +
@@ -534,7 +596,7 @@ private fun AdvancedTipsText() { /* unchanged */
 }
 
 @Composable
-private fun ArchetypesText() { /* unchanged */
+private fun ArchetypesText() {
     Text(
         "Accretion:\n" +
                 "• Starts slow, but ramps up fast\n" +
@@ -608,20 +670,169 @@ private fun StatsText(stats: PlayerStats) {
     val acc = if (stats.totalGuesses == 0) "—"
     else "${((stats.correctGuesses * 100.0) / stats.totalGuesses).toInt()}%"
 
-    Text(
-        "Total games: ${stats.totalGames}\n" +
-                "Wins: ${stats.totalWins}\n\n" +
-                "Total marbles gained: ${stats.totalMarblesAcrossGames}\n\n" +
-                "Accuracy: $acc (${stats.correctGuesses}/${stats.totalGuesses})\n" +
-                "Tricked by 0: ${stats.timesTrickedByZero}\n" +
-                "Perfect games(Win with no wrong guesses): ${stats.perfectGames}\n\n" +
-                "Easy games: ${stats.easyGames} (wins ${stats.easyWins})\n" +
-                "Normal games: ${stats.normalGames} (wins ${stats.normalWins})\n" +
-                "Hard games: ${stats.hardGames} (wins ${stats.hardWins})\n\n"
-    )
+    Column {
+        Text(
+            "Total games: ${stats.totalGames}\n" +
+                    "Wins: ${stats.totalWins}\n\n" +
+                    "Total marbles gained: ${stats.totalMarblesAcrossGames}\n\n" +
+                    "Accuracy: $acc (${stats.correctGuesses}/${stats.totalGuesses})\n" +
+                    "Tricked by 0: ${stats.timesTrickedByZero}\n" +
+                    "Perfect games: ${stats.perfectGames}\n\n" +
+                    "Easy games: ${stats.easyGames} (wins ${stats.easyWins})\n" +
+                    "Normal games: ${stats.normalGames} (wins ${stats.normalWins})\n" +
+                    "Hard games: ${stats.hardGames} (wins ${stats.hardWins})\n\n",
+            style = MaterialTheme.typography.bodyMedium
+        )
+
+        Spacer(Modifier.height(16.dp))
+        Text("Achievements", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+        Spacer(Modifier.height(8.dp))
+
+        // --- First milestones ---
+        AchievementRow(stats.firstGameCompleted, "First Drip", "Complete a game")
+        AchievementRow(stats.firstWin, "First Flood", "Win a game")
+
+        // --- Special wins / events ---
+        AchievementRow(stats.firstPerfectWin, "Perfect Pour", "Win with 0 wrong guesses")
+        AchievementRow(stats.reachedRound7, "Seventh Wave", "Reach round 7")
+        AchievementRow(stats.wonWith18Marbles, "18-Marble Miracle", "Win with exactly 18 marbles")
+
+        // --- Difficulty wins ---
+        AchievementRow(stats.wonEasy, "Easy Win", "Win on Easy")
+        AchievementRow(stats.wonNormal, "Normal Win", "Win on Normal")
+        AchievementRow(stats.wonHard, "Hard Win", "Win on Hard")
+
+        // --- Tourist (progress row) ---
+        AchievementRow(
+            unlocked = stats.playedAllDifficulties,
+            title = "Tourist",
+            desc = "Play on Easy, Normal, and Hard",
+            progress = "${stats.easyGames.coerceAtLeast(0)} / ${stats.normalGames.coerceAtLeast(0)} / ${stats.hardGames.coerceAtLeast(0)}"
+        )
+
+        AchievementRow(stats.pacifistWin, "Pacifist", "Win without guessing")
+        // ✅ NEW: show pacifistGame in UI
+        AchievementRow(stats.pacifistGame, "Pacifist (Game)", "Complete a game without guessing")
+
+        AchievementRow(
+            stats.justPressEverythingWin,
+            "Just Press Everything",
+            "In one game: choose 0/1/3, pass once, guess 1 and 3"
+        )
+
+        AchievementRow(
+            stats.shakespeareWin,
+            "Shakespeare",
+            "Correctly guess Romeo and Juliet (when both are present)"
+        )
+
+        // --- Zero chain ---
+        AchievementRow(stats.firstTheFool, "The Fool", "Get tricked by a 0")
+        AchievementRow(stats.firstZeroTrap, "Zero Trap", "Trick a bot with your 0")
+        AchievementRow(stats.zeroHeroUnlocked, "Zero Hero", "Unlock The Fool + Zero Trap")
+
+        // ✅ NEW ACHIEVEMENTS (show them)
+        AchievementRow(stats.drySeasonWin, "Dry Season", "Win without ever choosing 3")
+        AchievementRow(stats.ghostCupWin, "Ghost Cup", "Win without being targeted")
+        AchievementRow(stats.onARoll, "On a Roll", "3 correct guesses in a row")
+        AchievementRow(stats.dumbLuck, "Dumb Luck", "Correctly guess a 3 in round 1")
+        AchievementRow(stats.hatFinisher, "Hat Finisher", "Win after starting because you had the Hat")
+        AchievementRow(stats.caughtTheStrobe, "Caught the Strobe", "Correctly guess Strobe’s 3 twice in one game")
+        AchievementRow(stats.pushover, "Pushover", "Correctly guess Three-Pusher’s 3 four times in one game")
+
+        // --- Milestones ---
+        AchievementRow(
+            unlocked = stats.won13thGame,
+            title = "13-Drop Streak",
+            desc = "Win 13 games",
+            progress = "${stats.totalWins}/13"
+        )
+        AchievementRow(
+            unlocked = stats.won113thGame,
+            title = "Century+13 Flood",
+            desc = "Win 113 games",
+            progress = "${stats.totalWins}/113"
+        )
+
+        AchievementRow(
+            unlocked = stats.played13Games,
+            title = "13-Rain Games",
+            desc = "Play 13 games",
+            progress = "${stats.totalGames}/13"
+        )
+        AchievementRow(
+            unlocked = stats.played113Games,
+            title = "113-Rain Games",
+            desc = "Play 113 games",
+            progress = "${stats.totalGames}/113"
+        )
+        AchievementRow(
+            unlocked = stats.played1113Games,
+            title = "1,113-Rain Games",
+            desc = "Play 1,113 games",
+            progress = "${stats.totalGames}/1113"
+        )
+
+        AchievementRow(
+            unlocked = stats.has113MarblesTotal,
+            title = "113-Drop Bucket",
+            desc = "Gain 113 marbles across games",
+            progress = "${stats.totalMarblesAcrossGames}/113"
+        )
+        AchievementRow(
+            unlocked = stats.has1113MarblesTotal,
+            title = "1,113-Drop Bucket",
+            desc = "Gain 1,113 marbles across games",
+            progress = "${stats.totalMarblesAcrossGames}/1113"
+        )
+        AchievementRow(
+            unlocked = stats.has11113MarblesTotal,
+            title = "11,113-Drop Bucket",
+            desc = "Gain 11,113 marbles across games",
+            progress = "${stats.totalMarblesAcrossGames}/11113"
+        )
+    }
 }
 
 // -------------------- UI components --------------------
+
+@Composable
+private fun AchievementRow(
+    unlocked: Boolean,
+    title: String,
+    desc: String,
+    progress: String? = null
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = if (unlocked) "✓ " else "○ ",
+            color = if (unlocked) Color(0xFF0000FF) else Color.Gray,
+            fontSize = 24.sp
+        )
+
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .padding(start = 8.dp)
+        ) {
+            Text(title, fontWeight = FontWeight.Bold)
+            Text(desc, style = MaterialTheme.typography.bodySmall)
+        }
+
+        if (progress != null) {
+            Text(
+                progress,
+                color = if (unlocked) Color(0xFF0000FF) else Color.LightGray,
+                fontWeight = FontWeight.Medium
+            )
+        }
+    }
+}
 
 @Composable
 private fun MarblesBox(players: List<PlayerState>, modifier: Modifier = Modifier) {

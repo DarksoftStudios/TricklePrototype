@@ -16,12 +16,7 @@ data class RoundLogEvent(val text: String)
 enum class LogEventKind { PASS, OTHER }
 
 enum class EnginePhase {
-    SETUP,
-    SELECT,
-    BOT_TURN,
-    PLAYER_TURN,
-    ROUND_END,
-    GAME_OVER
+    SETUP, SELECT, BOT_TURN, PLAYER_TURN, ROUND_END, GAME_OVER
 }
 
 data class RoundResult(
@@ -72,6 +67,31 @@ class GameEngine(
 
     // stats: per-game trackers
     private var gameWrongGuesses: Int = 0
+
+    private var gameRoundReached: Int = 1
+    private var gameHumanWasTrickedByZero: Boolean = false
+    private var gameHumanTrickedBotWithZero: Boolean = false
+
+    // achievements: per-game trackers
+    private var gameHumanMadeGuess: Boolean = false
+    private var gameHumanPassedAtLeastOnce: Boolean = false
+    private val gameHumanChoicesUsed = mutableSetOf<Int>()   // track 0/1/3 used across rounds
+    private val gameHumanGuessesUsed = mutableSetOf<Int>()   // track guessed 1/3 across game
+
+    private var gameHumanCorrectRomeo: Boolean = false
+    private var gameHumanCorrectJuliet: Boolean = false
+
+    // NEW per-game trackers for new achievements
+    private var gameHumanWasTargeted: Boolean = false
+    private var gameHumanEverChose3: Boolean = false
+
+    private var humanCorrectGuessStreak: Int = 0
+    private var unlockedOnARollThisGame: Boolean = false
+    private var unlockedDumbLuckThisGame: Boolean = false
+
+    private var startedRoundBecauseHat: Boolean = false // computed at startRound
+    private var strobeCorrect3Count: Int = 0
+    private var threePusherCorrect3Count: Int = 0
 
     private var lastRoundChoices: Map<Int, Int> = emptyMap()
     private var lastRoundAttacks: Map<Int, Int> = emptyMap()
@@ -139,12 +159,34 @@ class GameEngine(
 
         gameWrongGuesses = 0
 
+        gameRoundReached = 1
+        gameHumanWasTrickedByZero = false
+        gameHumanTrickedBotWithZero = false
+
+        gameHumanMadeGuess = false
+        gameHumanPassedAtLeastOnce = false
+        gameHumanChoicesUsed.clear()
+        gameHumanGuessesUsed.clear()
+        gameHumanCorrectRomeo = false
+        gameHumanCorrectJuliet = false
+
+        gameHumanWasTargeted = false
+        gameHumanEverChose3 = false
+        humanCorrectGuessStreak = 0
+        unlockedOnARollThisGame = false
+        unlockedDumbLuckThisGame = false
+        startedRoundBecauseHat = false
+        strobeCorrect3Count = 0
+        threePusherCorrect3Count = 0
+
         assignRandomArchetypesToBots()
     }
 
     fun startRound(humanChoice: Int): RoundResult {
         if (phase == EnginePhase.GAME_OVER) return snapshot()
         if (phase != EnginePhase.SELECT && phase != EnginePhase.ROUND_END) return snapshot()
+
+        gameRoundReached = maxOf(gameRoundReached, roundNumber)
 
         selectionsThisRound.clear()
         revealedThisRound.clear()
@@ -158,10 +200,16 @@ class GameEngine(
         hatStartOfRoundHolderId = hatHolderId
 
         val starterId = players[starterIndex].id
+        // “Start because you have the Hat” means starter == hatHolder AND hatHolder exists
+        startedRoundBecauseHat = (hatHolderId != null && starterId == hatHolderId)
+
         turnOrder = buildTurnOrderFromStarter()
         turnCursor = 0
 
         selectionsThisRound[HUMAN_ID] = humanChoice
+        gameHumanChoicesUsed += humanChoice
+        if (humanChoice == 3) gameHumanEverChose3 = true
+
         for (pid in 2..13) {
             val arch = archetypeById[pid]!!
             val mem = memById.getOrPut(pid) { BotMemory() }
@@ -203,6 +251,7 @@ class GameEngine(
         if (actorId != HUMAN_ID) return snapshot()
 
         if (targetId == null) {
+            gameHumanPassedAtLeastOnce = true
             queuePass(actorId = HUMAN_ID)
         } else {
             val validTargets = targetableIdsForHuman()
@@ -211,6 +260,10 @@ class GameEngine(
                 return snapshot()
             }
             val g = guess ?: 1
+
+            gameHumanMadeGuess = true
+            gameHumanGuessesUsed += g
+
             queueGuess(actorId = HUMAN_ID, targetId = targetId, guess = g)
         }
 
@@ -305,6 +358,9 @@ class GameEngine(
         attacksThisRound[actorId] = targetId
         passStreaks[actorId] = 0
 
+        // Track “ghost cup” condition (human must never be targeted)
+        if (targetId == HUMAN_ID) gameHumanWasTargeted = true
+
         enqueueOther {
             log += RoundLogEvent("${displayNameFor(actorId)} targets ${displayNameFor(targetId)} and guesses $guess.")
         }
@@ -323,6 +379,7 @@ class GameEngine(
             val target = players.first { it.id == targetId }
             val actual = revealedThisRound[targetId]!!
 
+            // Per-guess achievement stats (persistent counters)
             if (actorId == HUMAN_ID) {
                 statsStore?.let { store ->
                     val s = store.load()
@@ -331,22 +388,71 @@ class GameEngine(
                     if (actual == 0 && guess != 0) s.timesTrickedByZero += 1
                     store.save(s)
                 }
-                if (guess != actual) gameWrongGuesses += 1
             }
 
+            // Track “you tricked a bot with your 0”
+            // (bot guessed you, you revealed 0, they guessed non-zero)
+            if (targetId == HUMAN_ID && actual == 0 && guess != 0) {
+                gameHumanTrickedBotWithZero = true
+            }
+
+            // Resolve guess outcome
             if (guess == actual) {
                 actor.marbles += guess
                 log += RoundLogEvent("${displayNameFor(actorId)} was correct and gains $guess.")
+
+                // Human-specific correct streak tracking + special achievements
+                if (actorId == HUMAN_ID) {
+                    humanCorrectGuessStreak += 1
+
+                    // Dumb Luck: correctly guess a 3 in round 1
+                    if (!unlockedDumbLuckThisGame && roundNumber == 1 && guess == 3) {
+                        unlockedDumbLuckThisGame = true
+                    }
+
+                    // On a Roll: 3 correct guesses in a row
+                    if (!unlockedOnARollThisGame && humanCorrectGuessStreak >= 3) {
+                        unlockedOnARollThisGame = true
+                    }
+
+                    // Shakespeare tracking: correct guess on Romeo/Juliet
+                    val arch = archetypeById[targetId]
+                    if (arch is Colluder) {
+                        when (arch.displayName) {
+                            "Romeo" -> gameHumanCorrectRomeo = true
+                            "Juliet" -> gameHumanCorrectJuliet = true
+                        }
+                    }
+
+                    // Caught the Strobe / Pushover tracking (correctly guess their 3)
+                    val targArch = archetypeById[targetId]
+                    if (guess == 3 && actual == 3) {
+                        if (targArch is Strobe) strobeCorrect3Count += 1
+                        if (targArch is ThreePusher) threePusherCorrect3Count += 1
+                    }
+                }
+
                 return@enqueueOther
+            }
+
+            // Wrong guess resets human streak
+            if (actorId == HUMAN_ID) {
+                humanCorrectGuessStreak = 0
             }
 
             if (actual == 0) {
                 if (actor.marbles > 0) actor.marbles -= 1
                 hatHolderId = actorId
                 log += RoundLogEvent("${displayNameFor(actorId)} was wrong on a 0, loses 1 (HAT → ${displayNameFor(actorId)}).")
+
+                if (actorId == HUMAN_ID && guess != 0) {
+                    gameWrongGuesses += 1
+                    gameHumanWasTrickedByZero = true
+                }
             } else {
                 target.marbles += actual
                 log += RoundLogEvent("${displayNameFor(actorId)} was wrong — ${displayNameFor(targetId)} gains $actual.")
+                if (actorId == HUMAN_ID) gameWrongGuesses += 1
             }
         }
     }
@@ -393,17 +499,204 @@ class GameEngine(
                     val humanFinal = players.first { it.id == HUMAN_ID }.marbles
                     val humanWon = winnerIds.contains(HUMAN_ID)
 
+                    // --- CORE TOTAL UPDATES ---
                     s.totalGames += 1
+
+                    // First game completed
+                    if (!s.firstGameCompleted) {
+                        s.firstGameCompleted = true
+                        log += RoundLogEvent("*** Achievement Unlocked: First Drip - Completed a game! ***")
+                    }
+
+                    // Pacifist GAME: complete a game with no guesses (win or lose)
+                    if (!s.pacifistGame && !gameHumanMadeGuess) {
+                        s.pacifistGame = true
+                        log += RoundLogEvent("*** Achievement Unlocked: Pacifist (Game) - Finished a game without guessing! ***")
+                    }
+
+                    // Round milestone: reached round 7 (win or lose)
+                    if (!s.reachedRound7 && gameRoundReached >= 7) {
+                        s.reachedRound7 = true
+                        log += RoundLogEvent("*** Achievement Unlocked: Seventh Wave - Reached round 7! ***")
+                    }
+
+                    // Zero chain (win or lose)
+                    if (gameHumanWasTrickedByZero && !s.firstTheFool) {
+                        s.firstTheFool = true
+                        log += RoundLogEvent("*** Achievement Unlocked: The Fool - Got tricked by a 0! ***")
+                    }
+
+                    if (gameHumanTrickedBotWithZero && !s.firstZeroTrap) {
+                        s.firstZeroTrap = true
+                        log += RoundLogEvent("*** Achievement Unlocked: Zero Trap - Tricked a bot with your 0! ***")
+                    }
+
+                    if (!s.zeroHeroUnlocked && s.firstTheFool && s.firstZeroTrap) {
+                        s.zeroHeroUnlocked = true
+                        log += RoundLogEvent("*** Achievement Unlocked: Zero Hero - Fool + Trap achieved! ***")
+                    }
+
+                    // New: On a Roll (win or lose)
+                    if (!s.onARoll && unlockedOnARollThisGame) {
+                        s.onARoll = true
+                        log += RoundLogEvent("*** Achievement Unlocked: On a Roll - 3 correct guesses in a row! ***")
+                    }
+
+                    // New: Dumb Luck (win or lose)
+                    if (!s.dumbLuck && unlockedDumbLuckThisGame) {
+                        s.dumbLuck = true
+                        log += RoundLogEvent("*** Achievement Unlocked: Dumb Luck - Correctly guessed a 3 in round 1! ***")
+                    }
+
                     if (humanWon) s.totalWins += 1
                     s.totalMarblesAcrossGames += humanFinal.toLong()
 
-                    // FIX: perfect game requires WIN + 0 wrong guesses
-                    if (humanWon && gameWrongGuesses == 0) s.perfectGames += 1
+                    // --- WIN-ONLY ACHIEVEMENTS / MILESTONES ---
+                    if (humanWon) {
+                        if (!s.firstWin) {
+                            s.firstWin = true
+                            log += RoundLogEvent("*** Achievement Unlocked: First Flood - Won a game! ***")
+                        }
 
+                        // Pacifist WIN: win without guessing
+                        if (!s.pacifistWin && !gameHumanMadeGuess) {
+                            s.pacifistWin = true
+                            log += RoundLogEvent("*** Achievement Unlocked: Pacifist - Won without guessing! ***")
+                        }
+
+                        if (!s.won13thGame && s.totalWins >= 13) {
+                            s.won13thGame = true
+                            log += RoundLogEvent("*** Achievement Unlocked: 13-Drop Streak - Won your 13th game! ***")
+                        }
+
+                        if (!s.won113thGame && s.totalWins >= 113) {
+                            s.won113thGame = true
+                            log += RoundLogEvent("*** Achievement Unlocked: Century+13 Flood - Won your 113th game! ***")
+                        }
+
+                        // Perfect win (WIN + 0 wrong guesses)
+                        if (gameWrongGuesses == 0) {
+                            s.perfectGames += 1
+                            if (!s.firstPerfectWin) {
+                                s.firstPerfectWin = true
+                                log += RoundLogEvent("*** Achievement Unlocked: Perfect Pour - Win with 0 wrong guesses! ***")
+                            }
+                        }
+
+                        if (!s.wonWith18Marbles && humanFinal == 18) {
+                            s.wonWith18Marbles = true
+                            log += RoundLogEvent("*** Achievement Unlocked: 18-Marble Miracle - Win with exactly 18! ***")
+                        }
+
+                        // Difficulty-specific
+                        when (difficulty) {
+                            Difficulty.EASY -> {
+                                if (!s.wonEasy) s.wonEasy = true
+                                s.easyWins += 1
+                            }
+                            Difficulty.NORMAL -> {
+                                if (!s.wonNormal) s.wonNormal = true
+                                s.normalWins += 1
+                            }
+                            Difficulty.HARD -> {
+                                if (!s.wonHard) s.wonHard = true
+                                s.hardWins += 1
+                            }
+                        }
+
+                        // New: Dry Season (win without ever choosing 3)
+                        if (!s.drySeasonWin && !gameHumanEverChose3) {
+                            s.drySeasonWin = true
+                            log += RoundLogEvent("*** Achievement Unlocked: Dry Season - Won without ever choosing 3! ***")
+                        }
+
+                        // New: Ghost Cup (win without being targeted)
+                        if (!s.ghostCupWin && !gameHumanWasTargeted) {
+                            s.ghostCupWin = true
+                            log += RoundLogEvent("*** Achievement Unlocked: Ghost Cup - Won without being targeted! ***")
+                        }
+
+                        // New: Hat Finisher (win in a round you started because you had the Hat)
+                        if (!s.hatFinisher && startedRoundBecauseHat && hatHolderId == HUMAN_ID) {
+                            s.hatFinisher = true
+                            log += RoundLogEvent("*** Achievement Unlocked: Hat Finisher - Won after starting with the Hat! ***")
+                        }
+
+                        // New: Caught the Strobe (guess Strobe's 3 twice)
+                        if (!s.caughtTheStrobe && strobeCorrect3Count >= 2) {
+                            s.caughtTheStrobe = true
+                            log += RoundLogEvent("*** Achievement Unlocked: Caught the Strobe - Correctly guessed Strobe's 3 twice! ***")
+                        }
+
+                        // New: Pushover (guess Three-Pusher's 3 four times)
+                        if (!s.pushover && threePusherCorrect3Count >= 4) {
+                            s.pushover = true
+                            log += RoundLogEvent("*** Achievement Unlocked: Pushover - Correctly guessed Three-Pusher's 3 four times! ***")
+                        }
+
+                        // Just Press Everything (WIN): used 0/1/3, passed at least once, guessed both 1 and 3
+                        val didChoices = gameHumanChoicesUsed.containsAll(setOf(0, 1, 3))
+                        val didPass = gameHumanPassedAtLeastOnce
+                        val didGuesses = gameHumanGuessesUsed.containsAll(setOf(1, 3))
+                        if (!s.justPressEverythingWin && didChoices && didPass && didGuesses) {
+                            s.justPressEverythingWin = true
+                            log += RoundLogEvent("*** Achievement Unlocked: Just Press Everything - You tried it all! ***")
+                        }
+
+                        // Shakespeare (WIN): if both Romeo & Juliet exist, correctly guess both at least once
+                        val hasRomeo = archetypeById.values.any { it is Colluder && it.displayName == "Romeo" }
+                        val hasJuliet = archetypeById.values.any { it is Colluder && it.displayName == "Juliet" }
+                        if (!s.shakespeareWin && hasRomeo && hasJuliet && gameHumanCorrectRomeo && gameHumanCorrectJuliet) {
+                            s.shakespeareWin = true
+                            log += RoundLogEvent("*** Achievement Unlocked: Shakespeare - Correctly guessed Romeo and Juliet! ***")
+                        }
+                    }
+
+                    // --- PLAY COUNT MILESTONES ---
+                    if (!s.played13Games && s.totalGames >= 13) {
+                        s.played13Games = true
+                        log += RoundLogEvent("*** Achievement Unlocked: 13-Rain Games - Played 13 games! ***")
+                    }
+
+                    if (!s.played113Games && s.totalGames >= 113) {
+                        s.played113Games = true
+                        log += RoundLogEvent("*** Achievement Unlocked: 113-Rain Games - Played 113 games! ***")
+                    }
+
+                    if (!s.played1113Games && s.totalGames >= 1113) {
+                        s.played1113Games = true
+                        log += RoundLogEvent("*** Achievement Unlocked: 1,113-Rain Games - Played 1,113 games! ***")
+                    }
+
+                    // --- MARBLE BUCKETS ---
+                    if (!s.has113MarblesTotal && s.totalMarblesAcrossGames >= 113) {
+                        s.has113MarblesTotal = true
+                        log += RoundLogEvent("*** Achievement Unlocked: 113-Drop Bucket - Total marbles gained reached 113! ***")
+                    }
+
+                    if (!s.has1113MarblesTotal && s.totalMarblesAcrossGames >= 1113) {
+                        s.has1113MarblesTotal = true
+                        log += RoundLogEvent("*** Achievement Unlocked: 1,113-Drop Bucket - Total marbles gained reached 1,113! ***")
+                    }
+
+                    if (!s.has11113MarblesTotal && s.totalMarblesAcrossGames >= 11113) {
+                        s.has11113MarblesTotal = true
+                        log += RoundLogEvent("*** Achievement Unlocked: 11,113-Drop Bucket - Total marbles gained reached 11,113! ***")
+                    }
+
+                    // --- GAME COUNTS BY DIFFICULTY ---
                     when (difficulty) {
-                        Difficulty.EASY -> { s.easyGames += 1; if (humanWon) s.easyWins += 1 }
-                        Difficulty.NORMAL -> { s.normalGames += 1; if (humanWon) s.normalWins += 1 }
-                        Difficulty.HARD -> { s.hardGames += 1; if (humanWon) s.hardWins += 1 }
+                        Difficulty.EASY -> s.easyGames += 1
+                        Difficulty.NORMAL -> s.normalGames += 1
+                        Difficulty.HARD -> s.hardGames += 1
+                    }
+
+                    // Tourist
+                    if (!s.playedAllDifficulties &&
+                        s.easyGames >= 1 && s.normalGames >= 1 && s.hardGames >= 1
+                    ) {
+                        s.playedAllDifficulties = true
+                        log += RoundLogEvent("*** Achievement Unlocked: Tourist - You've played on all difficulties! ***")
                     }
 
                     store.save(s)
@@ -415,7 +708,6 @@ class GameEngine(
             val overrideEligible = (startHolder != endHolder) && (endHolder != null)
 
             roundNumber += 1
-
             starterIndex = if (overrideEligible) indexOfId(endHolder!!) else (starterIndex + 1) % players.size
 
             selectionsThisRound.clear()
@@ -438,34 +730,17 @@ class GameEngine(
         pending.addLast(PendingLog(LogEventKind.OTHER, block))
     }
 
-    // ----------------------------
-    // Archetype assignment (FIXED: colluders not forced, not always paired)
-    // ----------------------------
+    // Archetype assignment (unchanged)
     private fun assignRandomArchetypesToBots() {
         archetypeById.clear()
         memById.clear()
 
         val nonColluderPool: MutableList<Archetype> = mutableListOf(
-            Teacher(),
-            Strobe(),
-            ChaosGrandma(),
-            ThreePusher(),
-            Opportunist(),
-            Avenger(),
-            SpitePlayer(),
-            Accretion(),
-            Auditor(),
-            Kingmaker(),
-            Limper(),
-            Scout(),
-            HatFarmer(),
-            PacifistCollector()
+            Teacher(), Strobe(), ChaosGrandma(), ThreePusher(), Opportunist(),
+            Avenger(), SpitePlayer(), Accretion(), Auditor(), Kingmaker(),
+            Limper(), Scout(), HatFarmer(), PacifistCollector()
         )
 
-        // Decide colluder presence:
-        //  - 45%: none
-        //  - 30%: single (random Romeo/Juliet)
-        //  - 25%: both
         val roll = rng.nextInt(100)
         val includeBoth = roll >= 75
         val includeSingle = roll in 45..74
@@ -480,14 +755,12 @@ class GameEngine(
         nonColluderPool.shuffle(rng)
         val selected = nonColluderPool.take(neededFromNonColluders).toMutableList()
 
-        // Pick which bot IDs get colluders, if any
         val botIds = (2..13).toMutableList()
         botIds.shuffle(rng)
 
         val colluderIds = botIds.take(colludersToAdd)
         val remainingIds = botIds.drop(colludersToAdd)
 
-        // Create colluder instances with partner wiring if both present.
         val NO_PARTNER = -999
 
         if (colludersToAdd == 1) {
@@ -506,7 +779,6 @@ class GameEngine(
             memById[b] = BotMemory()
         }
 
-        // Assign remaining archetypes randomly to remaining bot IDs
         selected.shuffle(rng)
         for (i in remainingIds.indices) {
             val pid = remainingIds[i]
