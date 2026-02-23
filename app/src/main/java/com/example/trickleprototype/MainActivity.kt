@@ -28,6 +28,8 @@ import androidx.compose.ui.window.DialogProperties
 import kotlinx.coroutines.delay
 import kotlin.random.Random
 import com.example.trickleprototype.ui.theme.TricklePrototypeTheme
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 
 /**
  * Title color logic (per MENU VISIT):
@@ -115,7 +117,9 @@ private fun TrickleApp() {
 
     var choice by remember { mutableIntStateOf(1) }
     var targetId by remember { mutableStateOf<Int?>(null) }
-    var guess by remember { mutableIntStateOf(1) }
+    var guess by remember { mutableIntStateOf(3) }
+
+    var dieButtonsEnabled by remember { mutableStateOf(true) }
 
     var lastResult by remember { mutableStateOf<RoundResult?>(null) }
     var logText by remember { mutableStateOf("") }
@@ -131,6 +135,10 @@ private fun TrickleApp() {
 
     // TURBO
     var turbo by remember { mutableStateOf(false) }
+
+    // Picked only when switching ON
+    var turboOnColor by remember { mutableStateOf(Color.Red) }
+    val turboPalette = remember { listOf(Color.Red, Color.Yellow, Color.Blue) }
 
     // increments every time we return to main menu
     var menuVisitKey by remember { mutableIntStateOf(0) }
@@ -209,18 +217,63 @@ private fun TrickleApp() {
     ) {
         // Header: title truly centered, turbo pinned right
         Box(modifier = Modifier.fillMaxWidth()) {
+
+            // Main Menu moved here (top-left) to avoid accidental taps near the bottom controls
+            if (difficulty != null) {
+                TextButton(
+                    onClick = {
+                        engine.reset()
+                        // ✅ FIX: defensive re-attach (future-proof)
+                        engine.attachStatsStore(statsStore)
+
+                        difficulty = null
+                        lastResult = null
+                        logText = ""
+
+                        choice = 1
+                        targetId = null
+                        guess = 3
+
+                        humanActionLocked = false
+                        startLocked = false
+                    },
+                    modifier = Modifier.align(Alignment.CenterStart)
+                ) {
+                    Text(text = if (gameOver) "New Game" else "Main Menu", maxLines = 1)
+                }
+            }
+
             CyclingFadingColorTitle(
                 menuVisitKey = menuVisitKey,
                 modifier = Modifier.align(Alignment.Center)
             )
 
-            TextButton(
-                onClick = { turbo = !turbo },
-                modifier = Modifier.align(Alignment.CenterEnd)
+            val turboContainerColor = if (turbo) turboOnColor else Color(0xFF6A6A6A)
+            val turboContentColor = if (turbo && turboOnColor == Color.Yellow) Color.Black else Color.White
+
+            Button(
+                onClick = {
+                    // Only re-roll color when turning ON
+                    if (!turbo) {
+                        turboOnColor = turboPalette[Random.nextInt(turboPalette.size)]
+                    }
+                    turbo = !turbo
+                },
+                modifier = Modifier
+                    .align(Alignment.CenterEnd)
+                    .height(40.dp)
+                    .widthIn(min = 130.dp),
+                shape = RoundedCornerShape(8.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = turboContainerColor,
+                    contentColor = turboContentColor
+                ),
+                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
             ) {
                 Text(
                     text = if (turbo) "TURBO: ON" else "TURBO: OFF",
-                    maxLines = 1
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
             }
         }
@@ -244,7 +297,7 @@ private fun TrickleApp() {
 
                     choice = 1
                     targetId = null
-                    guess = 1
+                    guess = 3
                 }
             )
 
@@ -281,7 +334,7 @@ private fun TrickleApp() {
 
                 Text("Your choice:", style = MaterialTheme.typography.bodyMedium)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    val dieEnabled = !gameOver && !startLocked
+                    val dieEnabled = !gameOver && !startLocked && (phase == EnginePhase.SELECT)
                     SmallChoiceButton("0", selected = (choice == 0), enabled = dieEnabled) { choice = 0 }
                     SmallChoiceButton("1", selected = (choice == 1), enabled = dieEnabled) { choice = 1 }
                     SmallChoiceButton("3", selected = (choice == 3), enabled = dieEnabled) { choice = 3 }
@@ -389,28 +442,6 @@ private fun TrickleApp() {
                             }
                         }
                     ) { OneLineButtonText(leftLabel) }
-
-                    Button(
-                        modifier = Modifier
-                            .weight(1f)
-                            .heightIn(min = 48.dp),
-                        onClick = {
-                            engine.reset()
-                            // ✅ FIX: defensive re-attach (future-proof)
-                            engine.attachStatsStore(statsStore)
-
-                            difficulty = null
-                            lastResult = null
-                            logText = ""
-
-                            choice = 1
-                            targetId = null
-                            guess = 1
-
-                            humanActionLocked = false
-                            startLocked = false
-                        }
-                    ) { OneLineButtonText(if (gameOver) "New Game" else "Main Menu") }
                 }
             }
 
@@ -452,8 +483,17 @@ private fun MenuLinkButton(text: String, onClick: () -> Unit) {
         else -> Color.Gray
     }
 
+    val interactionSource = remember { MutableInteractionSource() }
+    val pressed by interactionSource.collectIsPressedAsState()
+
+    val containerColor by animateColorAsState(
+        targetValue = if (pressed) borderColor.copy(alpha = 0.35f) else Color.Black,
+        label = "menuButtonBg"
+    )
+
     OutlinedButton(
         onClick = onClick,
+        interactionSource = interactionSource,
         modifier = Modifier
             .fillMaxWidth()
             .widthIn(max = 360.dp)
@@ -461,7 +501,7 @@ private fun MenuLinkButton(text: String, onClick: () -> Unit) {
         shape = RoundedCornerShape(28.dp),
         border = BorderStroke(3.dp, borderColor),
         colors = ButtonDefaults.outlinedButtonColors(
-            containerColor = Color.Black,
+            containerColor = containerColor,
             contentColor = Color.White
         ),
         contentPadding = PaddingValues(vertical = 18.dp, horizontal = 24.dp)
@@ -903,9 +943,12 @@ private fun TargetDropdown(
                 .widthIn(min = 160.dp, max = 220.dp)
         )
 
+        val menuMaxHeight = (options.size * 56).dp
+
         ExposedDropdownMenu(
             expanded = expanded && enabled,
-            onDismissRequest = { expanded = false }
+            onDismissRequest = { expanded = false },
+            modifier = Modifier.heightIn(max = menuMaxHeight)
         ) {
             options.forEach { p ->
                 DropdownMenuItem(

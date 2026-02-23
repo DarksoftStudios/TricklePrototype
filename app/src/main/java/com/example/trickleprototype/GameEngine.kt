@@ -519,10 +519,10 @@ class GameEngine(
                             log += RoundLogEvent("*** Achievement Unlocked: Pacifist (Game) - Finished a game without guessing! ***")
                         }
 
-                        // Round milestone: reached round 7 (win or lose)
-                        if (!s.reachedRound7 && gameRoundReached >= 7) {
+                        // Round milestone: reached round 6 (win or lose)
+                        if (!s.reachedRound7 && gameRoundReached >= 6) {
                             s.reachedRound7 = true
-                            log += RoundLogEvent("*** Achievement Unlocked: Seventh Wave - Reached round 7! ***")
+                            log += RoundLogEvent("*** Achievement Unlocked: Idle Hands - Reached round 6! ***")
                         }
 
                         // Zero chain (win or lose)
