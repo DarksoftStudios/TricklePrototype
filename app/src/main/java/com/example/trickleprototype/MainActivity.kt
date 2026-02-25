@@ -1,6 +1,8 @@
 package com.example.trickleprototype
 
 import android.os.Bundle
+import androidx.compose.runtime.LaunchedEffect
+import kotlinx.coroutines.delay
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.animation.animateColorAsState
@@ -31,6 +33,18 @@ import kotlin.random.Random
 import com.example.trickleprototype.ui.theme.TricklePrototypeTheme
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
+import androidx.compose.foundation.Image
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.foundation.background
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.Image
+import androidx.compose.ui.graphics.FilterQuality
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.painter.BitmapPainter
+import androidx.compose.ui.res.imageResource
 
 /**
  * Title color logic (per MENU VISIT):
@@ -444,30 +458,40 @@ private fun TrickleApp() {
         // MENUS
         when (screen) {
             AppScreen.SPLASH -> {
+                LaunchedEffect(Unit) {
+                    delay(3000L)
+                    screen = AppScreen.MAIN_MENU
+                }
                 Box(
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 48.dp)
-                        .height(280.dp),
-                    contentAlignment = Alignment.Center
+                        .fillMaxSize()
+                        .background(Color.Black)              // true black full-screen background
+                        .clickable { screen = AppScreen.MAIN_MENU }, // tap anywhere
+                    contentAlignment = Alignment.Center      // centers the whole splash
                 ) {
-                    Card(
-                        shape = RoundedCornerShape(24.dp),
-                        colors = CardDefaults.cardColors(containerColor = Color(0xFF121212)),
+                    Column(
                         modifier = Modifier
-                            .fillMaxWidth(0.9f)
-                            .wrapContentHeight()
-                            .padding(8.dp)
-                            .clickable { screen = AppScreen.MAIN_MENU }
+                            .wrapContentSize(),
+                        horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        Column(
-                            modifier = Modifier.padding(20.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally
-                        ) {
-                            Text("PRODUCTION STUDIO", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Black)
-                            Spacer(Modifier.height(8.dp))
-                            Text("(Tap anywhere to continue)", style = MaterialTheme.typography.bodySmall)
-                        }
+                        val logoBitmap: ImageBitmap =
+                            ImageBitmap.imageResource(id = R.drawable.darksoft_logo)
+
+                        Image(
+                            painter = BitmapPainter(image = logoBitmap, filterQuality = FilterQuality.None),
+                            contentDescription = "DarkSoft logo",
+                            modifier = Modifier
+                                .size(140.dp)
+                                .padding(),
+                            contentScale = ContentScale.Fit
+                        )
+
+                        Text(
+                            "Darksoft  Game Studios",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Black
+                        )
+                        Spacer(Modifier.height(8.dp))
                     }
                 }
                 return@Column
