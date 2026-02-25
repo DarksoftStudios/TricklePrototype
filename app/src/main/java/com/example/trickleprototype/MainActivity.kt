@@ -101,6 +101,8 @@ class MainActivity : ComponentActivity() {
     }
 }
 
+
+
 @Composable
 private fun TrickleApp() {
     val engine = remember { GameEngine() }
@@ -137,9 +139,14 @@ private fun TrickleApp() {
     var turbo by remember { mutableStateOf(false) }
 
     // Picked only when switching ON
-    var turboOnColor by remember { mutableStateOf(Color.Red) }
-    val turboPalette = remember { listOf(Color.Red, Color.Yellow, Color.Blue) }
-
+    var turboOnColor by remember { mutableStateOf(Color(0xFFB71C1C)) } // dark red
+    val turboPalette = remember {
+        listOf(
+            Color(0xFFB71C1C), // dark red
+            Color(0xFFF57F17), // dark amber (reads as "yellow" but not neon)
+            Color(0xFF0D47A1)  // dark blue
+        )
+    }
     // increments every time we return to main menu
     var menuVisitKey by remember { mutableIntStateOf(0) }
     LaunchedEffect(difficulty) {
@@ -220,10 +227,9 @@ private fun TrickleApp() {
 
             // Main Menu moved here (top-left) to avoid accidental taps near the bottom controls
             if (difficulty != null) {
-                TextButton(
+                Button(
                     onClick = {
                         engine.reset()
-                        // ✅ FIX: defensive re-attach (future-proof)
                         engine.attachStatsStore(statsStore)
 
                         difficulty = null
@@ -237,7 +243,13 @@ private fun TrickleApp() {
                         humanActionLocked = false
                         startLocked = false
                     },
-                    modifier = Modifier.align(Alignment.CenterStart)
+                    modifier = Modifier.align(Alignment.CenterStart),
+                    shape = RoundedCornerShape(8.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFF6A6A6A),
+                        contentColor = Color.White
+                    ),
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
                 ) {
                     Text(text = if (gameOver) "New Game" else "Main Menu", maxLines = 1)
                 }
@@ -282,37 +294,62 @@ private fun TrickleApp() {
 
         // MAIN MENU
         if (difficulty == null) {
-            DifficultyDropdownNullable(
-                selected = null,
-                onSelect = {
-                    difficulty = it
-                    engine.setDifficulty(it)
+            val stats = statsStore.load()
+            val normalUnlocked = stats.easyGames > 0
+            val hardUnlocked = stats.normalWins > 0
 
-                    val snap = engineSnapshot(engine)
-                    lastResult = snap
-                    logText = buildLogText(snap)
+            val menuScroll = rememberScrollState()
 
-                    humanActionLocked = false
-                    startLocked = false
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(menuScroll),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                DifficultyDropdownNullable(
+                    selected = null,
+                    normalUnlocked = normalUnlocked,
+                    hardUnlocked = hardUnlocked,
+                    onSelect = { picked ->
+                        val allowed = when (picked) {
+                            Difficulty.EASY -> true
+                            Difficulty.NORMAL -> normalUnlocked
+                            Difficulty.HARD -> hardUnlocked
+                        }
+                        if (!allowed) return@DifficultyDropdownNullable
 
-                    choice = 1
-                    targetId = null
-                    guess = 3
-                }
-            )
+                        difficulty = picked
+                        engine.setDifficulty(picked)
 
-            Spacer(Modifier.height(8.dp))
-            Text("(Pick a difficulty to begin.)", style = MaterialTheme.typography.bodySmall)
+                        val snap = engineSnapshot(engine)
+                        lastResult = snap
+                        logText = buildLogText(snap)
 
-            Spacer(Modifier.height(12.dp))
+                        humanActionLocked = false
+                        startLocked = false
 
-            MenuLinkButton(text = "HOW TO PLAY") { showHowToPlay = true }
-            Spacer(Modifier.height(10.dp))
-            MenuLinkButton(text = "ADVANCED TIPS") { showTips = true }
-            Spacer(Modifier.height(10.dp))
-            MenuLinkButton(text = "ARCHETYPES") { showArchetypes = true }
-            Spacer(Modifier.height(10.dp))
-            MenuLinkButton(text = "PLAYER STATS") { showStats = true }
+                        choice = 1
+                        targetId = null
+                        guess = 3
+                    }
+                )
+
+                Spacer(Modifier.height(8.dp))
+                Text("(Pick a difficulty to begin.)", style = MaterialTheme.typography.bodySmall)
+
+                Spacer(Modifier.height(12.dp))
+
+                MenuLinkButton(text = "HOW TO PLAY") { showHowToPlay = true }
+                Spacer(Modifier.height(10.dp))
+                MenuLinkButton(text = "ADVANCED TIPS") { showTips = true }
+                Spacer(Modifier.height(10.dp))
+                MenuLinkButton(text = "ARCHETYPES") { showArchetypes = true }
+                Spacer(Modifier.height(10.dp))
+                MenuLinkButton(text = "PLAYER STATS") { showStats = true }
+
+                // little bottom padding so the last button never gets clipped
+                Spacer(Modifier.height(24.dp))
+            }
 
             return@Column
         }
@@ -681,7 +718,7 @@ private fun ArchetypesText() {
                 "Romeo (Colluder):\n" +
                 "• His eyes are on the prize(and on Juliet, of course)\n" +
                 "• Chooses: 1 or 3\n" +
-                "• Targeting Behavior: Juliet is safe, every else is a target\n\n" +
+                "• Targeting Behavior: Juliet is safe, everyone else is a target\n\n" +
                 "Scout:\n" +
                 "• Will gladly be the first to act\n" +
                 "• Chooses: 1 or 3.\n" +
@@ -936,7 +973,7 @@ private fun TargetDropdown(
             onValueChange = {},
             readOnly = true,
             enabled = enabled,
-            label = { Text("Player targets") },
+            label = { Text("You target") },
             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
             modifier = Modifier
                 .menuAnchor()
@@ -967,6 +1004,8 @@ private fun TargetDropdown(
 @Composable
 private fun DifficultyDropdownNullable(
     selected: Difficulty?,
+    normalUnlocked: Boolean,
+    hardUnlocked: Boolean,
     onSelect: (Difficulty) -> Unit
 ) {
     var expanded by remember { mutableStateOf(false) }
@@ -1001,10 +1040,12 @@ private fun DifficultyDropdownNullable(
             )
             DropdownMenuItem(
                 text = { Text("Normal (hide archetypes and scores)") },
+                enabled = normalUnlocked,
                 onClick = { onSelect(Difficulty.NORMAL); expanded = false }
             )
             DropdownMenuItem(
                 text = { Text("Hard (bots block your win)") },
+                enabled = hardUnlocked,
                 onClick = { onSelect(Difficulty.HARD); expanded = false }
             )
         }
