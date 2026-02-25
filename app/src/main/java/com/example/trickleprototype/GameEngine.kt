@@ -398,8 +398,17 @@ class GameEngine(
 
             // Resolve guess outcome
             if (guess == actual) {
-                actor.marbles += guess
-                log += RoundLogEvent("${displayNameFor(actorId)} was correct and gains $guess.")
+
+                // ✅ Special Zero Hero reward: correct 0 guess takes the Hat and avoids the usual “guess cost”
+                // (There is no explicit guess-cost elsewhere in this engine right now, but this makes the
+                // reward concrete + adds Hat control as you described.)
+                if (guess == 0) {
+                    hatHolderId = actorId
+                    log += RoundLogEvent("${displayNameFor(actorId)} nailed a 0 and takes the Hat.")
+                } else {
+                    actor.marbles += guess
+                    log += RoundLogEvent("${displayNameFor(actorId)} was correct and gains $guess.")
+                }
 
                 // Human-specific correct streak tracking + special achievements
                 if (actorId == HUMAN_ID) {

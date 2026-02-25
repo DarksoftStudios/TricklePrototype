@@ -52,7 +52,7 @@ data class PlayerStats(
     var playedAllDifficulties: Boolean = false,  // Tourist
 
     // Zero chain
-    var firstTheFool: Boolean = false,          // guessed wrong on bot's zero
+    var firstTheFool: Boolean = true,          // guessed wrong on bot's zero
     var firstZeroTrap: Boolean = false,         // tricked bot with your zero
     var zeroHeroUnlocked: Boolean = false,      // both above true
 

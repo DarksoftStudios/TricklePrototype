@@ -101,7 +101,35 @@ class MainActivity : ComponentActivity() {
     }
 }
 
+private data class AchievementPopup(
+    val title: String,
+    val desc: String
+)
 
+private fun parseAchievementPopup(line: String): AchievementPopup? {
+    val marker = "Achievement Unlocked:"
+    val idx = line.indexOf(marker)
+    if (idx == -1) return null
+
+    // Take everything after the marker
+    val payload = line.substring(idx + marker.length)
+        .trim()
+        .trim('*')
+        .trim()
+
+    // Split into title + desc
+    val parts = payload.split(" - ", limit = 2)
+
+    val rawTitle = parts.getOrNull(0) ?: return null
+    val rawDesc  = parts.getOrNull(1) ?: ""
+
+    val title = rawTitle.trim().trim('*').trim()
+    val desc  = rawDesc.trim().trim('*').trim()
+
+    if (title.isBlank()) return null
+
+    return AchievementPopup(title = title, desc = desc)
+}
 
 @Composable
 private fun TrickleApp() {
@@ -125,6 +153,40 @@ private fun TrickleApp() {
 
     var lastResult by remember { mutableStateOf<RoundResult?>(null) }
     var logText by remember { mutableStateOf("") }
+
+    // Achievement popups
+    var achievementQueue by remember { mutableStateOf<List<AchievementPopup>>(emptyList()) }
+    var activeAchievement by remember { mutableStateOf<AchievementPopup?>(null) }
+
+// must be above LaunchedEffect or it won't exist yet
+    val seenAchievements = remember { mutableSetOf<String>() }
+
+    LaunchedEffect(lastResult) {
+        val result = lastResult ?: return@LaunchedEffect
+
+        val newlyParsed = result.log
+            .mapNotNull { parseAchievementPopup(it.text) }
+            .filter { popup ->
+                // Use title as the de-dupe key (simple + works with your current strings)
+                if (seenAchievements.contains(popup.title)) false
+                else {
+                    seenAchievements.add(popup.title)
+                    true
+                }
+            }
+
+        if (newlyParsed.isNotEmpty()) {
+            // Append to queue
+            achievementQueue = achievementQueue + newlyParsed
+
+            // If nothing is showing, show the next one immediately
+            if (activeAchievement == null) {
+                activeAchievement = achievementQueue.firstOrNull()
+                achievementQueue = achievementQueue.drop(1)
+            }
+        }
+    }
+
 
     var showHowToPlay by remember { mutableStateOf(false) }
     var showTips by remember { mutableStateOf(false) }
@@ -287,6 +349,68 @@ private fun TrickleApp() {
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
+                if (activeAchievement != null) {
+                    AlertDialog(
+                        onDismissRequest = {
+                            activeAchievement = achievementQueue.firstOrNull()
+                            achievementQueue = achievementQueue.drop(1)
+                        },
+                        confirmButton = {
+                            TextButton(
+                                onClick = {
+                                    activeAchievement = achievementQueue.firstOrNull()
+                                    achievementQueue = achievementQueue.drop(1)
+                                }
+                            ) {
+                                Text(
+                                    "NICE",
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        },
+                        title = null,
+                        text = {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 12.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+
+                                Text(
+                                    text = "✨ ACHIEVEMENT UNLOCKED ✨",
+                                    fontSize = 14.sp,
+                                    letterSpacing = 2.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFFFFD60A)
+                                )
+
+                                Spacer(Modifier.height(16.dp))
+
+                                Text(
+                                    text = activeAchievement!!.title,
+                                    fontSize = 24.sp,
+                                    fontWeight = FontWeight.Black,
+                                    textAlign = TextAlign.Center
+                                )
+
+                                if (activeAchievement!!.desc.isNotBlank()) {
+                                    Spacer(Modifier.height(12.dp))
+
+                                    Text(
+                                        text = activeAchievement!!.desc,
+                                        fontSize = 16.sp,
+                                        textAlign = TextAlign.Center,
+                                        color = Color.LightGray
+                                    )
+                                }
+                            }
+                        },
+                        shape = RoundedCornerShape(24.dp),
+                        containerColor = Color(0xFF121212),
+                        tonalElevation = 8.dp
+                    )
+                }
             }
         }
 
@@ -418,7 +542,13 @@ private fun TrickleApp() {
                 Spacer(Modifier.height(10.dp))
 
                 Text("Your guess:", style = MaterialTheme.typography.bodyMedium)
+
+                val zeroGuessUnlocked = statsStore.load().zeroHeroUnlocked
+
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    if (zeroGuessUnlocked) {
+                        SmallChoiceButton("0", selected = (guess == 0), enabled = inputsEnabled) { guess = 0 }
+                    }
                     SmallChoiceButton("1", selected = (guess == 1), enabled = inputsEnabled) { guess = 1 }
                     SmallChoiceButton("3", selected = (guess == 3), enabled = inputsEnabled) { guess = 3 }
                 }
@@ -523,8 +653,9 @@ private fun MenuLinkButton(text: String, onClick: () -> Unit) {
     val interactionSource = remember { MutableInteractionSource() }
     val pressed by interactionSource.collectIsPressedAsState()
 
+    // Keep background mostly black for readability; add only a subtle color tint when pressed.
     val containerColor by animateColorAsState(
-        targetValue = if (pressed) borderColor.copy(alpha = 0.35f) else Color.Black,
+        targetValue = if (pressed) borderColor.copy(alpha = 0.18f) else Color.Black,
         label = "menuButtonBg"
     )
 
@@ -539,7 +670,8 @@ private fun MenuLinkButton(text: String, onClick: () -> Unit) {
         border = BorderStroke(3.dp, borderColor),
         colors = ButtonDefaults.outlinedButtonColors(
             containerColor = containerColor,
-            contentColor = Color.White
+            // ✅ Text now matches the button’s color (same as border).
+            contentColor = borderColor
         ),
         contentPadding = PaddingValues(vertical = 18.dp, horizontal = 24.dp)
     ) {
