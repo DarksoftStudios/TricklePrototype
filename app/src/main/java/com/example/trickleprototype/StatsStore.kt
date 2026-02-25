@@ -42,7 +42,7 @@ data class PlayerStats(
 
     // Special wins & events
     var firstPerfectWin: Boolean = false,
-    var reachedRound7: Boolean = false,
+    var reachedRound6: Boolean = false,
     var wonWith18Marbles: Boolean = false,
 
     // Difficulty-specific
@@ -78,6 +78,26 @@ data class PlayerStats(
 class StatsStore(context: Context) {
     private val prefs = context.getSharedPreferences("trickle_stats", Context.MODE_PRIVATE)
 
+
+    private companion object {
+        const val KEY_PLAYER_NAME = "player_name"
+    }
+
+    fun getPlayerName(): String {
+        val raw = prefs.getString(KEY_PLAYER_NAME, null)?.trim().orEmpty()
+        return if (raw.isBlank()) "You" else raw
+    }
+
+    fun setPlayerName(name: String) {
+        val cleaned = name.trim()
+        prefs.edit().putString(KEY_PLAYER_NAME, cleaned).apply()
+    }
+
+    fun resetAll() {
+        // Clears stats + any saved name (name will fall back to "You")
+        prefs.edit().clear().apply()
+    }
+
     fun load(): PlayerStats {
         return PlayerStats(
             totalGames = prefs.getInt("totalGames", 0),
@@ -112,7 +132,7 @@ class StatsStore(context: Context) {
             has11113MarblesTotal = prefs.getBoolean("has11113MarblesTotal", false),
 
             firstPerfectWin = prefs.getBoolean("firstPerfectWin", false),
-            reachedRound7 = prefs.getBoolean("reachedRound7", false),
+            reachedRound6 = prefs.getBoolean("reachedRound6", false),
             wonWith18Marbles = prefs.getBoolean("wonWith18Marbles", false),
 
             wonEasy = prefs.getBoolean("wonEasy", false),
@@ -174,7 +194,7 @@ class StatsStore(context: Context) {
             .putBoolean("has11113MarblesTotal", stats.has11113MarblesTotal)
 
             .putBoolean("firstPerfectWin", stats.firstPerfectWin)
-            .putBoolean("reachedRound7", stats.reachedRound7)
+            .putBoolean("reachedRound6", stats.reachedRound6)
             .putBoolean("wonWith18Marbles", stats.wonWith18Marbles)
 
             .putBoolean("wonEasy", stats.wonEasy)

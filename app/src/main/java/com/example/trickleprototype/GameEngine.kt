@@ -4,7 +4,7 @@ import kotlin.random.Random
 
 data class PlayerState(
     val id: Int,
-    val baseName: String,
+    var baseName: String,
     var marbles: Int = 0,
     var revealedChoice: Int? = null
 )
@@ -48,6 +48,13 @@ class GameEngine(
     private val players: MutableList<PlayerState> = mutableListOf<PlayerState>().apply {
         add(PlayerState(HUMAN_ID, "You", marbles = 0))
         for (i in 0 until 12) add(PlayerState(i + 2, botNames[i], marbles = 0))
+    }
+
+
+
+    fun setHumanName(name: String) {
+        val cleaned = name.trim().ifBlank { "You" }
+        players.firstOrNull { it.id == HUMAN_ID }?.baseName = cleaned
     }
 
     private var roundNumber: Int = 1
@@ -200,7 +207,7 @@ class GameEngine(
         hatStartOfRoundHolderId = hatHolderId
 
         val starterId = players[starterIndex].id
-        // “Start because you have the Hat” means starter == hatHolder AND hatHolder exists
+        // â€œStart because you have the Hatâ€ means starter == hatHolder AND hatHolder exists
         startedRoundBecauseHat = (hatHolderId != null && starterId == hatHolderId)
 
         turnOrder = buildTurnOrderFromStarter()
@@ -358,7 +365,7 @@ class GameEngine(
         attacksThisRound[actorId] = targetId
         passStreaks[actorId] = 0
 
-        // Track “ghost cup” condition (human must never be targeted)
+        // Track â€œghost cupâ€ condition (human must never be targeted)
         if (targetId == HUMAN_ID) gameHumanWasTargeted = true
 
         enqueueOther {
@@ -390,7 +397,7 @@ class GameEngine(
                 }
             }
 
-            // Track “you tricked a bot with your 0”
+            // Track â€œyou tricked a bot with your 0â€
             // (bot guessed you, you revealed 0, they guessed non-zero)
             if (targetId == HUMAN_ID && actual == 0 && guess != 0) {
                 gameHumanTrickedBotWithZero = true
@@ -399,7 +406,7 @@ class GameEngine(
             // Resolve guess outcome
             if (guess == actual) {
 
-                // ✅ Special Zero Hero reward: correct 0 guess takes the Hat and avoids the usual “guess cost”
+                // âœ… Special Zero Hero reward: correct 0 guess takes the Hat and avoids the usual â€œguess costâ€
                 // (There is no explicit guess-cost elsewhere in this engine right now, but this makes the
                 // reward concrete + adds Hat control as you described.)
                 if (guess == 0) {
@@ -452,7 +459,7 @@ class GameEngine(
             if (actual == 0) {
                 if (actor.marbles > 0) actor.marbles -= 1
                 hatHolderId = actorId
-                log += RoundLogEvent("${displayNameFor(actorId)} was wrong on a 0, loses 1 (HAT → ${displayNameFor(actorId)}).")
+                log += RoundLogEvent("${displayNameFor(actorId)} was wrong on a 0, loses 1 (HAT â†’ ${displayNameFor(actorId)}).")
 
                 if (actorId == HUMAN_ID && guess != 0) {
                     gameWrongGuesses += 1
@@ -460,7 +467,7 @@ class GameEngine(
                 }
             } else {
                 target.marbles += actual
-                log += RoundLogEvent("${displayNameFor(actorId)} was wrong — ${displayNameFor(targetId)} gains $actual.")
+                log += RoundLogEvent("${displayNameFor(actorId)} was wrong â€” ${displayNameFor(targetId)} gains $actual.")
                 if (actorId == HUMAN_ID) gameWrongGuesses += 1
             }
         }
@@ -537,8 +544,8 @@ class GameEngine(
                         log += RoundLogEvent("*** Achievement Unlocked: Pacifist (Game) - Finished a game without guessing! ***")
                     }
 
-                    if (!s.reachedRound7 && gameRoundReached >= 6) {
-                        s.reachedRound7 = true
+                    if (!s.reachedRound6 && gameRoundReached >= 6) {
+                        s.reachedRound6 = true
                         log += RoundLogEvent("*** Achievement Unlocked: Idle Hands - Reached round 6! ***")
                     }
 

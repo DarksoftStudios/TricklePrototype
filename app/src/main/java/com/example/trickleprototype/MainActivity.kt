@@ -8,6 +8,7 @@ import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -106,6 +107,18 @@ private data class AchievementPopup(
     val desc: String
 )
 
+
+private enum class AppScreen {
+    SPLASH,
+    MAIN_MENU,
+    PLAY,
+    RULES,
+    PROFILE,
+    CUSTOMIZE,
+    SETTINGS,
+    GAME
+}
+
 private fun parseAchievementPopup(line: String): AchievementPopup? {
     val marker = "Achievement Unlocked:"
     val idx = line.indexOf(marker)
@@ -138,7 +151,18 @@ private fun TrickleApp() {
     val appContext = LocalContext.current.applicationContext
     val statsStore = remember { StatsStore(appContext) }
 
-    // ✅ FIX: attach synchronously (no async race)
+
+    var screen by remember { mutableStateOf(AppScreen.SPLASH) }
+
+    // Player identity
+    var playerName by remember { mutableStateOf(statsStore.getPlayerName()) }
+
+    // Keep engine in sync with saved name
+    SideEffect {
+        engine.setHumanName(playerName)
+    }
+
+    // âœ… FIX: attach synchronously (no async race)
     SideEffect {
         engine.attachStatsStore(statsStore)
     }
@@ -295,6 +319,7 @@ private fun TrickleApp() {
                         engine.attachStatsStore(statsStore)
 
                         difficulty = null
+                        screen = AppScreen.MAIN_MENU
                         lastResult = null
                         logText = ""
 
@@ -378,7 +403,7 @@ private fun TrickleApp() {
                             ) {
 
                                 Text(
-                                    text = "✨ ACHIEVEMENT UNLOCKED ✨",
+                                    text = "âœ¨ ACHIEVEMENT UNLOCKED âœ¨",
                                     fontSize = 14.sp,
                                     letterSpacing = 2.sp,
                                     fontWeight = FontWeight.Bold,
@@ -416,69 +441,219 @@ private fun TrickleApp() {
 
         Spacer(Modifier.height(10.dp))
 
-        // MAIN MENU
-        if (difficulty == null) {
-            val stats = statsStore.load()
-            val normalUnlocked = stats.easyGames > 0
-            val hardUnlocked = stats.normalWins > 0
-
-            val menuScroll = rememberScrollState()
-
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .verticalScroll(menuScroll),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                DifficultyDropdownNullable(
-                    selected = null,
-                    normalUnlocked = normalUnlocked,
-                    hardUnlocked = hardUnlocked,
-                    onSelect = { picked ->
-                        val allowed = when (picked) {
-                            Difficulty.EASY -> true
-                            Difficulty.NORMAL -> normalUnlocked
-                            Difficulty.HARD -> hardUnlocked
+        // MENUS
+        when (screen) {
+            AppScreen.SPLASH -> {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 48.dp)
+                        .height(280.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Card(
+                        shape = RoundedCornerShape(24.dp),
+                        colors = CardDefaults.cardColors(containerColor = Color(0xFF121212)),
+                        modifier = Modifier
+                            .fillMaxWidth(0.9f)
+                            .wrapContentHeight()
+                            .padding(8.dp)
+                            .clickable { screen = AppScreen.MAIN_MENU }
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(20.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Text("PRODUCTION STUDIO", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Black)
+                            Spacer(Modifier.height(8.dp))
+                            Text("(Tap anywhere to continue)", style = MaterialTheme.typography.bodySmall)
                         }
-                        if (!allowed) return@DifficultyDropdownNullable
-
-                        difficulty = picked
-                        engine.setDifficulty(picked)
-
-                        val snap = engineSnapshot(engine)
-                        lastResult = snap
-                        logText = buildLogText(snap)
-
-                        humanActionLocked = false
-                        startLocked = false
-
-                        choice = 1
-                        targetId = null
-                        guess = 3
                     }
-                )
-
-                Spacer(Modifier.height(8.dp))
-                Text("(Pick a difficulty to begin.)", style = MaterialTheme.typography.bodySmall)
-
-                Spacer(Modifier.height(12.dp))
-
-                MenuLinkButton(text = "HOW TO PLAY") { showHowToPlay = true }
-                Spacer(Modifier.height(10.dp))
-                MenuLinkButton(text = "ADVANCED TIPS") { showTips = true }
-                Spacer(Modifier.height(10.dp))
-                MenuLinkButton(text = "ARCHETYPES") { showArchetypes = true }
-                Spacer(Modifier.height(10.dp))
-                MenuLinkButton(text = "PLAYER STATS") { showStats = true }
-
-                // little bottom padding so the last button never gets clipped
-                Spacer(Modifier.height(24.dp))
+                }
+                return@Column
             }
 
+            AppScreen.MAIN_MENU -> {
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    MenuLinkButton(text = "PLAY") { screen = AppScreen.PLAY }
+                    Spacer(Modifier.height(10.dp))
+                    MenuLinkButton(text = "RULES") { screen = AppScreen.RULES }
+                    Spacer(Modifier.height(10.dp))
+                    MenuLinkButton(text = "PROFILE") { screen = AppScreen.PROFILE }
+                    Spacer(Modifier.height(10.dp))
+                    MenuLinkButton(text = "SETTINGS") { screen = AppScreen.SETTINGS }
+
+                    Spacer(Modifier.height(24.dp))
+                }
+                return@Column
+            }
+
+            AppScreen.PLAY -> {
+                val stats = statsStore.load()
+                val normalUnlocked = stats.easyGames > 0
+                val hardUnlocked = stats.normalWins > 0
+
+                fun startGame(picked: Difficulty) {
+                    difficulty = picked
+                    engine.setDifficulty(picked)
+
+                    val snap = engineSnapshot(engine)
+                    lastResult = snap
+                    logText = buildLogText(snap)
+
+                    humanActionLocked = false
+                    startLocked = false
+
+                    choice = 1
+                    targetId = null
+                    guess = 3
+
+                    screen = AppScreen.GAME
+                }
+
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    MenuLinkButton(text = "EASY") { startGame(Difficulty.EASY) }
+                    Spacer(Modifier.height(10.dp))
+                    MenuLinkButton(
+                        text = if (normalUnlocked) "NORMAL" else "NORMAL (LOCKED)",
+                        enabled = normalUnlocked
+                    ) { startGame(Difficulty.NORMAL) }
+                    Spacer(Modifier.height(10.dp))
+                    MenuLinkButton(
+                        text = if (hardUnlocked) "HARD" else "HARD (LOCKED)",
+                        enabled = hardUnlocked
+                    ) { startGame(Difficulty.HARD) }
+
+                    Spacer(Modifier.height(16.dp))
+                    MenuLinkButton(text = "BACK") { screen = AppScreen.MAIN_MENU }
+
+                    Spacer(Modifier.height(24.dp))
+                }
+                return@Column
+            }
+
+            AppScreen.RULES -> {
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    MenuLinkButton(text = "HOW TO PLAY") { showHowToPlay = true }
+                    Spacer(Modifier.height(10.dp))
+                    MenuLinkButton(text = "ADVANCED TIPS") { showTips = true }
+                    Spacer(Modifier.height(10.dp))
+                    MenuLinkButton(text = "ARCHETYPES") { showArchetypes = true }
+
+                    Spacer(Modifier.height(16.dp))
+                    MenuLinkButton(text = "BACK") { screen = AppScreen.MAIN_MENU }
+
+                    Spacer(Modifier.height(24.dp))
+                }
+                return@Column
+            }
+
+            AppScreen.PROFILE -> {
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    MenuLinkButton(text = "STATS") { showStats = true }
+                    Spacer(Modifier.height(10.dp))
+                    MenuLinkButton(text = "ACHIEVEMENTS") { showStats = true }
+                    Spacer(Modifier.height(10.dp))
+                    MenuLinkButton(text = "CUSTOMIZE") { screen = AppScreen.CUSTOMIZE }
+
+                    Spacer(Modifier.height(16.dp))
+                    MenuLinkButton(text = "BACK") { screen = AppScreen.MAIN_MENU }
+
+                    Spacer(Modifier.height(24.dp))
+                }
+                return@Column
+            }
+
+            AppScreen.CUSTOMIZE -> {
+                var draftName by remember(playerName) { mutableStateOf(playerName) }
+
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 18.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text("Change Name", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    Spacer(Modifier.height(12.dp))
+
+                    OutlinedTextField(
+                        value = draftName,
+                        onValueChange = { draftName = it },
+                        singleLine = true,
+                        label = { Text("Name") },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    Spacer(Modifier.height(12.dp))
+
+                    Button(
+                        onClick = {
+                            val cleaned = draftName.trim().take(18)
+                            statsStore.setPlayerName(cleaned)
+                            playerName = statsStore.getPlayerName()
+                            engine.setHumanName(playerName)
+                            screen = AppScreen.PROFILE
+                        },
+                        shape = RoundedCornerShape(16.dp)
+                    ) {
+                        Text("Save")
+                    }
+
+                    Spacer(Modifier.height(16.dp))
+                    MenuLinkButton(text = "BACK") { screen = AppScreen.PROFILE }
+
+                    Spacer(Modifier.height(24.dp))
+                }
+                return@Column
+            }
+
+            AppScreen.SETTINGS -> {
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    MenuLinkButton(text = "SOUND (COMING SOON)") { /* placeholder */ }
+                    Spacer(Modifier.height(10.dp))
+                    MenuLinkButton(text = "MUSIC (COMING SOON)") { /* placeholder */ }
+                    Spacer(Modifier.height(10.dp))
+                    MenuLinkButton(text = "RESET STATS") {
+                        statsStore.resetAll()
+                        playerName = statsStore.getPlayerName()
+                        engine.setHumanName(playerName)
+                    }
+
+                    Spacer(Modifier.height(16.dp))
+                    MenuLinkButton(text = "BACK") { screen = AppScreen.MAIN_MENU }
+
+                    Spacer(Modifier.height(24.dp))
+                }
+                return@Column
+            }
+
+            AppScreen.GAME -> {
+                // Fall through to game UI below.
+            }
+        }
+
+        if (difficulty == null) {
+            // Safety: if we somehow got here without a difficulty, send player back.
+            screen = AppScreen.MAIN_MENU
             return@Column
         }
 
-        // GAME SCREEN
+// GAME SCREEN
         val playerScore = players.firstOrNull { it.id == GameEngine.HUMAN_ID }?.marbles ?: 0
         Text("Your marbles: $playerScore", style = MaterialTheme.typography.bodyMedium)
         Spacer(Modifier.height(10.dp))
@@ -562,9 +737,9 @@ private fun TrickleApp() {
                     val leftLabel = when (phase) {
                         EnginePhase.SELECT, EnginePhase.ROUND_END -> "Start Round"
                         EnginePhase.PLAYER_TURN -> "Submit Turn"
-                        EnginePhase.BOT_TURN -> "Bots Acting…"
+                        EnginePhase.BOT_TURN -> "Bots Actingâ€¦"
                         EnginePhase.GAME_OVER -> "Game Over"
-                        EnginePhase.SETUP -> "Setup…"
+                        EnginePhase.SETUP -> "Setupâ€¦"
                     }
 
                     val leftEnabled = when (phase) {
@@ -641,7 +816,7 @@ private fun TrickleApp() {
 }
 
 @Composable
-private fun MenuLinkButton(text: String, onClick: () -> Unit) {
+private fun MenuLinkButton(text: String, enabled: Boolean = true, onClick: () -> Unit) {
     val borderColor = when (text) {
         "HOW TO PLAY" -> Color(0xFFFFFFFF)
         "ADVANCED TIPS" -> Color(0xFFFFD60A)
@@ -661,6 +836,7 @@ private fun MenuLinkButton(text: String, onClick: () -> Unit) {
 
     OutlinedButton(
         onClick = onClick,
+        enabled = enabled,
         interactionSource = interactionSource,
         modifier = Modifier
             .fillMaxWidth()
@@ -670,7 +846,7 @@ private fun MenuLinkButton(text: String, onClick: () -> Unit) {
         border = BorderStroke(3.dp, borderColor),
         colors = ButtonDefaults.outlinedButtonColors(
             containerColor = containerColor,
-            // ✅ Text now matches the button’s color (same as border).
+            // âœ… Text now matches the buttonâ€™s color (same as border).
             contentColor = borderColor
         ),
         contentPadding = PaddingValues(vertical = 18.dp, horizontal = 24.dp)
@@ -789,18 +965,18 @@ private fun HowToPlayText() {
 private fun AdvancedTipsText() {
     Text(
         "GENERAL TIPS:\n" +
-                "• Choosing (3) gains marbles fast, but makes you easy to steal from.\n" +
-                "• Targeting is a great way to gain extra marbles, and enemies!\n" +
-                "• If you're repeatedly targeted, choose a (0) to fight back.\n" +
-                "• At the start of the game, a player is randomly chosen to go first, and normally each round begins with the next player on the list.\n\n" +
+                "â€¢ Choosing (3) gains marbles fast, but makes you easy to steal from.\n" +
+                "â€¢ Targeting is a great way to gain extra marbles, and enemies!\n" +
+                "â€¢ If you're repeatedly targeted, choose a (0) to fight back.\n" +
+                "â€¢ At the start of the game, a player is randomly chosen to go first, and normally each round begins with the next player on the list.\n\n" +
                 "BOTS & ARCHETYPES:\n" +
-                "• Each game, bots are randomly assigned an Archetype.\n" +
-                "• On Easy mode, bots have their names replaced with their Archetype (and you can see their score totals).\n" +
-                "• On Normal mode, bots have their names and scores hidden.\n" +
-                "• On Hard mode, bots will also gang up on you as the finish line approaches.\n\n" +
+                "â€¢ Each game, bots are randomly assigned an Archetype.\n" +
+                "â€¢ On Easy mode, bots have their names replaced with their Archetype (and you can see their score totals).\n" +
+                "â€¢ On Normal mode, bots have their names and scores hidden.\n" +
+                "â€¢ On Hard mode, bots will also gang up on you as the finish line approaches.\n\n" +
                 "JESTER'S HAT RULE:\n" +
-                "• If you guess 1 or 3 on someone who actually chose 0, you lose 1 marble and take the Jester's Hat.\n" +
-                "• Next round, the Hat-holder goes first — BUT only if the Hat ended the round on a different person than it started.\n"
+                "â€¢ If you guess 1 or 3 on someone who actually chose 0, you lose 1 marble and take the Jester's Hat.\n" +
+                "â€¢ Next round, the Hat-holder goes first â€” BUT only if the Hat ended the round on a different person than it started.\n"
     )
 }
 
@@ -808,75 +984,75 @@ private fun AdvancedTipsText() {
 private fun ArchetypesText() {
     Text(
         "Accretion:\n" +
-                "• Starts slow, but ramps up fast\n" +
-                "• Chooses: 1, 1, 3, 3, 3...\n" +
-                "• Targeting Behavior: Passes until the very last moment\n\n" +
+                "â€¢ Starts slow, but ramps up fast\n" +
+                "â€¢ Chooses: 1, 1, 3, 3, 3...\n" +
+                "â€¢ Targeting Behavior: Passes until the very last moment\n\n" +
                 "Avenger:\n" +
-                "• Retaliates against attackers, even if they didn't attack him\n" +
-                "• Chooses: 1 or 3\n" +
-                "• Targeting Behavior: Passes round 1; targets attackers from round 2 on\n\n" +
+                "â€¢ Retaliates against attackers, even if they didn't attack him\n" +
+                "â€¢ Chooses: 1 or 3\n" +
+                "â€¢ Targeting Behavior: Passes round 1; targets attackers from round 2 on\n\n" +
                 "Auditor:\n" +
-                "• Hates wallflowers. Targets anyone who passes too much\n" +
-                "• Chooses: 1 or 3.\n" +
-                "• Targeting Behavior: Passes rounds 1–2; targets pass-streak players after.\n\n" +
+                "â€¢ Hates wallflowers. Targets anyone who passes too much\n" +
+                "â€¢ Chooses: 1 or 3.\n" +
+                "â€¢ Targeting Behavior: Passes rounds 1â€“2; targets pass-streak players after.\n\n" +
                 "Chaos Grandma:\n" +
-                "• The Matriarch of Chaos. All random everything\n" +
-                "• Chooses: Random (0/1/3 evenly)\n" +
-                "• Targeting Behavior: 50/50 pass vs target\n\n" +
+                "â€¢ The Matriarch of Chaos. All random everything\n" +
+                "â€¢ Chooses: Random (0/1/3 evenly)\n" +
+                "â€¢ Targeting Behavior: 50/50 pass vs target\n\n" +
                 "Hat Farmer:\n" +
-                "• Will gladly pay a marble to snag the Jester's Hat\n" +
-                "• Chooses: Baseline behavior.\n" +
-                "• Targeting Behavior: Passes first; then targets “recently guessed” players\n\n" +
+                "â€¢ Will gladly pay a marble to snag the Jester's Hat\n" +
+                "â€¢ Chooses: Baseline behavior.\n" +
+                "â€¢ Targeting Behavior: Passes first; then targets â€œrecently guessedâ€ players\n\n" +
                 "Juliet (Colluder):\n" +
-                "• She's in it to win it, or at least watch Romeo win\n" +
-                "• Chooses: 1 or 3\n" +
-                "• Targeting Behavior: Anyone but Romeo\n\n" +
+                "â€¢ She's in it to win it, or at least watch Romeo win\n" +
+                "â€¢ Chooses: 1 or 3\n" +
+                "â€¢ Targeting Behavior: Anyone but Romeo\n\n" +
                 "Kingmaker:\n" +
-                "• Picks a ‘king’ and only attacks people who attack that king\n" +
-                "• Chooses: 50/50 between 1 and 3\n" +
-                "• Targeting Behavior: Usually passes; targets only to avenge their king\n\n" +
+                "â€¢ Picks a â€˜kingâ€™ and only attacks people who attack that king\n" +
+                "â€¢ Chooses: 50/50 between 1 and 3\n" +
+                "â€¢ Targeting Behavior: Usually passes; targets only to avenge their king\n\n" +
                 "Limper:\n" +
-                "• Seems like maybe they don't want to play\n" +
-                "• Chooses: 1 (0 if attacked and defending).\n" +
-                "• Targeting Behavior: Always passes\n\n" +
+                "â€¢ Seems like maybe they don't want to play\n" +
+                "â€¢ Chooses: 1 (0 if attacked and defending).\n" +
+                "â€¢ Targeting Behavior: Always passes\n\n" +
                 "Opportunist:\n" +
-                "• Waits, watches, then punishes repeated 3 behavior\n" +
-                "• Chooses: 1 (unless close to winning)\n" +
-                "• Targeting Behavior: Passes for 3 rounds, then targets repeat-3 players\n\n" +
+                "â€¢ Waits, watches, then punishes repeated 3 behavior\n" +
+                "â€¢ Chooses: 1 (unless close to winning)\n" +
+                "â€¢ Targeting Behavior: Passes for 3 rounds, then targets repeat-3 players\n\n" +
                 "Pacifist Collector:\n" +
-                "• Greedy but peaceful. Tries to win by Trickle alone\n" +
-                "• Chooses: 3\n" +
-                "• Targeting Behavior: Always passes\n\n" +
+                "â€¢ Greedy but peaceful. Tries to win by Trickle alone\n" +
+                "â€¢ Chooses: 3\n" +
+                "â€¢ Targeting Behavior: Always passes\n\n" +
                 "Romeo (Colluder):\n" +
-                "• His eyes are on the prize(and on Juliet, of course)\n" +
-                "• Chooses: 1 or 3\n" +
-                "• Targeting Behavior: Juliet is safe, everyone else is a target\n\n" +
+                "â€¢ His eyes are on the prize(and on Juliet, of course)\n" +
+                "â€¢ Chooses: 1 or 3\n" +
+                "â€¢ Targeting Behavior: Juliet is safe, everyone else is a target\n\n" +
                 "Scout:\n" +
-                "• Will gladly be the first to act\n" +
-                "• Chooses: 1 or 3.\n" +
-                "• Targeting Behavior: Always targets, even on round 1\n\n" +
+                "â€¢ Will gladly be the first to act\n" +
+                "â€¢ Chooses: 1 or 3.\n" +
+                "â€¢ Targeting Behavior: Always targets, even on round 1\n\n" +
                 "Spite Player:\n" +
-                "• Cut this guy off and he is tailgating you to your house\n" +
-                "• Chooses: 1 or 3.\n" +
-                "• Targeting Behavior: Passes until attacked; then relentlessly seeks revenge\n\n" +
+                "â€¢ Cut this guy off and he is tailgating you to your house\n" +
+                "â€¢ Chooses: 1 or 3.\n" +
+                "â€¢ Targeting Behavior: Passes until attacked; then relentlessly seeks revenge\n\n" +
                 "Strobe:\n" +
-                "• Alternates like a metronome and attacks in a repeating rhythm.\n" +
-                "• Chooses: Alternates 1,3,1,3...\n" +
-                "• Targeting Behavior: Alternates pass/target with pattern-based guesses.\n\n" +
+                "â€¢ Alternates like a metronome and attacks in a repeating rhythm.\n" +
+                "â€¢ Chooses: Alternates 1,3,1,3...\n" +
+                "â€¢ Targeting Behavior: Alternates pass/target with pattern-based guesses.\n\n" +
                 "Teacher:\n" +
-                "• Lets others learn the game, then shows them how to lose.\n" +
-                "• Chooses: 1, 1, 1, 3, 3...\n" +
-                "• Targeting Behavior: Passes for 3 rounds, then targets known 3-choosers.\n\n" +
+                "â€¢ Lets others learn the game, then shows them how to lose.\n" +
+                "â€¢ Chooses: 1, 1, 1, 3, 3...\n" +
+                "â€¢ Targeting Behavior: Passes for 3 rounds, then targets known 3-choosers.\n\n" +
                 "Three-Pusher:\n" +
-                "• Bigger number better number, right?\n" +
-                "• Chooses: Always 3.\n" +
-                "• Targeting Behavior: Targets from round 2 onward, always guessing 3.\n\n"
+                "â€¢ Bigger number better number, right?\n" +
+                "â€¢ Chooses: Always 3.\n" +
+                "â€¢ Targeting Behavior: Targets from round 2 onward, always guessing 3.\n\n"
     )
 }
 
 @Composable
 private fun StatsText(stats: PlayerStats) {
-    val acc = if (stats.totalGuesses == 0) "—"
+    val acc = if (stats.totalGuesses == 0) "â€”"
     else "${((stats.correctGuesses * 100.0) / stats.totalGuesses).toInt()}%"
 
     Column {
@@ -903,7 +1079,7 @@ private fun StatsText(stats: PlayerStats) {
 
         // --- Special wins / events ---
         AchievementRow(stats.firstPerfectWin, "Perfect Pour", "Win with 0 wrong guesses")
-        AchievementRow(stats.reachedRound7, "Seventh Wave", "Reach round 7")
+        AchievementRow(stats.reachedRound6, "Idle Hands", "Reach round 6")
         AchievementRow(stats.wonWith18Marbles, "18-Marble Miracle", "Win with exactly 18 marbles")
 
         // --- Difficulty wins ---
@@ -920,7 +1096,7 @@ private fun StatsText(stats: PlayerStats) {
         )
 
         AchievementRow(stats.pacifistWin, "Pacifist", "Win without guessing")
-        // ✅ NEW: show pacifistGame in UI
+        // âœ… NEW: show pacifistGame in UI
         AchievementRow(stats.pacifistGame, "Pacifist (Game)", "Complete a game without guessing")
 
         AchievementRow(
@@ -940,14 +1116,14 @@ private fun StatsText(stats: PlayerStats) {
         AchievementRow(stats.firstZeroTrap, "Zero Trap", "Trick a bot with your 0")
         AchievementRow(stats.zeroHeroUnlocked, "Zero Hero", "Unlock The Fool + Zero Trap")
 
-        // ✅ NEW ACHIEVEMENTS (show them)
+        // âœ… NEW ACHIEVEMENTS (show them)
         AchievementRow(stats.drySeasonWin, "Dry Season", "Win without ever choosing 3")
         AchievementRow(stats.ghostCupWin, "Ghost Cup", "Win without being targeted")
         AchievementRow(stats.onARoll, "On a Roll", "3 correct guesses in a row")
         AchievementRow(stats.dumbLuck, "Dumb Luck", "Correctly guess a 3 in round 1")
         AchievementRow(stats.hatFinisher, "Hat Finisher", "Win after starting because you had the Hat")
-        AchievementRow(stats.caughtTheStrobe, "Caught the Strobe", "Correctly guess Strobe’s 3 twice in one game")
-        AchievementRow(stats.pushover, "Pushover", "Correctly guess Three-Pusher’s 3 four times in one game")
+        AchievementRow(stats.caughtTheStrobe, "Caught the Strobe", "Correctly guess Strobeâ€™s 3 twice in one game")
+        AchievementRow(stats.pushover, "Pushover", "Correctly guess Three-Pusherâ€™s 3 four times in one game")
 
         // --- Milestones ---
         AchievementRow(
@@ -1019,7 +1195,7 @@ private fun AchievementRow(
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(
-            text = if (unlocked) "✓ " else "○ ",
+            text = if (unlocked) "âœ“ " else "â—‹ ",
             color = if (unlocked) Color(0xFF0000FF) else Color.Gray,
             fontSize = 24.sp
         )
@@ -1094,7 +1270,7 @@ private fun TargetDropdown(
     onSelect: (Int?) -> Unit
 ) {
     var expanded by remember { mutableStateOf(false) }
-    val selectedName = options.firstOrNull { it.id == selectedTargetId }?.baseName ?: "—"
+    val selectedName = options.firstOrNull { it.id == selectedTargetId }?.baseName ?: "â€”"
 
     ExposedDropdownMenuBox(
         expanded = expanded,
@@ -1146,7 +1322,7 @@ private fun DifficultyDropdownNullable(
         Difficulty.EASY -> "Easy (show archetypes and scores)"
         Difficulty.NORMAL -> "Normal (hides archetypes and scores)"
         Difficulty.HARD -> "Hard (bots block your win)"
-        null -> "Select difficulty…"
+        null -> "Select difficultyâ€¦"
     }
 
     ExposedDropdownMenuBox(
