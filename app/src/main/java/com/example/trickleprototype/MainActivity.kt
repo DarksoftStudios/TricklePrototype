@@ -18,6 +18,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
+import androidx.core.view.WindowCompat
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
@@ -103,11 +104,14 @@ private fun CyclingFadingColorTitle(
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        WindowCompat.setDecorFitsSystemWindows(window, false)
+        window.statusBarColor = android.graphics.Color.TRANSPARENT
+        window.navigationBarColor = android.graphics.Color.TRANSPARENT
         setContent {
             TricklePrototypeTheme {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
-                    color = MaterialTheme.colorScheme.background
+                    color = Color.Black
                 ) {
                     TrickleApp()
                 }
@@ -319,135 +323,76 @@ private fun TrickleApp() {
     Column(
         modifier = Modifier
             .fillMaxSize()
+            .statusBarsPadding()
             .padding(12.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        // Header: title truly centered, turbo pinned right
-        Box(modifier = Modifier.fillMaxWidth()) {
+        if (screen != AppScreen.SPLASH) {
+            // Header: title truly centered, turbo pinned right
+            Box(modifier = Modifier.fillMaxWidth()) {
 
-            // Main Menu moved here (top-left) to avoid accidental taps near the bottom controls
-            if (difficulty != null) {
+                // Main Menu moved here (top-left) to avoid accidental taps near the bottom controls
+                if (difficulty != null) {
+                    Button(
+                        onClick = {
+                            engine.reset()
+                            engine.attachStatsStore(statsStore)
+
+                            difficulty = null
+                            screen = AppScreen.MAIN_MENU
+                            lastResult = null
+                            logText = ""
+
+                            choice = 1
+                            targetId = null
+                            guess = 3
+
+                            humanActionLocked = false
+                            startLocked = false
+                        },
+                        modifier = Modifier.align(Alignment.CenterStart),
+                        shape = RoundedCornerShape(8.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFF6A6A6A),
+                            contentColor = Color.White
+                        ),
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                    ) {
+                        Text(text = if (gameOver) "New Game" else "Main Menu", maxLines = 1)
+                    }
+                }
+
+                CyclingFadingColorTitle(
+                    menuVisitKey = menuVisitKey,
+                    modifier = Modifier.align(Alignment.Center)
+                )
+
+                val turboContainerColor = if (turbo) turboOnColor else Color(0xFF6A6A6A)
+                val turboContentColor = if (turbo && turboOnColor == Color.Yellow) Color.Black else Color.White
+
                 Button(
                     onClick = {
-                        engine.reset()
-                        engine.attachStatsStore(statsStore)
-
-                        difficulty = null
-                        screen = AppScreen.MAIN_MENU
-                        lastResult = null
-                        logText = ""
-
-                        choice = 1
-                        targetId = null
-                        guess = 3
-
-                        humanActionLocked = false
-                        startLocked = false
+                        // Only re-roll color when turning ON
+                        if (!turbo) {
+                            turboOnColor = turboPalette[Random.nextInt(turboPalette.size)]
+                        }
+                        turbo = !turbo
                     },
-                    modifier = Modifier.align(Alignment.CenterStart),
+                    modifier = Modifier
+                        .align(Alignment.CenterEnd)
+                        .height(40.dp)
+                        .widthIn(min = 130.dp),
                     shape = RoundedCornerShape(8.dp),
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = Color(0xFF6A6A6A),
-                        contentColor = Color.White
+                        containerColor = turboContainerColor,
+                        contentColor = turboContentColor
                     ),
                     contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
                 ) {
-                    Text(text = if (gameOver) "New Game" else "Main Menu", maxLines = 1)
-                }
-            }
-
-            CyclingFadingColorTitle(
-                menuVisitKey = menuVisitKey,
-                modifier = Modifier.align(Alignment.Center)
-            )
-
-            val turboContainerColor = if (turbo) turboOnColor else Color(0xFF6A6A6A)
-            val turboContentColor = if (turbo && turboOnColor == Color.Yellow) Color.Black else Color.White
-
-            Button(
-                onClick = {
-                    // Only re-roll color when turning ON
-                    if (!turbo) {
-                        turboOnColor = turboPalette[Random.nextInt(turboPalette.size)]
-                    }
-                    turbo = !turbo
-                },
-                modifier = Modifier
-                    .align(Alignment.CenterEnd)
-                    .height(40.dp)
-                    .widthIn(min = 130.dp),
-                shape = RoundedCornerShape(8.dp),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = turboContainerColor,
-                    contentColor = turboContentColor
-                ),
-                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
-            ) {
-                Text(
-                    text = if (turbo) "TURBO: ON" else "TURBO: OFF",
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-                if (activeAchievement != null) {
-                    AlertDialog(
-                        onDismissRequest = {
-                            activeAchievement = achievementQueue.firstOrNull()
-                            achievementQueue = achievementQueue.drop(1)
-                        },
-                        confirmButton = {
-                            TextButton(
-                                onClick = {
-                                    activeAchievement = achievementQueue.firstOrNull()
-                                    achievementQueue = achievementQueue.drop(1)
-                                }
-                            ) {
-                                Text(
-                                    "NICE",
-                                    fontWeight = FontWeight.Bold
-                                )
-                            }
-                        },
-                        title = null,
-                        text = {
-                            Column(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(vertical = 12.dp),
-                                horizontalAlignment = Alignment.CenterHorizontally
-                            ) {
-
-                                Text(
-                                    text = "âœ¨ ACHIEVEMENT UNLOCKED âœ¨",
-                                    fontSize = 14.sp,
-                                    letterSpacing = 2.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = Color(0xFFFFD60A)
-                                )
-
-                                Spacer(Modifier.height(16.dp))
-
-                                Text(
-                                    text = activeAchievement!!.title,
-                                    fontSize = 24.sp,
-                                    fontWeight = FontWeight.Black,
-                                    textAlign = TextAlign.Center
-                                )
-
-                                if (activeAchievement!!.desc.isNotBlank()) {
-                                    Spacer(Modifier.height(12.dp))
-
-                                    Text(
-                                        text = activeAchievement!!.desc,
-                                        fontSize = 16.sp,
-                                        textAlign = TextAlign.Center,
-                                        color = Color.LightGray
-                                    )
-                                }
-                            }
-                        },
-                        shape = RoundedCornerShape(24.dp),
-                        containerColor = Color(0xFF121212),
-                        tonalElevation = 8.dp
+                    Text(
+                        text = if (turbo) "TURBO: ON" else "TURBO: OFF",
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
                 }
             }
@@ -487,7 +432,7 @@ private fun TrickleApp() {
                         )
 
                         Text(
-                            "Darksoft  Game Studios",
+                            "Darksoft Game Studios",
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Black
                         )
@@ -761,9 +706,9 @@ private fun TrickleApp() {
                     val leftLabel = when (phase) {
                         EnginePhase.SELECT, EnginePhase.ROUND_END -> "Start Round"
                         EnginePhase.PLAYER_TURN -> "Submit Turn"
-                        EnginePhase.BOT_TURN -> "Bots Actingâ€¦"
+                        EnginePhase.BOT_TURN -> "Bots Actingâ¦"
                         EnginePhase.GAME_OVER -> "Game Over"
-                        EnginePhase.SETUP -> "Setupâ€¦"
+                        EnginePhase.SETUP -> "Setup¦"
                     }
 
                     val leftEnabled = when (phase) {
@@ -989,18 +934,18 @@ private fun HowToPlayText() {
 private fun AdvancedTipsText() {
     Text(
         "GENERAL TIPS:\n" +
-                "â€¢ Choosing (3) gains marbles fast, but makes you easy to steal from.\n" +
-                "â€¢ Targeting is a great way to gain extra marbles, and enemies!\n" +
-                "â€¢ If you're repeatedly targeted, choose a (0) to fight back.\n" +
-                "â€¢ At the start of the game, a player is randomly chosen to go first, and normally each round begins with the next player on the list.\n\n" +
+                "- Choosing (3) gains marbles fast, but makes you easy to steal from.\n" +
+                "- Targeting is a great way to gain extra marbles, and enemies!\n" +
+                "- If you're repeatedly targeted, choose a (0) to fight back.\n" +
+                "- At the start of the game, a player is randomly chosen to go first, and normally each round begins with the next player on the list.\n\n" +
                 "BOTS & ARCHETYPES:\n" +
-                "â€¢ Each game, bots are randomly assigned an Archetype.\n" +
-                "â€¢ On Easy mode, bots have their names replaced with their Archetype (and you can see their score totals).\n" +
-                "â€¢ On Normal mode, bots have their names and scores hidden.\n" +
-                "â€¢ On Hard mode, bots will also gang up on you as the finish line approaches.\n\n" +
+                "- Each game, bots are randomly assigned an Archetype.\n" +
+                "- On Easy mode, bots have their names replaced with their Archetype (and you can see their score totals).\n" +
+                "- On Normal mode, bots have their names and scores hidden.\n" +
+                "- On Hard mode, bots will also gang up on you as the finish line approaches.\n\n" +
                 "JESTER'S HAT RULE:\n" +
-                "â€¢ If you guess 1 or 3 on someone who actually chose 0, you lose 1 marble and take the Jester's Hat.\n" +
-                "â€¢ Next round, the Hat-holder goes first â€” BUT only if the Hat ended the round on a different person than it started.\n"
+                "- If you guess 1 or 3 on someone who actually chose 0, you lose 1 marble and take the Jester's Hat.\n" +
+                "- Next round, the Hat-holder goes first â€” BUT only if the Hat ended the round on a different person than it started.\n"
     )
 }
 
@@ -1008,69 +953,69 @@ private fun AdvancedTipsText() {
 private fun ArchetypesText() {
     Text(
         "Accretion:\n" +
-                "â€¢ Starts slow, but ramps up fast\n" +
-                "â€¢ Chooses: 1, 1, 3, 3, 3...\n" +
-                "â€¢ Targeting Behavior: Passes until the very last moment\n\n" +
+                "- Starts slow, but ramps up fast\n" +
+                "- Chooses: 1, 1, 3, 3, 3...\n" +
+                "- Targeting Behavior: Passes until the very last moment\n\n" +
                 "Avenger:\n" +
-                "â€¢ Retaliates against attackers, even if they didn't attack him\n" +
-                "â€¢ Chooses: 1 or 3\n" +
-                "â€¢ Targeting Behavior: Passes round 1; targets attackers from round 2 on\n\n" +
+                "- Retaliates against attackers, even if they didn't attack him\n" +
+                "- Chooses: 1 or 3\n" +
+                "- Targeting Behavior: Passes round 1; targets attackers from round 2 on\n\n" +
                 "Auditor:\n" +
-                "â€¢ Hates wallflowers. Targets anyone who passes too much\n" +
-                "â€¢ Chooses: 1 or 3.\n" +
-                "â€¢ Targeting Behavior: Passes rounds 1â€“2; targets pass-streak players after.\n\n" +
+                "- Hates wallflowers. Targets anyone who passes too much\n" +
+                "- Chooses: 1 or 3.\n" +
+                "- Targeting Behavior: Passes rounds 1â€“2; targets pass-streak players after.\n\n" +
                 "Chaos Grandma:\n" +
-                "â€¢ The Matriarch of Chaos. All random everything\n" +
-                "â€¢ Chooses: Random (0/1/3 evenly)\n" +
-                "â€¢ Targeting Behavior: 50/50 pass vs target\n\n" +
+                "- The Matriarch of Chaos. All random everything\n" +
+                "- Chooses: Random (0/1/3 evenly)\n" +
+                "- Targeting Behavior: 50/50 pass vs target\n\n" +
                 "Hat Farmer:\n" +
-                "â€¢ Will gladly pay a marble to snag the Jester's Hat\n" +
-                "â€¢ Chooses: Baseline behavior.\n" +
-                "â€¢ Targeting Behavior: Passes first; then targets â€œrecently guessedâ€ players\n\n" +
+                "- Will gladly pay a marble to snag the Jester's Hat\n" +
+                "- Chooses: Baseline behavior.\n" +
+                "- Targeting Behavior: Passes first; then targets â€œrecently guessedâ€ players\n\n" +
                 "Juliet (Colluder):\n" +
-                "â€¢ She's in it to win it, or at least watch Romeo win\n" +
-                "â€¢ Chooses: 1 or 3\n" +
-                "â€¢ Targeting Behavior: Anyone but Romeo\n\n" +
+                "- She's in it to win it, or at least watch Romeo win\n" +
+                "- Chooses: 1 or 3\n" +
+                "- Targeting Behavior: Anyone but Romeo\n\n" +
                 "Kingmaker:\n" +
-                "â€¢ Picks a â€˜kingâ€™ and only attacks people who attack that king\n" +
-                "â€¢ Chooses: 50/50 between 1 and 3\n" +
-                "â€¢ Targeting Behavior: Usually passes; targets only to avenge their king\n\n" +
+                "- Picks a â€˜kingâ€™ and only attacks people who attack that king\n" +
+                "- Chooses: 50/50 between 1 and 3\n" +
+                "- Targeting Behavior: Usually passes; targets only to avenge their king\n\n" +
                 "Limper:\n" +
-                "â€¢ Seems like maybe they don't want to play\n" +
-                "â€¢ Chooses: 1 (0 if attacked and defending).\n" +
-                "â€¢ Targeting Behavior: Always passes\n\n" +
+                "- Seems like maybe they don't want to play\n" +
+                "- Chooses: 1 (0 if attacked and defending).\n" +
+                "- Targeting Behavior: Always passes\n\n" +
                 "Opportunist:\n" +
-                "â€¢ Waits, watches, then punishes repeated 3 behavior\n" +
-                "â€¢ Chooses: 1 (unless close to winning)\n" +
-                "â€¢ Targeting Behavior: Passes for 3 rounds, then targets repeat-3 players\n\n" +
+                "- Waits, watches, then punishes repeated 3 behavior\n" +
+                "- Chooses: 1 (unless close to winning)\n" +
+                "- Targeting Behavior: Passes for 3 rounds, then targets repeat-3 players\n\n" +
                 "Pacifist Collector:\n" +
-                "â€¢ Greedy but peaceful. Tries to win by Trickle alone\n" +
-                "â€¢ Chooses: 3\n" +
-                "â€¢ Targeting Behavior: Always passes\n\n" +
+                "- Greedy but peaceful. Tries to win by Trickle alone\n" +
+                "- Chooses: 3\n" +
+                "- Targeting Behavior: Always passes\n\n" +
                 "Romeo (Colluder):\n" +
-                "â€¢ His eyes are on the prize(and on Juliet, of course)\n" +
-                "â€¢ Chooses: 1 or 3\n" +
-                "â€¢ Targeting Behavior: Juliet is safe, everyone else is a target\n\n" +
+                "- His eyes are on the prize(and on Juliet, of course)\n" +
+                "- Chooses: 1 or 3\n" +
+                "- Targeting Behavior: Juliet is safe, everyone else is a target\n\n" +
                 "Scout:\n" +
-                "â€¢ Will gladly be the first to act\n" +
-                "â€¢ Chooses: 1 or 3.\n" +
-                "â€¢ Targeting Behavior: Always targets, even on round 1\n\n" +
+                "- Will gladly be the first to act\n" +
+                "- Chooses: 1 or 3.\n" +
+                "- Targeting Behavior: Always targets, even on round 1\n\n" +
                 "Spite Player:\n" +
-                "â€¢ Cut this guy off and he is tailgating you to your house\n" +
-                "â€¢ Chooses: 1 or 3.\n" +
-                "â€¢ Targeting Behavior: Passes until attacked; then relentlessly seeks revenge\n\n" +
+                "- Cut this guy off and he is tailgating you to your house\n" +
+                "- Chooses: 1 or 3.\n" +
+                "- Targeting Behavior: Passes until attacked; then relentlessly seeks revenge\n\n" +
                 "Strobe:\n" +
-                "â€¢ Alternates like a metronome and attacks in a repeating rhythm.\n" +
-                "â€¢ Chooses: Alternates 1,3,1,3...\n" +
-                "â€¢ Targeting Behavior: Alternates pass/target with pattern-based guesses.\n\n" +
+                "- Alternates like a metronome and attacks in a repeating rhythm.\n" +
+                "- Chooses: Alternates 1,3,1,3...\n" +
+                "- Targeting Behavior: Alternates pass/target with pattern-based guesses.\n\n" +
                 "Teacher:\n" +
-                "â€¢ Lets others learn the game, then shows them how to lose.\n" +
-                "â€¢ Chooses: 1, 1, 1, 3, 3...\n" +
-                "â€¢ Targeting Behavior: Passes for 3 rounds, then targets known 3-choosers.\n\n" +
+                "- Lets others learn the game, then shows them how to lose.\n" +
+                "- Chooses: 1, 1, 1, 3, 3...\n" +
+                "- Targeting Behavior: Passes for 3 rounds, then targets known 3-choosers.\n\n" +
                 "Three-Pusher:\n" +
-                "â€¢ Bigger number better number, right?\n" +
-                "â€¢ Chooses: Always 3.\n" +
-                "â€¢ Targeting Behavior: Targets from round 2 onward, always guessing 3.\n\n"
+                "- Bigger number better number, right?\n" +
+                "- Chooses: Always 3.\n" +
+                "- Targeting Behavior: Targets from round 2 onward, always guessing 3.\n\n"
     )
 }
 
@@ -1219,7 +1164,7 @@ private fun AchievementRow(
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(
-            text = if (unlocked) "âœ“ " else "â—‹ ",
+            text = if (unlocked) "✓“ " else "X",
             color = if (unlocked) Color(0xFF0000FF) else Color.Gray,
             fontSize = 24.sp
         )
