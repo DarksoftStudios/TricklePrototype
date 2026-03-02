@@ -459,7 +459,7 @@ class GameEngine(
             if (actual == 0) {
                 if (actor.marbles > 0) actor.marbles -= 1
                 hatHolderId = actorId
-                log += RoundLogEvent("${displayNameFor(actorId)} was wrong on a 0, loses 1 (HAT â†’ ${displayNameFor(actorId)}).")
+                log += RoundLogEvent("${displayNameFor(actorId)} was wrong on a 0, loses 1 (HAT → ${displayNameFor(actorId)}).")
 
                 if (actorId == HUMAN_ID && guess != 0) {
                     gameWrongGuesses += 1
@@ -467,7 +467,7 @@ class GameEngine(
                 }
             } else {
                 target.marbles += actual
-                log += RoundLogEvent("${displayNameFor(actorId)} was wrong â€” ${displayNameFor(targetId)} gains $actual.")
+                log += RoundLogEvent("${displayNameFor(actorId)} was wrong → ${displayNameFor(targetId)} gains $actual.")
                 if (actorId == HUMAN_ID) gameWrongGuesses += 1
             }
         }
