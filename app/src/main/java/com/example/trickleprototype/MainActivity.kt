@@ -1,6 +1,10 @@
 package com.example.trickleprototype
 
 import android.os.Bundle
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.ui.res.painterResource
 import androidx.compose.runtime.LaunchedEffect
 import kotlinx.coroutines.delay
 import androidx.activity.ComponentActivity
@@ -119,7 +123,6 @@ private data class AchievementPopup(
     val desc: String
 )
 
-
 private enum class AppScreen {
     SPLASH,
     MAIN_MENU,
@@ -163,8 +166,9 @@ private fun TrickleApp() {
     val appContext = LocalContext.current.applicationContext
     val statsStore = remember { StatsStore(appContext) }
 
-
     var screen by remember { mutableStateOf(AppScreen.SPLASH) }
+
+    var showResetStatsConfirm by remember { mutableStateOf(false) }
 
     // Player identity
     var playerName by remember { mutableStateOf(statsStore.getPlayerName()) }
@@ -174,7 +178,7 @@ private fun TrickleApp() {
         engine.setHumanName(playerName)
     }
 
-    // âœ… FIX: attach synchronously (no async race)
+    // ✅ FIX: attach synchronously (no async race)
     SideEffect {
         engine.attachStatsStore(statsStore)
     }
@@ -194,7 +198,7 @@ private fun TrickleApp() {
     var achievementQueue by remember { mutableStateOf<List<AchievementPopup>>(emptyList()) }
     var activeAchievement by remember { mutableStateOf<AchievementPopup?>(null) }
 
-// must be above LaunchedEffect or it won't exist yet
+    // must be above LaunchedEffect or it won't exist yet
     val seenAchievements = remember { mutableSetOf<String>() }
 
     LaunchedEffect(lastResult) {
@@ -223,7 +227,6 @@ private fun TrickleApp() {
         }
     }
 
-
     var showHowToPlay by remember { mutableStateOf(false) }
     var showTips by remember { mutableStateOf(false) }
     var showArchetypes by remember { mutableStateOf(false) }
@@ -246,6 +249,7 @@ private fun TrickleApp() {
             Color(0xFF0D47A1)  // dark blue
         )
     }
+
     // increments every time we return to main menu
     var menuVisitKey by remember { mutableIntStateOf(0) }
     LaunchedEffect(difficulty) {
@@ -323,466 +327,527 @@ private fun TrickleApp() {
         ) { AchievementsText(statsStore.load()) }
     }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .statusBarsPadding()
-            .padding(12.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
+    // ✅ FIX 1: Use a full-screen Box so the background can sit behind ALL screens.
+    Box(modifier = Modifier.fillMaxSize()) {
+
+        // ✅ FIX 1 (continued): Draw the background image on every screen EXCEPT the splash.
         if (screen != AppScreen.SPLASH) {
-            // Header: title truly centered, turbo pinned right
-            Box(modifier = Modifier.fillMaxWidth()) {
+            Image(
+                painter = painterResource(R.drawable.mainmenugen),
+                contentDescription = "Background",
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize()
+            )
 
-                // Main Menu moved here (top-left) to avoid accidental taps near the bottom controls
-                if (difficulty != null) {
-                    Button(
-                        onClick = {
-                            engine.reset()
-                            engine.attachStatsStore(statsStore)
-
-                            difficulty = null
-                            screen = AppScreen.MAIN_MENU
-                            lastResult = null
-                            logText = ""
-
-                            choice = 1
-                            targetId = null
-                            guess = 3
-
-                            humanActionLocked = false
-                            startLocked = false
-                        },
-                        modifier = Modifier.align(Alignment.CenterStart),
-                        shape = RoundedCornerShape(8.dp),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = Color(0xFF6A6A6A),
-                            contentColor = Color.White
-                        ),
-                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
-                    ) {
-                        Text(text = if (gameOver) "New Game" else "Main Menu", maxLines = 1)
-                    }
-                }
-
-                CyclingFadingColorTitle(
-                    menuVisitKey = menuVisitKey,
-                    modifier = Modifier.align(Alignment.Center)
-                )
-
-                val turboContainerColor = if (turbo) turboOnColor else Color(0xFF6A6A6A)
-                val turboContentColor = if (turbo && turboOnColor == Color.Yellow) Color.Black else Color.White
-
-                Button(
-                    onClick = {
-                        // Only re-roll color when turning ON
-                        if (!turbo) {
-                            turboOnColor = turboPalette[Random.nextInt(turboPalette.size)]
-                        }
-                        turbo = !turbo
-                    },
-                    modifier = Modifier
-                        .align(Alignment.CenterEnd)
-                        .height(40.dp)
-                        .widthIn(min = 130.dp),
-                    shape = RoundedCornerShape(8.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = turboContainerColor,
-                        contentColor = turboContentColor
-                    ),
-                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
-                ) {
-                    Text(
-                        text = if (turbo) "TURBO: ON" else "TURBO: OFF",
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
-            }
+            // Optional readability overlay (keeps your UI legible on bright areas)
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.25f))
+            )
         }
 
-        Spacer(Modifier.height(10.dp))
+        // ✅ FIX 2: Keep consistent safe padding for status + nav bars so buttons don't cramp.
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .statusBarsPadding()
+                .navigationBarsPadding()
+                .padding(12.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            if (screen != AppScreen.SPLASH) {
+                // Header: title truly centered, turbo pinned right
+                Box(modifier = Modifier.fillMaxWidth()) {
 
-        // MENUS
-        when (screen) {
-            AppScreen.SPLASH -> {
-                LaunchedEffect(Unit) {
-                    delay(3000L)
-                    screen = AppScreen.MAIN_MENU
+                    // Main Menu moved here (top-left) to avoid accidental taps near the bottom controls
+                    if (difficulty != null) {
+                        Button(
+                            onClick = {
+                                engine.reset()
+                                engine.attachStatsStore(statsStore)
+
+                                difficulty = null
+                                screen = AppScreen.MAIN_MENU
+                                lastResult = null
+                                logText = ""
+
+                                choice = 1
+                                targetId = null
+                                guess = 3
+
+                                humanActionLocked = false
+                                startLocked = false
+                            },
+                            modifier = Modifier.align(Alignment.CenterStart),
+                            shape = RoundedCornerShape(8.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = Color(0xFF6A6A6A),
+                                contentColor = Color.White
+                            ),
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                        ) {
+                            Text(text = if (gameOver) "New Game" else "Main Menu", maxLines = 1)
+                        }
+                    }
+
+                    CyclingFadingColorTitle(
+                        menuVisitKey = menuVisitKey,
+                        modifier = Modifier.align(Alignment.Center)
+                    )
+
+                    val turboContainerColor = if (turbo) turboOnColor else Color(0xFF6A6A6A)
+                    val turboContentColor = if (turbo && turboOnColor == Color.Yellow) Color.Black else Color.White
+
+                    if (screen == AppScreen.GAME) {
+                        Button(
+                            onClick = {
+                                // Only re-roll color when turning ON
+                                if (!turbo) {
+                                    turboOnColor = turboPalette[Random.nextInt(turboPalette.size)]
+                                }
+                                turbo = !turbo
+                            },
+                            modifier = Modifier
+                                .align(Alignment.CenterEnd)
+                                .height(40.dp)
+                                .widthIn(min = 130.dp),
+                            shape = RoundedCornerShape(8.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = turboContainerColor,
+                                contentColor = turboContentColor
+                            ),
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                        ) {
+                            Text(
+                                text = if (turbo) "TURBO: ON" else "TURBO: OFF",
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                    }
                 }
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(Color.Black)              // true black full-screen background
-                        .clickable { screen = AppScreen.MAIN_MENU }, // tap anywhere
-                    contentAlignment = Alignment.Center      // centers the whole splash
-                ) {
+            }
+
+            Spacer(Modifier.height(10.dp))
+
+            // MENUS
+            when (screen) {
+                AppScreen.SPLASH -> {
+                    LaunchedEffect(Unit) {
+                        delay(3000L)
+                        screen = AppScreen.MAIN_MENU
+                    }
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(Color.Black)              // true black full-screen background
+                            .clickable { screen = AppScreen.MAIN_MENU }, // tap anywhere
+                        contentAlignment = Alignment.Center      // centers the whole splash
+                    ) {
+                        Column(
+                            modifier = Modifier.wrapContentSize(),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            val logoBitmap: ImageBitmap =
+                                ImageBitmap.imageResource(id = R.drawable.darksoft_logo)
+
+                            Image(
+                                painter = BitmapPainter(image = logoBitmap, filterQuality = FilterQuality.None),
+                                contentDescription = "DarkSoft logo",
+                                modifier = Modifier
+                                    .size(140.dp)
+                                    .padding(),
+                                contentScale = ContentScale.Fit
+                            )
+
+                            Text(
+                                "Darksoft Game Studios",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Black
+                            )
+                            Spacer(Modifier.height(8.dp))
+                        }
+                    }
+                    return@Column
+                }
+
+                AppScreen.MAIN_MENU -> {
                     Column(
                         modifier = Modifier
-                            .wrapContentSize(),
+                            .fillMaxSize()
+                            .padding(top = 72.dp),   // increase/decrease to taste
+                        verticalArrangement = Arrangement.spacedBy(35.dp, Alignment.CenterVertically),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        val logoBitmap: ImageBitmap =
-                            ImageBitmap.imageResource(id = R.drawable.darksoft_logo)
+                        MenuLinkButton(text = "PLAY") { screen = AppScreen.PLAY }
+                        Spacer(Modifier.height(10.dp))
+                        MenuLinkButton(text = "RULES") { screen = AppScreen.RULES }
+                        Spacer(Modifier.height(10.dp))
+                        MenuLinkButton(text = "PROFILE") { screen = AppScreen.PROFILE }
+                        Spacer(Modifier.height(10.dp))
+                        MenuLinkButton(text = "SETTINGS") { screen = AppScreen.SETTINGS }
 
-                        Image(
-                            painter = BitmapPainter(image = logoBitmap, filterQuality = FilterQuality.None),
-                            contentDescription = "DarkSoft logo",
-                            modifier = Modifier
-                                .size(140.dp)
-                                .padding(),
-                            contentScale = ContentScale.Fit
-                        )
-
-                        Text(
-                            "Darksoft Game Studios",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Black
-                        )
-                        Spacer(Modifier.height(8.dp))
+                        Spacer(Modifier.height(24.dp))
                     }
+                    return@Column
                 }
+
+                AppScreen.PLAY -> {
+                    val stats = statsStore.load()
+                    val normalUnlocked = stats.easyGames > 0
+                    val hardUnlocked = stats.normalWins > 0
+
+                    fun startGame(picked: Difficulty) {
+                        difficulty = picked
+                        engine.setDifficulty(picked)
+
+                        val snap = engineSnapshot(engine)
+                        lastResult = snap
+                        logText = buildLogText(snap)
+
+                        humanActionLocked = false
+                        startLocked = false
+
+                        choice = 1
+                        targetId = null
+                        guess = 3
+
+                        screen = AppScreen.GAME
+                    }
+
+                    Column(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(top = 72.dp),
+                        verticalArrangement = Arrangement.spacedBy(35.dp, Alignment.CenterVertically),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        MenuLinkButton(text = "EASY") { startGame(Difficulty.EASY) }
+                        Spacer(Modifier.height(10.dp))
+                        MenuLinkButton(
+                            text = if (normalUnlocked) "NORMAL" else "NORMAL (LOCKED)",
+                            enabled = normalUnlocked
+                        ) { startGame(Difficulty.NORMAL) }
+                        Spacer(Modifier.height(10.dp))
+                        MenuLinkButton(
+                            text = if (hardUnlocked) "HARD" else "HARD (LOCKED)",
+                            enabled = hardUnlocked
+                        ) { startGame(Difficulty.HARD) }
+
+                        Spacer(Modifier.height(16.dp))
+                        MenuLinkButton(text = "BACK") { screen = AppScreen.MAIN_MENU }
+
+                        Spacer(Modifier.height(24.dp))
+                    }
+                    return@Column
+                }
+
+                AppScreen.RULES -> {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(top = 72.dp),
+                        verticalArrangement = Arrangement.spacedBy(35.dp, Alignment.CenterVertically),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        MenuLinkButton(text = "HOW TO PLAY") { showHowToPlay = true }
+                        Spacer(Modifier.height(10.dp))
+                        MenuLinkButton(text = "ADVANCED TIPS") { showTips = true }
+                        Spacer(Modifier.height(10.dp))
+                        MenuLinkButton(text = "ARCHETYPES") { showArchetypes = true }
+
+                        Spacer(Modifier.height(16.dp))
+                        MenuLinkButton(text = "BACK") { screen = AppScreen.MAIN_MENU }
+
+                        Spacer(Modifier.height(24.dp))
+                    }
+                    return@Column
+                }
+
+                AppScreen.PROFILE -> {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(top = 72.dp),
+                        verticalArrangement = Arrangement.spacedBy(35.dp, Alignment.CenterVertically),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        MenuLinkButton(text = "STATS") { showStats = true }
+                        Spacer(Modifier.height(10.dp))
+                        MenuLinkButton(text = "ACHIEVEMENTS") { showAchievements = true }
+                        Spacer(Modifier.height(10.dp))
+                        MenuLinkButton(text = "CUSTOMIZE") { screen = AppScreen.CUSTOMIZE }
+
+                        Spacer(Modifier.height(16.dp))
+                        MenuLinkButton(text = "BACK") { screen = AppScreen.MAIN_MENU }
+
+                        Spacer(Modifier.height(24.dp))
+                    }
+                    return@Column
+                }
+
+                AppScreen.CUSTOMIZE -> {
+                    var draftName by remember(playerName) { mutableStateOf(playerName) }
+
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 18.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text("Change Name", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                        Spacer(Modifier.height(12.dp))
+
+                        OutlinedTextField(
+                            value = draftName,
+                            onValueChange = { draftName = it },
+                            singleLine = true,
+                            label = { Text("Name") },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+
+                        Spacer(Modifier.height(12.dp))
+
+                        Button(
+                            onClick = {
+                                val cleaned = draftName.trim().take(18)
+                                statsStore.setPlayerName(cleaned)
+                                playerName = statsStore.getPlayerName()
+                                engine.setHumanName(playerName)
+                                screen = AppScreen.PROFILE
+                            },
+                            shape = RoundedCornerShape(16.dp)
+                        ) {
+                            Text("Save")
+                        }
+
+                        Spacer(Modifier.height(16.dp))
+                        MenuLinkButton(text = "BACK") { screen = AppScreen.PROFILE }
+
+                        Spacer(Modifier.height(24.dp))
+                    }
+                    return@Column
+                }
+
+                AppScreen.SETTINGS -> {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(top = 72.dp),
+                        verticalArrangement = Arrangement.spacedBy(35.dp, Alignment.CenterVertically),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        if (showResetStatsConfirm) {
+                            AlertDialog(
+                                onDismissRequest = { showResetStatsConfirm = false },
+                                title = { Text("ARE YOU SURE?") },
+                                text = { Text("This will reset all stats.") },
+                                confirmButton = {
+                                    TextButton(
+                                        onClick = {
+                                            statsStore.resetAll()
+                                            playerName = statsStore.getPlayerName()
+                                            engine.setHumanName(playerName)
+                                            showResetStatsConfirm = false
+                                        }
+                                    ) { Text("RESET") }
+                                },
+                                dismissButton = {
+                                    TextButton(onClick = { showResetStatsConfirm = false }) {
+                                        Text("CANCEL")
+                                    }
+                                },
+                                properties = DialogProperties(dismissOnClickOutside = true)
+                            )
+                        }
+
+                        MenuLinkButton(text = "SOUND (COMING SOON)") { /* placeholder */ }
+                        Spacer(Modifier.height(10.dp))
+                        MenuLinkButton(text = "MUSIC (COMING SOON)") { /* placeholder */ }
+                        Spacer(Modifier.height(10.dp))
+                        MenuLinkButton(text = "RESET STATS") {
+                            showResetStatsConfirm = true
+                        }
+
+                        Spacer(Modifier.height(16.dp))
+                        MenuLinkButton(text = "BACK") { screen = AppScreen.MAIN_MENU }
+
+                        Spacer(Modifier.height(24.dp))
+                    }
+                    return@Column
+                }
+
+                AppScreen.GAME -> {
+                    // Fall through to game UI below.
+                }
+            }
+
+            if (difficulty == null) {
+                // Safety: if we somehow got here without a difficulty, send player back.
+                screen = AppScreen.MAIN_MENU
                 return@Column
             }
 
-            AppScreen.MAIN_MENU -> {
-                Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    MenuLinkButton(text = "PLAY") { screen = AppScreen.PLAY }
+            // GAME SCREEN
+            val playerScore = players.firstOrNull { it.id == GameEngine.HUMAN_ID }?.marbles ?: 0
+            Text("Your marbles: $playerScore", style = MaterialTheme.typography.bodyMedium)
+            Spacer(Modifier.height(10.dp))
+
+            val isPlayerTurn = (phase == EnginePhase.PLAYER_TURN)
+            val inputsEnabled = !gameOver && isPlayerTurn && !humanActionLocked
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(14.dp),
+                verticalAlignment = Alignment.Top
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+
+                    Text("Your choice:", style = MaterialTheme.typography.bodyMedium)
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        val dieEnabled = !gameOver && !startLocked && (phase == EnginePhase.SELECT)
+                        SmallChoiceButton("0", selected = (choice == 0), enabled = dieEnabled) { choice = 0 }
+                        SmallChoiceButton("1", selected = (choice == 1), enabled = dieEnabled) { choice = 1 }
+                        SmallChoiceButton("3", selected = (choice == 3), enabled = dieEnabled) { choice = 3 }
+                    }
+
                     Spacer(Modifier.height(10.dp))
-                    MenuLinkButton(text = "RULES") { screen = AppScreen.RULES }
-                    Spacer(Modifier.height(10.dp))
-                    MenuLinkButton(text = "PROFILE") { screen = AppScreen.PROFILE }
-                    Spacer(Modifier.height(10.dp))
-                    MenuLinkButton(text = "SETTINGS") { screen = AppScreen.SETTINGS }
 
-                    Spacer(Modifier.height(24.dp))
-                }
-                return@Column
-            }
+                    val isPassing = (targetId == null)
 
-            AppScreen.PLAY -> {
-                val stats = statsStore.load()
-                val normalUnlocked = stats.easyGames > 0
-                val hardUnlocked = stats.normalWins > 0
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Button(
+                            onClick = { targetId = null },
+                            enabled = inputsEnabled && !isPassing,
+                            modifier = Modifier.heightIn(min = 48.dp)
+                        ) { OneLineButtonText("Pass") }
 
-                fun startGame(picked: Difficulty) {
-                    difficulty = picked
-                    engine.setDifficulty(picked)
+                        Button(
+                            onClick = {
+                                val firstTarget = players.firstOrNull { it.id != GameEngine.HUMAN_ID }?.id
+                                targetId = firstTarget
+                            },
+                            enabled = inputsEnabled && isPassing,
+                            modifier = Modifier.heightIn(min = 48.dp)
+                        ) { OneLineButtonText("Target") }
+                    }
 
-                    val snap = engineSnapshot(engine)
-                    lastResult = snap
-                    logText = buildLogText(snap)
+                    Spacer(Modifier.height(8.dp))
 
-                    humanActionLocked = false
-                    startLocked = false
+                    val dropdownOptions = if (isPlayerTurn) {
+                        val targetable = lastResult?.targetableIdsForHuman ?: emptyList()
+                        players.filter { it.id in targetable && it.id != GameEngine.HUMAN_ID }
+                    } else emptyList()
 
-                    choice = 1
-                    targetId = null
-                    guess = 3
-
-                    screen = AppScreen.GAME
-                }
-
-                Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    MenuLinkButton(text = "EASY") { startGame(Difficulty.EASY) }
-                    Spacer(Modifier.height(10.dp))
-                    MenuLinkButton(
-                        text = if (normalUnlocked) "NORMAL" else "NORMAL (LOCKED)",
-                        enabled = normalUnlocked
-                    ) { startGame(Difficulty.NORMAL) }
-                    Spacer(Modifier.height(10.dp))
-                    MenuLinkButton(
-                        text = if (hardUnlocked) "HARD" else "HARD (LOCKED)",
-                        enabled = hardUnlocked
-                    ) { startGame(Difficulty.HARD) }
-
-                    Spacer(Modifier.height(16.dp))
-                    MenuLinkButton(text = "BACK") { screen = AppScreen.MAIN_MENU }
-
-                    Spacer(Modifier.height(24.dp))
-                }
-                return@Column
-            }
-
-            AppScreen.RULES -> {
-                Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    MenuLinkButton(text = "HOW TO PLAY") { showHowToPlay = true }
-                    Spacer(Modifier.height(10.dp))
-                    MenuLinkButton(text = "ADVANCED TIPS") { showTips = true }
-                    Spacer(Modifier.height(10.dp))
-                    MenuLinkButton(text = "ARCHETYPES") { showArchetypes = true }
-
-                    Spacer(Modifier.height(16.dp))
-                    MenuLinkButton(text = "BACK") { screen = AppScreen.MAIN_MENU }
-
-                    Spacer(Modifier.height(24.dp))
-                }
-                return@Column
-            }
-
-            AppScreen.PROFILE -> {
-                Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    MenuLinkButton(text = "STATS") { showStats = true }
-                    Spacer(Modifier.height(10.dp))
-                    MenuLinkButton(text = "ACHIEVEMENTS") { showAchievements = true }
-                    Spacer(Modifier.height(10.dp))
-                    MenuLinkButton(text = "CUSTOMIZE") { screen = AppScreen.CUSTOMIZE }
-
-                    Spacer(Modifier.height(16.dp))
-                    MenuLinkButton(text = "BACK") { screen = AppScreen.MAIN_MENU }
-
-                    Spacer(Modifier.height(24.dp))
-                }
-                return@Column
-            }
-
-            AppScreen.CUSTOMIZE -> {
-                var draftName by remember(playerName) { mutableStateOf(playerName) }
-
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 18.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Text("Change Name", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                    Spacer(Modifier.height(12.dp))
-
-                    OutlinedTextField(
-                        value = draftName,
-                        onValueChange = { draftName = it },
-                        singleLine = true,
-                        label = { Text("Name") },
-                        modifier = Modifier.fillMaxWidth()
+                    TargetDropdown(
+                        options = dropdownOptions,
+                        selectedTargetId = targetId,
+                        enabled = inputsEnabled && targetId != null && dropdownOptions.isNotEmpty(),
+                        onSelect = { targetId = it }
                     )
 
+                    Spacer(Modifier.height(10.dp))
+
+                    Text("Your guess:", style = MaterialTheme.typography.bodyMedium)
+
+                    val zeroGuessUnlocked = statsStore.load().zeroHeroUnlocked
+
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        if (zeroGuessUnlocked) {
+                            SmallChoiceButton("0", selected = (guess == 0), enabled = inputsEnabled) { guess = 0 }
+                        }
+                        SmallChoiceButton("1", selected = (guess == 1), enabled = inputsEnabled) { guess = 1 }
+                        SmallChoiceButton("3", selected = (guess == 3), enabled = inputsEnabled) { guess = 3 }
+                    }
+
                     Spacer(Modifier.height(12.dp))
 
-                    Button(
-                        onClick = {
-                            val cleaned = draftName.trim().take(18)
-                            statsStore.setPlayerName(cleaned)
-                            playerName = statsStore.getPlayerName()
-                            engine.setHumanName(playerName)
-                            screen = AppScreen.PROFILE
-                        },
-                        shape = RoundedCornerShape(16.dp)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
-                        Text("Save")
-                    }
+                        val leftLabel = when (phase) {
+                            EnginePhase.SELECT, EnginePhase.ROUND_END -> "Start Round"
+                            EnginePhase.PLAYER_TURN -> "Submit Turn"
+                            EnginePhase.BOT_TURN -> "Bots Actingâ€¦"
+                            EnginePhase.GAME_OVER -> "Game Over"
+                            EnginePhase.SETUP -> "Setupâ€¦"
+                        }
 
-                    Spacer(Modifier.height(16.dp))
-                    MenuLinkButton(text = "BACK") { screen = AppScreen.PROFILE }
+                        val leftEnabled = when (phase) {
+                            EnginePhase.SELECT, EnginePhase.ROUND_END -> !gameOver && !startLocked
+                            EnginePhase.PLAYER_TURN -> !gameOver && !humanActionLocked
+                            else -> false
+                        }
 
-                    Spacer(Modifier.height(24.dp))
-                }
-                return@Column
-            }
-
-            AppScreen.SETTINGS -> {
-                Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    MenuLinkButton(text = "SOUND (COMING SOON)") { /* placeholder */ }
-                    Spacer(Modifier.height(10.dp))
-                    MenuLinkButton(text = "MUSIC (COMING SOON)") { /* placeholder */ }
-                    Spacer(Modifier.height(10.dp))
-                    MenuLinkButton(text = "RESET STATS") {
-                        statsStore.resetAll()
-                        playerName = statsStore.getPlayerName()
-                        engine.setHumanName(playerName)
-                    }
-
-                    Spacer(Modifier.height(16.dp))
-                    MenuLinkButton(text = "BACK") { screen = AppScreen.MAIN_MENU }
-
-                    Spacer(Modifier.height(24.dp))
-                }
-                return@Column
-            }
-
-            AppScreen.GAME -> {
-                // Fall through to game UI below.
-            }
-        }
-
-        if (difficulty == null) {
-            // Safety: if we somehow got here without a difficulty, send player back.
-            screen = AppScreen.MAIN_MENU
-            return@Column
-        }
-
-// GAME SCREEN
-        val playerScore = players.firstOrNull { it.id == GameEngine.HUMAN_ID }?.marbles ?: 0
-        Text("Your marbles: $playerScore", style = MaterialTheme.typography.bodyMedium)
-        Spacer(Modifier.height(10.dp))
-
-        val isPlayerTurn = (phase == EnginePhase.PLAYER_TURN)
-        val inputsEnabled = !gameOver && isPlayerTurn && !humanActionLocked
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(14.dp),
-            verticalAlignment = Alignment.Top
-        ) {
-            Column(modifier = Modifier.weight(1f)) {
-
-                Text("Your choice:", style = MaterialTheme.typography.bodyMedium)
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    val dieEnabled = !gameOver && !startLocked && (phase == EnginePhase.SELECT)
-                    SmallChoiceButton("0", selected = (choice == 0), enabled = dieEnabled) { choice = 0 }
-                    SmallChoiceButton("1", selected = (choice == 1), enabled = dieEnabled) { choice = 1 }
-                    SmallChoiceButton("3", selected = (choice == 3), enabled = dieEnabled) { choice = 3 }
-                }
-
-                Spacer(Modifier.height(10.dp))
-
-                val isPassing = (targetId == null)
-
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    Button(
-                        onClick = { targetId = null },
-                        enabled = inputsEnabled && !isPassing,
-                        modifier = Modifier.heightIn(min = 48.dp)
-                    ) { OneLineButtonText("Pass") }
-
-                    Button(
-                        onClick = {
-                            val firstTarget = players.firstOrNull { it.id != GameEngine.HUMAN_ID }?.id
-                            targetId = firstTarget
-                        },
-                        enabled = inputsEnabled && isPassing,
-                        modifier = Modifier.heightIn(min = 48.dp)
-                    ) { OneLineButtonText("Target") }
-                }
-
-                Spacer(Modifier.height(8.dp))
-
-                val dropdownOptions = if (isPlayerTurn) {
-                    val targetable = lastResult?.targetableIdsForHuman ?: emptyList()
-                    players.filter { it.id in targetable && it.id != GameEngine.HUMAN_ID }
-                } else emptyList()
-
-                TargetDropdown(
-                    options = dropdownOptions,
-                    selectedTargetId = targetId,
-                    enabled = inputsEnabled && targetId != null && dropdownOptions.isNotEmpty(),
-                    onSelect = { targetId = it }
-                )
-
-                Spacer(Modifier.height(10.dp))
-
-                Text("Your guess:", style = MaterialTheme.typography.bodyMedium)
-
-                val zeroGuessUnlocked = statsStore.load().zeroHeroUnlocked
-
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    if (zeroGuessUnlocked) {
-                        SmallChoiceButton("0", selected = (guess == 0), enabled = inputsEnabled) { guess = 0 }
-                    }
-                    SmallChoiceButton("1", selected = (guess == 1), enabled = inputsEnabled) { guess = 1 }
-                    SmallChoiceButton("3", selected = (guess == 3), enabled = inputsEnabled) { guess = 3 }
-                }
-
-                Spacer(Modifier.height(12.dp))
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    val leftLabel = when (phase) {
-                        EnginePhase.SELECT, EnginePhase.ROUND_END -> "Start Round"
-                        EnginePhase.PLAYER_TURN -> "Submit Turn"
-                        EnginePhase.BOT_TURN -> "Bots Actingâ€¦"
-                        EnginePhase.GAME_OVER -> "Game Over"
-                        EnginePhase.SETUP -> "Setupâ€¦"
-                    }
-
-                    val leftEnabled = when (phase) {
-                        EnginePhase.SELECT, EnginePhase.ROUND_END -> !gameOver && !startLocked
-                        EnginePhase.PLAYER_TURN -> !gameOver && !humanActionLocked
-                        else -> false
-                    }
-
-                    Button(
-                        modifier = Modifier
-                            .weight(1f)
-                            .heightIn(min = 48.dp),
-                        enabled = leftEnabled,
-                        onClick = {
-                            when (phase) {
-                                EnginePhase.SELECT, EnginePhase.ROUND_END -> {
-                                    startLocked = true
-                                    val result = engine.startRound(choice)
-                                    lastResult = result
-                                    logText = buildLogText(result)
-                                    targetId = null
-                                }
-                                EnginePhase.PLAYER_TURN -> {
-                                    humanActionLocked = true
-                                    val frozenTarget = targetId
-                                    val frozenGuess = if (frozenTarget == null) null else guess
-
-                                    val result = engine.submitHumanTurn(
-                                        targetId = frozenTarget,
-                                        guess = frozenGuess
-                                    )
-                                    lastResult = result
-                                    logText = buildLogText(result)
-
-                                    if (result.phase == EnginePhase.PLAYER_TURN) {
-                                        humanActionLocked = false
-                                    } else {
+                        Button(
+                            modifier = Modifier
+                                .weight(1f)
+                                .heightIn(min = 48.dp),
+                            enabled = leftEnabled,
+                            onClick = {
+                                when (phase) {
+                                    EnginePhase.SELECT, EnginePhase.ROUND_END -> {
+                                        startLocked = true
+                                        val result = engine.startRound(choice)
+                                        lastResult = result
+                                        logText = buildLogText(result)
                                         targetId = null
                                     }
+                                    EnginePhase.PLAYER_TURN -> {
+                                        humanActionLocked = true
+                                        val frozenTarget = targetId
+                                        val frozenGuess = if (frozenTarget == null) null else guess
+
+                                        val result = engine.submitHumanTurn(
+                                            targetId = frozenTarget,
+                                            guess = frozenGuess
+                                        )
+                                        lastResult = result
+                                        logText = buildLogText(result)
+
+                                        if (result.phase == EnginePhase.PLAYER_TURN) {
+                                            humanActionLocked = false
+                                        } else {
+                                            targetId = null
+                                        }
+                                    }
+                                    else -> Unit
                                 }
-                                else -> Unit
                             }
-                        }
-                    ) { OneLineButtonText(leftLabel) }
+                        ) { OneLineButtonText(leftLabel) }
+                    }
+                }
+
+                if (difficulty == Difficulty.EASY) {
+                    MarblesBox(
+                        players = players,
+                        modifier = Modifier
+                            .wrapContentWidth()
+                            .widthIn(max = 200.dp)
+                    )
                 }
             }
 
-            if (difficulty == Difficulty.EASY) {
-                MarblesBox(
-                    players = players,
-                    modifier = Modifier
-                        .wrapContentWidth()
-                        .widthIn(max = 200.dp)
+            Spacer(Modifier.height(12.dp))
+
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f)
+                    .verticalScroll(scrollState)
+                    .padding(8.dp)
+            ) {
+                Text(
+                    text = logText.ifBlank { "(log will appear here)" },
+                    fontFamily = FontFamily.Monospace,
+                    softWrap = true
                 )
             }
-        }
-
-        Spacer(Modifier.height(12.dp))
-
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .weight(1f)
-                .verticalScroll(scrollState)
-                .padding(8.dp)
-        ) {
-            Text(
-                text = logText.ifBlank { "(log will appear here)" },
-                fontFamily = FontFamily.Monospace,
-                softWrap = true
-            )
         }
     }
 }
@@ -818,7 +883,7 @@ private fun MenuLinkButton(text: String, enabled: Boolean = true, onClick: () ->
         border = BorderStroke(3.dp, borderColor),
         colors = ButtonDefaults.outlinedButtonColors(
             containerColor = containerColor,
-            // âœ… Text now matches the buttonâ€™s color (same as border).
+            // ✅ Text now matches the button’s color (same as border).
             contentColor = borderColor
         ),
         contentPadding = PaddingValues(vertical = 18.dp, horizontal = 24.dp)
@@ -1073,7 +1138,7 @@ private fun AchievementsText(stats: PlayerStats) {
         )
 
         AchievementRow(stats.pacifistWin, "Pacifist", "Win without guessing")
-        // âœ… NEW: show pacifistGame in UI
+        // ✅ NEW: show pacifistGame in UI
         AchievementRow(stats.pacifistGame, "Pacifist (Game)", "Complete a game without guessing")
 
         AchievementRow(
@@ -1093,7 +1158,7 @@ private fun AchievementsText(stats: PlayerStats) {
         AchievementRow(stats.firstZeroTrap, "Zero Trap", "Trick a bot with your 0")
         AchievementRow(stats.zeroHeroUnlocked, "Zero Hero", "Unlock The Fool + Zero Trap")
 
-        // âœ… NEW ACHIEVEMENTS (show them)
+        // ✅ NEW ACHIEVEMENTS (show them)
         AchievementRow(stats.drySeasonWin, "Dry Season", "Win without ever choosing 3")
         AchievementRow(stats.ghostCupWin, "Ghost Cup", "Win without being targeted")
         AchievementRow(stats.onARoll, "On a Roll", "3 correct guesses in a row")
