@@ -1,31 +1,75 @@
 package com.example.trickleprototype
 
+import android.graphics.drawable.shapes.Shape
 import android.os.Bundle
-import androidx.compose.foundation.Image
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.ui.res.painterResource
-import androidx.compose.runtime.LaunchedEffect
-import kotlinx.coroutines.delay
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.wrapContentSize
+import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.GenericShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuDefaults
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
-import androidx.core.view.WindowCompat
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.geometry.RoundRect
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.FilterQuality
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.painter.BitmapPainter
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.imageResource
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -33,71 +77,12 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.DialogProperties
-import kotlin.random.Random
+import androidx.core.view.WindowCompat
 import com.example.trickleprototype.ui.theme.TricklePrototypeTheme
-import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.interaction.collectIsPressedAsState
-import androidx.compose.foundation.Image
-import androidx.compose.ui.layout.ContentScale
-import androidx.compose.foundation.background
-import androidx.compose.ui.graphics.FilterQuality
-import androidx.compose.ui.graphics.ImageBitmap
-import androidx.compose.ui.graphics.painter.BitmapPainter
-import androidx.compose.ui.res.imageResource
+import kotlinx.coroutines.delay
+import kotlin.random.Random
 
-/**
- * Title color logic (per MENU VISIT):
- * - Starting color randomized each time you see the main menu.
- * - Pattern cycles: PRIMARY -> BLACK -> PRIMARY -> WHITE -> repeat
- * - PRIMARY randomly chosen from (Red, Yellow, Blue) each time it appears.
- * - Hold time is randomized continuously during that menu visit.
- */
-@Composable
-private fun CyclingFadingColorTitle(
-    menuVisitKey: Int,
-    modifier: Modifier = Modifier
-) {
-    val primaries = remember(menuVisitKey) { listOf(Color.Red, Color.Yellow, Color.Blue) }
 
-    // step: 0=primary, 1=black, 2=primary, 3=white
-    var step by remember(menuVisitKey) { mutableIntStateOf(0) }
-
-    // starting primary each menu visit
-    var targetColor by remember(menuVisitKey) { mutableStateOf(primaries.random()) }
-
-    val animatedColor by animateColorAsState(
-        targetValue = targetColor,
-        animationSpec = tween(durationMillis = 1200, easing = LinearEasing),
-        label = "titleColorFade"
-    )
-
-    LaunchedEffect(menuVisitKey) {
-        step = 0
-        targetColor = primaries.random()
-
-        while (true) {
-            val holdMs = Random.nextLong(900L, 4200L)
-            delay(holdMs)
-
-            step = (step + 1) % 4
-            targetColor = when (step) {
-                0 -> primaries.random()
-                1 -> Color.Black
-                2 -> primaries.random()
-                else -> Color.White
-            }
-        }
-    }
-
-    Text(
-        text = "TR1CKL3",
-        modifier = modifier.fillMaxWidth(),
-        style = MaterialTheme.typography.titleLarge,
-        fontWeight = FontWeight.Black,
-        textAlign = TextAlign.Center,
-        color = animatedColor
-    )
-}
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -299,7 +284,7 @@ private fun TrickleApp() {
         SimpleDialog(
             title = "ADVANCED TIPS",
             onClose = { showTips = false },
-            accentColor = Color(0xFFFFD60A)
+            accentColor = Color(0xFF7E7E7E)
         ) { AdvancedTipsText() }
     }
 
@@ -307,7 +292,7 @@ private fun TrickleApp() {
         SimpleDialog(
             title = "ARCHETYPES",
             onClose = { showArchetypes = false },
-            accentColor = Color(0xFFFF0000)
+            accentColor = Color(0xFF000000)
         ) { ArchetypesText() }
     }
 
@@ -323,7 +308,7 @@ private fun TrickleApp() {
         SimpleDialog(
             title = "ACHIEVEMENTS",
             onClose = { showAchievements = false },
-            accentColor = Color(0xFFFFD60A)
+            accentColor = Color(0xFF0ADAFF)
         ) { AchievementsText(statsStore.load()) }
     }
 
@@ -390,11 +375,6 @@ private fun TrickleApp() {
                             Text(text = if (gameOver) "New Game" else "Main Menu", maxLines = 1)
                         }
                     }
-
-                    CyclingFadingColorTitle(
-                        menuVisitKey = menuVisitKey,
-                        modifier = Modifier.align(Alignment.Center)
-                    )
 
                     val turboContainerColor = if (turbo) turboOnColor else Color(0xFF6A6A6A)
                     val turboContentColor = if (turbo && turboOnColor == Color.Yellow) Color.Black else Color.White
@@ -771,11 +751,11 @@ private fun TrickleApp() {
                         horizontalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
                         val leftLabel = when (phase) {
-                            EnginePhase.SELECT, EnginePhase.ROUND_END -> "Start Round"
-                            EnginePhase.PLAYER_TURN -> "Submit Turn"
-                            EnginePhase.BOT_TURN -> "Bots Actingâ€¦"
-                            EnginePhase.GAME_OVER -> "Game Over"
-                            EnginePhase.SETUP -> "Setupâ€¦"
+                            EnginePhase.SELECT, EnginePhase.ROUND_END -> "Start Round->"
+                            EnginePhase.PLAYER_TURN -> "Submit Turn->"
+                            EnginePhase.BOT_TURN -> "Bots Acting..."
+                            EnginePhase.GAME_OVER -> "Game Over!"
+                            EnginePhase.SETUP -> "Setup..."
                         }
 
                         val leftEnabled = when (phase) {
@@ -852,24 +832,97 @@ private fun TrickleApp() {
     }
 }
 
+/// Single-contour cloud: avoids internal “circle outlines” being stroked over the text.
+private val CloudButtonShape: GenericShape = GenericShape { size, _ ->
+    val w = size.width
+    val h = size.height
+
+    // Handy percentages
+    val left = 0.04f * w
+    val right = 0.96f * w
+    val top = 0.10f * h
+    val bottom = 0.92f * h
+
+    // Cloud “puff line” control heights
+    val puffY1 = 0.28f * h
+    val puffY2 = 0.08f * h
+    val puffY3 = 0.22f * h
+
+    // Start bottom-left-ish
+    moveTo(left + 0.08f * w, bottom)
+
+    // Bottom edge (slight curve)
+    cubicTo(
+        left + 0.30f * w, bottom + 0.02f * h,
+        right - 0.30f * w, bottom + 0.02f * h,
+        right - 0.08f * w, bottom
+    )
+
+    // Right side up into right puff
+    cubicTo(
+        right + 0.02f * w, 0.78f * h,
+        right + 0.01f * w, 0.46f * h,
+        right - 0.14f * w, puffY3
+    )
+
+    // Big right puff crest
+    cubicTo(
+        right - 0.06f * w, puffY2,
+        right - 0.22f * w, top,
+        right - 0.36f * w, puffY1
+    )
+
+    // Center puff (highest)
+    cubicTo(
+        right - 0.44f * w, top - 0.02f * h,
+        left + 0.56f * w, top - 0.02f * h,
+        left + 0.46f * w, puffY1
+    )
+
+    // Left-center puff
+    cubicTo(
+        left + 0.40f * w, top + 0.06f * h,
+        left + 0.24f * w, top + 0.06f * h,
+        left + 0.22f * w, puffY1 + 0.02f * h
+    )
+
+    // Small left puff down into left side
+    cubicTo(
+        left + 0.06f * w, puffY3,
+        left - 0.02f * w, 0.52f * h,
+        left + 0.06f * w, 0.72f * h
+    )
+
+    // Back to start along left-bottom curve
+    cubicTo(
+        left + 0.01f * w, 0.80f * h,
+        left + 0.02f * w, bottom,
+        left + 0.08f * w, bottom
+    )
+
+    close()
+}
+
 @Composable
 private fun MenuLinkButton(text: String, enabled: Boolean = true, onClick: () -> Unit) {
-    val borderColor = when (text) {
-        "HOW TO PLAY" -> Color(0xFFFFFFFF)
-        "ADVANCED TIPS" -> Color(0xFFFFD60A)
-        "ARCHETYPES" -> Color(0xFFFF0000)
-        "PLAYER STATS" -> Color(0xFF0000FF)
-        else -> Color.Gray
-    }
+    // Homogenized: one consistent “storm grey” for all menu buttons
+    val outlineColor = Color(0xFF9AA3AD)
 
     val interactionSource = remember { MutableInteractionSource() }
     val pressed by interactionSource.collectIsPressedAsState()
 
-    // Keep background mostly black for readability; add only a subtle color tint when pressed.
+    // Cloud fill: light by default, slightly deeper when pressed; keep text readable.
+    val baseFill = Color(0xFFF2F7FF)
+    val pressedFill = Color(0xFFE4F0FF)
+
     val containerColor by animateColorAsState(
-        targetValue = if (pressed) borderColor.copy(alpha = 0.18f) else Color.Black,
-        label = "menuButtonBg"
+        targetValue = if (pressed) pressedFill else baseFill,
+        animationSpec = tween(durationMillis = 90, easing = LinearEasing),
+        label = "cloudMenuButtonBg"
     )
+
+    val borderColor = if (enabled) outlineColor else outlineColor.copy(alpha = 0.35f)
+    val contentColor = borderColor
 
     OutlinedButton(
         onClick = onClick,
@@ -878,15 +931,17 @@ private fun MenuLinkButton(text: String, enabled: Boolean = true, onClick: () ->
         modifier = Modifier
             .fillMaxWidth()
             .widthIn(max = 360.dp)
-            .heightIn(min = 68.dp),
-        shape = RoundedCornerShape(28.dp),
+            .heightIn(min = 74.dp)
+            .shadow(elevation = 10.dp, shape = CloudButtonShape, clip = false),
+        shape = CloudButtonShape,
         border = BorderStroke(3.dp, borderColor),
         colors = ButtonDefaults.outlinedButtonColors(
             containerColor = containerColor,
-            // ✅ Text now matches the button’s color (same as border).
-            contentColor = borderColor
+            contentColor = contentColor,
+            disabledContainerColor = baseFill.copy(alpha = 0.40f),
+            disabledContentColor = outlineColor.copy(alpha = 0.35f)
         ),
-        contentPadding = PaddingValues(vertical = 18.dp, horizontal = 24.dp)
+        contentPadding = PaddingValues(vertical = 18.dp, horizontal = 26.dp)
     ) {
         Text(
             text = text.uppercase(),
@@ -895,7 +950,8 @@ private fun MenuLinkButton(text: String, enabled: Boolean = true, onClick: () ->
             fontSize = 20.sp,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
-            textAlign = TextAlign.Center
+            textAlign = TextAlign.Center,
+            color = contentColor
         )
     }
 }
@@ -1013,7 +1069,8 @@ private fun AdvancedTipsText() {
                 "- On Hard mode, bots will also gang up on you as the finish line approaches.\n\n" +
                 "JESTER'S HAT RULE:\n" +
                 "- If you guess 1 or 3 on someone who actually chose 0, you lose 1 marble and take the Jester's Hat.\n" +
-                "- Next round, the Hat-holder goes first Ã¢â‚¬â€ BUT only if the Hat ended the round on a different person than it started.\n"
+                "- If you guess 0 someone who actually chose 0, you lose 0 marbles and take the Jester's Hat.\n" +
+                "- Next round, the Hat-holder goes first BUT only if the Hat ended the round on a different person than it started.\n"
     )
 }
 
@@ -1031,7 +1088,7 @@ private fun ArchetypesText() {
                 "Auditor:\n" +
                 "- Hates wallflowers. Targets anyone who passes too much\n" +
                 "- Chooses: 1 or 3.\n" +
-                "- Targeting Behavior: Passes rounds 1Ã¢â‚¬â€œ2; targets pass-streak players after.\n\n" +
+                "- Targeting Behavior: Passes rounds 1 and 2, targets pass-streak players after.\n\n" +
                 "Chaos Grandma:\n" +
                 "- The Matriarch of Chaos. All random everything\n" +
                 "- Chooses: Random (0/1/3 evenly)\n" +
@@ -1039,13 +1096,13 @@ private fun ArchetypesText() {
                 "Hat Farmer:\n" +
                 "- Will gladly pay a marble to snag the Jester's Hat\n" +
                 "- Chooses: Baseline behavior.\n" +
-                "- Targeting Behavior: Passes first; then targets Ã¢â‚¬Å“recently guessedÃ¢â‚¬Â players\n\n" +
+                "- Targeting Behavior: Passes first; then targets recently guessed players\n\n" +
                 "Juliet (Colluder):\n" +
                 "- She's in it to win it, or at least watch Romeo win\n" +
                 "- Chooses: 1 or 3\n" +
                 "- Targeting Behavior: Anyone but Romeo\n\n" +
                 "Kingmaker:\n" +
-                "- Picks a Ã¢â‚¬ËœkingÃ¢â‚¬â„¢ and only attacks people who attack that king\n" +
+                "- Picks a 'King' and only attacks people who attack that King\n" +
                 "- Chooses: 50/50 between 1 and 3\n" +
                 "- Targeting Behavior: Usually passes; targets only to avenge their king\n\n" +
                 "Limper:\n" +
@@ -1089,7 +1146,7 @@ private fun ArchetypesText() {
 
 @Composable
 private fun StatsText(stats: PlayerStats) {
-    val acc = if (stats.totalGuesses == 0) "â€”"
+    val acc = if (stats.totalGuesses == 0) ""
     else "${((stats.correctGuesses * 100.0) / stats.totalGuesses).toInt()}%"
 
     Column {
@@ -1116,18 +1173,18 @@ private fun AchievementsText(stats: PlayerStats) {
         Spacer(Modifier.height(8.dp))
 
         // --- First milestones ---
-        AchievementRow(stats.firstGameCompleted, "First Drip", "Complete a game")
-        AchievementRow(stats.firstWin, "First Flood", "Win a game")
+        AchievementRow(stats.firstGameCompleted, "Get Your Feet Wet", "Complete a game")
+        AchievementRow(stats.firstWin, "TRICKLE!", "Win a game")
 
         // --- Special wins / events ---
-        AchievementRow(stats.firstPerfectWin, "Perfect Pour", "Win with 0 wrong guesses")
+        AchievementRow(stats.firstPerfectWin, "Perfect Puddler", "Win with 0 wrong guesses")
         AchievementRow(stats.reachedRound6, "Idle Hands", "Reach round 6")
-        AchievementRow(stats.wonWith18Marbles, "18-Marble Miracle", "Win with exactly 18 marbles")
+        AchievementRow(stats.wonWith18Marbles, "Legal Limit", "Win with exactly 18 marbles")
 
         // --- Difficulty wins ---
-        AchievementRow(stats.wonEasy, "Easy Win", "Win on Easy")
-        AchievementRow(stats.wonNormal, "Normal Win", "Win on Normal")
-        AchievementRow(stats.wonHard, "Hard Win", "Win on Hard")
+        AchievementRow(stats.wonEasy, "Comp Stomp", "Win on Easy")
+        AchievementRow(stats.wonNormal, "Pattern Finder", "Win on Normal")
+        AchievementRow(stats.wonHard, "TR1CKL3!", "Win on Hard")
 
         // --- Tourist (progress row) ---
         AchievementRow(
@@ -1137,9 +1194,9 @@ private fun AchievementsText(stats: PlayerStats) {
             progress = "${stats.easyGames.coerceAtLeast(0)} / ${stats.normalGames.coerceAtLeast(0)} / ${stats.hardGames.coerceAtLeast(0)}"
         )
 
-        AchievementRow(stats.pacifistWin, "Pacifist", "Win without guessing")
+        AchievementRow(stats.pacifistWin, "Conscientious Objector", "Win without guessing")
         // ✅ NEW: show pacifistGame in UI
-        AchievementRow(stats.pacifistGame, "Pacifist (Game)", "Complete a game without guessing")
+        AchievementRow(stats.pacifistGame, "Pacifist", "Complete a game without guessing")
 
         AchievementRow(
             stats.justPressEverythingWin,
@@ -1149,72 +1206,72 @@ private fun AchievementsText(stats: PlayerStats) {
 
         AchievementRow(
             stats.shakespeareWin,
-            "Shakespeare",
+            "Wherefore Art Thou",
             "Correctly guess Romeo and Juliet (when both are present)"
         )
 
         // --- Zero chain ---
         AchievementRow(stats.firstTheFool, "The Fool", "Get tricked by a 0")
         AchievementRow(stats.firstZeroTrap, "Zero Trap", "Trick a bot with your 0")
-        AchievementRow(stats.zeroHeroUnlocked, "Zero Hero", "Unlock The Fool + Zero Trap")
+        AchievementRow(stats.zeroHeroUnlocked, "Zero Hero", "Unlock The ability to Guess 0!")
 
         // ✅ NEW ACHIEVEMENTS (show them)
         AchievementRow(stats.drySeasonWin, "Dry Season", "Win without ever choosing 3")
         AchievementRow(stats.ghostCupWin, "Ghost Cup", "Win without being targeted")
         AchievementRow(stats.onARoll, "On a Roll", "3 correct guesses in a row")
         AchievementRow(stats.dumbLuck, "Dumb Luck", "Correctly guess a 3 in round 1")
-        AchievementRow(stats.hatFinisher, "Hat Finisher", "Win after starting because you had the Hat")
-        AchievementRow(stats.caughtTheStrobe, "Caught the Strobe", "Correctly guess Strobeâ€™s 3 twice in one game")
-        AchievementRow(stats.pushover, "Pushover", "Correctly guess Three-Pusherâ€™s 3 four times in one game")
+        AchievementRow(stats.hatFinisher, "Hat Trick", "Win after starting because you had the Hat")
+        AchievementRow(stats.caughtTheStrobe, "Caught the Strobe", "Correctly guess Strobe's 3 twice in one game")
+        AchievementRow(stats.pushover, "Pushover", "Correctly guess Three-Pusher's 3 four times in one game")
 
         // --- Milestones ---
         AchievementRow(
             unlocked = stats.won13thGame,
-            title = "13-Drop Streak",
+            title = "Trickle Champion",
             desc = "Win 13 games",
             progress = "${stats.totalWins}/13"
         )
         AchievementRow(
             unlocked = stats.won113thGame,
-            title = "Century+13 Flood",
+            title = "Trickle God",
             desc = "Win 113 games",
             progress = "${stats.totalWins}/113"
         )
 
         AchievementRow(
             unlocked = stats.played13Games,
-            title = "13-Rain Games",
+            title = "Amateur",
             desc = "Play 13 games",
             progress = "${stats.totalGames}/13"
         )
         AchievementRow(
             unlocked = stats.played113Games,
-            title = "113-Rain Games",
+            title = "Professional",
             desc = "Play 113 games",
             progress = "${stats.totalGames}/113"
         )
         AchievementRow(
             unlocked = stats.played1113Games,
-            title = "1,113-Rain Games",
+            title = "Expert",
             desc = "Play 1,113 games",
             progress = "${stats.totalGames}/1113"
         )
 
         AchievementRow(
             unlocked = stats.has113MarblesTotal,
-            title = "113-Drop Bucket",
+            title = "Bucket Filler",
             desc = "Gain 113 marbles across games",
             progress = "${stats.totalMarblesAcrossGames}/113"
         )
         AchievementRow(
             unlocked = stats.has1113MarblesTotal,
-            title = "1,113-Drop Bucket",
+            title = "Tub Filler",
             desc = "Gain 1,113 marbles across games",
             progress = "${stats.totalMarblesAcrossGames}/1113"
         )
         AchievementRow(
             unlocked = stats.has11113MarblesTotal,
-            title = "11,113-Drop Bucket",
+            title = "Pool Filler",
             desc = "Gain 11,113 marbles across games",
             progress = "${stats.totalMarblesAcrossGames}/11113"
         )
@@ -1237,7 +1294,7 @@ private fun AchievementRow(
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(
-            text = if (unlocked) "âœ“â€œ " else "X",
+            text = if (unlocked) "✓" else "X",
             color = if (unlocked) Color(0xFF0000FF) else Color.Gray,
             fontSize = 24.sp
         )
@@ -1312,7 +1369,7 @@ private fun TargetDropdown(
     onSelect: (Int?) -> Unit
 ) {
     var expanded by remember { mutableStateOf(false) }
-    val selectedName = options.firstOrNull { it.id == selectedTargetId }?.baseName ?: "â€”"
+    val selectedName = options.firstOrNull { it.id == selectedTargetId }?.baseName ?: "-"
 
     ExposedDropdownMenuBox(
         expanded = expanded,
@@ -1364,7 +1421,7 @@ private fun DifficultyDropdownNullable(
         Difficulty.EASY -> "Easy (show archetypes and scores)"
         Difficulty.NORMAL -> "Normal (hides archetypes and scores)"
         Difficulty.HARD -> "Hard (bots block your win)"
-        null -> "Select difficultyâ€¦"
+        null -> "Select difficulty..."
     }
 
     ExposedDropdownMenuBox(
