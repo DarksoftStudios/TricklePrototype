@@ -29,20 +29,13 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.DialogProperties
-import kotlinx.coroutines.delay
 import kotlin.random.Random
 import com.example.trickleprototype.ui.theme.TricklePrototypeTheme
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.Image
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.foundation.background
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.unit.dp
-import androidx.compose.foundation.layout.offset
-import androidx.compose.foundation.Image
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.painter.BitmapPainter
@@ -275,7 +268,7 @@ private fun TrickleApp() {
 
                 val result = engine.step()
                 lastResult = result
-                logText = buildLogText(result, difficulty)
+                logText = buildLogText(result)
 
                 if (result.phase == EnginePhase.BOT_TURN) {
                     val base = if (result.lastEventKind == LogEventKind.PASS) 300L else 1000L
@@ -294,7 +287,7 @@ private fun TrickleApp() {
         SimpleDialog(
             title = "HOW TO PLAY",
             onClose = { showHowToPlay = false },
-            accentColor = Color(0xFF6A6A6A)
+            accentColor = Color(0xFFFFFFFF)
         ) { HowToPlayText() }
     }
 
@@ -302,7 +295,7 @@ private fun TrickleApp() {
         SimpleDialog(
             title = "ADVANCED TIPS",
             onClose = { showTips = false },
-            accentColor = Color(0xFFFFFFFF)
+            accentColor = Color(0xFFFFD60A)
         ) { AdvancedTipsText() }
     }
 
@@ -310,7 +303,7 @@ private fun TrickleApp() {
         SimpleDialog(
             title = "ARCHETYPES",
             onClose = { showArchetypes = false },
-            accentColor = Color(0xFF7BCBFF)
+            accentColor = Color(0xFFFF0000)
         ) { ArchetypesText() }
     }
 
@@ -318,14 +311,15 @@ private fun TrickleApp() {
         SimpleDialog(
             title = "PLAYER STATS",
             onClose = { showStats = false },
-            accentColor = Color(0xFF6A6A6A)
+            accentColor = Color(0xFF007AFF)
         ) { StatsText(statsStore.load()) }
     }
+
     if (showAchievements) {
         SimpleDialog(
             title = "ACHIEVEMENTS",
             onClose = { showAchievements = false },
-            accentColor = Color(0xFF007AFF)
+            accentColor = Color(0xFFFFD60A)
         ) { AchievementsText(statsStore.load()) }
     }
 
@@ -453,15 +447,18 @@ private fun TrickleApp() {
 
             AppScreen.MAIN_MENU -> {
                 Column(
-                    modifier = Modifier.fillMaxSize(),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.SpaceEvenly
-
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    MenuLinkButton(text = "PLAY", index = 0) { screen = AppScreen.PLAY }
-                    MenuLinkButton(text = "RULES", index = 1) { screen = AppScreen.RULES }
-                    MenuLinkButton(text = "PROFILE", index = 2) { screen = AppScreen.PROFILE }
-                    MenuLinkButton(text = "SETTINGS", index = 3) { screen = AppScreen.SETTINGS }
+                    MenuLinkButton(text = "PLAY") { screen = AppScreen.PLAY }
+                    Spacer(Modifier.height(10.dp))
+                    MenuLinkButton(text = "RULES") { screen = AppScreen.RULES }
+                    Spacer(Modifier.height(10.dp))
+                    MenuLinkButton(text = "PROFILE") { screen = AppScreen.PROFILE }
+                    Spacer(Modifier.height(10.dp))
+                    MenuLinkButton(text = "SETTINGS") { screen = AppScreen.SETTINGS }
+
+                    Spacer(Modifier.height(24.dp))
                 }
                 return@Column
             }
@@ -471,77 +468,82 @@ private fun TrickleApp() {
                 val normalUnlocked = stats.easyGames > 0
                 val hardUnlocked = stats.normalWins > 0
 
-                // FIX: define startGame in-scope (it was previously local to this branch)
                 fun startGame(picked: Difficulty) {
                     difficulty = picked
                     engine.setDifficulty(picked)
 
                     val snap = engineSnapshot(engine)
                     lastResult = snap
-                    logText = buildLogText(snap, difficulty)
+                    logText = buildLogText(snap)
+
+                    humanActionLocked = false
+                    startLocked = false
 
                     choice = 1
                     targetId = null
                     guess = 3
 
-                    humanActionLocked = false
-                    startLocked = false
-
-                    // If your project uses a separate GAME screen, keep this:
                     screen = AppScreen.GAME
-                    // If you don't have AppScreen.GAME, delete the line above.
                 }
 
                 Column(
-                    modifier = Modifier.fillMaxSize(),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.SpaceEvenly
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    MenuLinkButton(text = "EASY", index = 0) { startGame(Difficulty.EASY) }
-
+                    MenuLinkButton(text = "EASY") { startGame(Difficulty.EASY) }
+                    Spacer(Modifier.height(10.dp))
                     MenuLinkButton(
                         text = if (normalUnlocked) "NORMAL" else "NORMAL (LOCKED)",
-                        index = 1,
                         enabled = normalUnlocked
                     ) { startGame(Difficulty.NORMAL) }
-
+                    Spacer(Modifier.height(10.dp))
                     MenuLinkButton(
                         text = if (hardUnlocked) "HARD" else "HARD (LOCKED)",
-                        index = 2,
                         enabled = hardUnlocked
                     ) { startGame(Difficulty.HARD) }
 
-                    MenuLinkButton(text = "BACK", index = 3) { screen = AppScreen.MAIN_MENU }
+                    Spacer(Modifier.height(16.dp))
+                    MenuLinkButton(text = "BACK") { screen = AppScreen.MAIN_MENU }
+
+                    Spacer(Modifier.height(24.dp))
                 }
                 return@Column
             }
 
-
-            // --- RULES ---
             AppScreen.RULES -> {
                 Column(
-                    modifier = Modifier.fillMaxSize(),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.SpaceEvenly
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    MenuLinkButton(text = "HOW TO PLAY", index = 0) { showHowToPlay = true }
-                    MenuLinkButton(text = "ADVANCED TIPS", index = 1) { showTips = true }
-                    MenuLinkButton(text = "ARCHETYPES", index = 2) { showArchetypes = true }
-                    MenuLinkButton(text = "BACK", index = 3) { screen = AppScreen.MAIN_MENU }
+                    MenuLinkButton(text = "HOW TO PLAY") { showHowToPlay = true }
+                    Spacer(Modifier.height(10.dp))
+                    MenuLinkButton(text = "ADVANCED TIPS") { showTips = true }
+                    Spacer(Modifier.height(10.dp))
+                    MenuLinkButton(text = "ARCHETYPES") { showArchetypes = true }
+
+                    Spacer(Modifier.height(16.dp))
+                    MenuLinkButton(text = "BACK") { screen = AppScreen.MAIN_MENU }
+
+                    Spacer(Modifier.height(24.dp))
                 }
                 return@Column
             }
 
             AppScreen.PROFILE -> {
                 Column(
-                    modifier = Modifier.fillMaxSize(),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.SpaceEvenly
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    MenuLinkButton(text = "STATS", index = 0) { showStats = true }
-                    MenuLinkButton(text = "ACHIEVEMENTS", index = 1) { showAchievements = true }
-                    MenuLinkButton(text = "CUSTOMIZE", index = 2) { screen = AppScreen.CUSTOMIZE }
-                    MenuLinkButton(text = "BACK", index = 3) { screen = AppScreen.MAIN_MENU }
+                    MenuLinkButton(text = "STATS") { showStats = true }
+                    Spacer(Modifier.height(10.dp))
+                    MenuLinkButton(text = "ACHIEVEMENTS") { showAchievements = true }
+                    Spacer(Modifier.height(10.dp))
+                    MenuLinkButton(text = "CUSTOMIZE") { screen = AppScreen.CUSTOMIZE }
+
+                    Spacer(Modifier.height(16.dp))
+                    MenuLinkButton(text = "BACK") { screen = AppScreen.MAIN_MENU }
+
+                    Spacer(Modifier.height(24.dp))
                 }
                 return@Column
             }
@@ -582,7 +584,7 @@ private fun TrickleApp() {
                     }
 
                     Spacer(Modifier.height(16.dp))
-                    MenuLinkButton(text = "BACK", index = 3) { screen = AppScreen.PROFILE }
+                    MenuLinkButton(text = "BACK") { screen = AppScreen.PROFILE }
 
                     Spacer(Modifier.height(24.dp))
                 }
@@ -590,45 +592,25 @@ private fun TrickleApp() {
             }
 
             AppScreen.SETTINGS -> {
-                var showResetConfirm by remember { mutableStateOf(false) }
-
                 Column(
-                    modifier = Modifier.fillMaxSize(),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.SpaceEvenly
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    MenuLinkButton(text = "SOUND (COMING SOON)", index = 0) { /* placeholder */ }
-                    MenuLinkButton(text = "MUSIC (COMING SOON)", index = 1) { /* placeholder */ }
-
-                    MenuLinkButton(text = "RESET STATS", index = 2) {
-                        showResetConfirm = true
+                    MenuLinkButton(text = "SOUND (COMING SOON)") { /* placeholder */ }
+                    Spacer(Modifier.height(10.dp))
+                    MenuLinkButton(text = "MUSIC (COMING SOON)") { /* placeholder */ }
+                    Spacer(Modifier.height(10.dp))
+                    MenuLinkButton(text = "RESET STATS") {
+                        statsStore.resetAll()
+                        playerName = statsStore.getPlayerName()
+                        engine.setHumanName(playerName)
                     }
 
-                    MenuLinkButton(text = "BACK", index = 3) { screen = AppScreen.MAIN_MENU }
-                }
+                    Spacer(Modifier.height(16.dp))
+                    MenuLinkButton(text = "BACK") { screen = AppScreen.MAIN_MENU }
 
-                if (showResetConfirm) {
-                    AlertDialog(
-                        onDismissRequest = { showResetConfirm = false },
-                        title = { Text("Reset stats?") },
-                        text = { Text("This will permanently clear your stats and achievements.") },
-                        confirmButton = {
-                            TextButton(
-                                onClick = {
-                                    statsStore.resetAll()
-                                    playerName = statsStore.getPlayerName()
-                                    showResetConfirm = false
-                                }
-                            ) { Text("Reset") }
-                        },
-                        dismissButton = {
-                            TextButton(onClick = { showResetConfirm = false }) {
-                                Text("Cancel")
-                            }
-                        }
-                    )
+                    Spacer(Modifier.height(24.dp))
                 }
-
                 return@Column
             }
 
@@ -727,9 +709,9 @@ private fun TrickleApp() {
                     val leftLabel = when (phase) {
                         EnginePhase.SELECT, EnginePhase.ROUND_END -> "Start Round"
                         EnginePhase.PLAYER_TURN -> "Submit Turn"
-                        EnginePhase.BOT_TURN -> "Bots Acting¦"
+                        EnginePhase.BOT_TURN -> "Bots Actingâ€¦"
                         EnginePhase.GAME_OVER -> "Game Over"
-                        EnginePhase.SETUP -> "Setup¦"
+                        EnginePhase.SETUP -> "Setupâ€¦"
                     }
 
                     val leftEnabled = when (phase) {
@@ -749,7 +731,7 @@ private fun TrickleApp() {
                                     startLocked = true
                                     val result = engine.startRound(choice)
                                     lastResult = result
-                                    logText = buildLogText(result, difficulty)
+                                    logText = buildLogText(result)
                                     targetId = null
                                 }
                                 EnginePhase.PLAYER_TURN -> {
@@ -762,7 +744,7 @@ private fun TrickleApp() {
                                         guess = frozenGuess
                                     )
                                     lastResult = result
-                                    logText = buildLogText(result, difficulty)
+                                    logText = buildLogText(result)
 
                                     if (result.phase == EnginePhase.PLAYER_TURN) {
                                         humanActionLocked = false
@@ -806,44 +788,23 @@ private fun TrickleApp() {
 }
 
 @Composable
-private fun MenuLinkButton(
-    text: String,
-    index: Int,
-    enabled: Boolean = true,
-    onClick: () -> Unit
-) {
-    // Required order (top -> bottom): grey, white, light blue, dark blue
-    val palette = listOf(
-        Color(0xFF6A6A6A), // grey
-        Color(0xFFFFFFFF), // white
-        Color(0xFF7BCBFF), // light blue
-        Color(0xFF007AFF)  // dark blue
-    )
-
-    val base = palette[index.coerceIn(0, palette.lastIndex)]
-    val shownBase = if (enabled) base else base.copy(alpha = 0.35f)
-
-    fun darken(c: Color, factor: Float = 0.88f) = Color(
-        red = (c.red * factor).coerceIn(0f, 1f),
-        green = (c.green * factor).coerceIn(0f, 1f),
-        blue = (c.blue * factor).coerceIn(0f, 1f),
-        alpha = c.alpha
-    )
+private fun MenuLinkButton(text: String, enabled: Boolean = true, onClick: () -> Unit) {
+    val borderColor = when (text) {
+        "HOW TO PLAY" -> Color(0xFFFFFFFF)
+        "ADVANCED TIPS" -> Color(0xFFFFD60A)
+        "ARCHETYPES" -> Color(0xFFFF0000)
+        "PLAYER STATS" -> Color(0xFF0000FF)
+        else -> Color.Gray
+    }
 
     val interactionSource = remember { MutableInteractionSource() }
     val pressed by interactionSource.collectIsPressedAsState()
 
+    // Keep background mostly black for readability; add only a subtle color tint when pressed.
     val containerColor by animateColorAsState(
-        targetValue = if (pressed && enabled) darken(shownBase) else shownBase,
-        animationSpec = tween(durationMillis = 90, easing = LinearEasing),
+        targetValue = if (pressed) borderColor.copy(alpha = 0.18f) else Color.Black,
         label = "menuButtonBg"
     )
-
-    val contentColor = when {
-        !enabled -> Color(0xFFBDBDBD)
-        index == 1 || index == 2 -> Color.Black // white + light-blue need dark text
-        else -> Color.White
-    }
 
     OutlinedButton(
         onClick = onClick,
@@ -854,10 +815,11 @@ private fun MenuLinkButton(
             .widthIn(max = 360.dp)
             .heightIn(min = 68.dp),
         shape = RoundedCornerShape(28.dp),
-        border = BorderStroke(3.dp, shownBase),
+        border = BorderStroke(3.dp, borderColor),
         colors = ButtonDefaults.outlinedButtonColors(
             containerColor = containerColor,
-            contentColor = contentColor
+            // âœ… Text now matches the buttonâ€™s color (same as border).
+            contentColor = borderColor
         ),
         contentPadding = PaddingValues(vertical = 18.dp, horizontal = 24.dp)
     ) {
@@ -897,9 +859,8 @@ private fun engineSnapshot(engine: GameEngine): RoundResult {
     )
 }
 
-fun buildLogText(result: RoundResult, difficulty: Difficulty?): String {
-    val events = if (difficulty == Difficulty.HARD) result.log.takeLast(6) else result.log
-    return events.joinToString("\n") { it.text }.ifBlank { "" }
+private fun buildLogText(result: RoundResult): String {
+    return result.log.asReversed().joinToString("\n") { it.text }.ifBlank { "" }
 }
 
 // -------------------- Dialog + Text Blocks --------------------
@@ -987,8 +948,7 @@ private fun AdvancedTipsText() {
                 "- On Hard mode, bots will also gang up on you as the finish line approaches.\n\n" +
                 "JESTER'S HAT RULE:\n" +
                 "- If you guess 1 or 3 on someone who actually chose 0, you lose 1 marble and take the Jester's Hat.\n" +
-                "- If you guess 0 correctly, no marbles change and you take the Jester's Hat.\n" +
-                "- Next round, the Hat-holder goes first, BUT only if the Hat ended the round on a different person than it started.\n"
+                "- Next round, the Hat-holder goes first Ã¢â‚¬â€ BUT only if the Hat ended the round on a different person than it started.\n"
     )
 }
 
@@ -1006,7 +966,7 @@ private fun ArchetypesText() {
                 "Auditor:\n" +
                 "- Hates wallflowers. Targets anyone who passes too much\n" +
                 "- Chooses: 1 or 3.\n" +
-                "- Targeting Behavior: Passes rounds 1 and 2; targets pass-streak players after.\n\n" +
+                "- Targeting Behavior: Passes rounds 1Ã¢â‚¬â€œ2; targets pass-streak players after.\n\n" +
                 "Chaos Grandma:\n" +
                 "- The Matriarch of Chaos. All random everything\n" +
                 "- Chooses: Random (0/1/3 evenly)\n" +
@@ -1014,13 +974,13 @@ private fun ArchetypesText() {
                 "Hat Farmer:\n" +
                 "- Will gladly pay a marble to snag the Jester's Hat\n" +
                 "- Chooses: Baseline behavior.\n" +
-                "- Targeting Behavior: Passes first; then targets â€œrecently guessedâ€ players\n\n" +
+                "- Targeting Behavior: Passes first; then targets Ã¢â‚¬Å“recently guessedÃ¢â‚¬Â players\n\n" +
                 "Juliet (Colluder):\n" +
                 "- She's in it to win it, or at least watch Romeo win\n" +
                 "- Chooses: 1 or 3\n" +
                 "- Targeting Behavior: Anyone but Romeo\n\n" +
                 "Kingmaker:\n" +
-                "- Picks a 'king' and only attacks people who attack that king\n" +
+                "- Picks a Ã¢â‚¬ËœkingÃ¢â‚¬â„¢ and only attacks people who attack that king\n" +
                 "- Chooses: 50/50 between 1 and 3\n" +
                 "- Targeting Behavior: Usually passes; targets only to avenge their king\n\n" +
                 "Limper:\n" +
@@ -1064,7 +1024,7 @@ private fun ArchetypesText() {
 
 @Composable
 private fun StatsText(stats: PlayerStats) {
-    val acc = if (stats.totalGuesses == 0) "”"
+    val acc = if (stats.totalGuesses == 0) "â€”"
     else "${((stats.correctGuesses * 100.0) / stats.totalGuesses).toInt()}%"
 
     Column {
@@ -1082,6 +1042,7 @@ private fun StatsText(stats: PlayerStats) {
         )
     }
 }
+
 @Composable
 private fun AchievementsText(stats: PlayerStats) {
     Column {
@@ -1112,6 +1073,7 @@ private fun AchievementsText(stats: PlayerStats) {
         )
 
         AchievementRow(stats.pacifistWin, "Pacifist", "Win without guessing")
+        // âœ… NEW: show pacifistGame in UI
         AchievementRow(stats.pacifistGame, "Pacifist (Game)", "Complete a game without guessing")
 
         AchievementRow(
@@ -1131,13 +1093,14 @@ private fun AchievementsText(stats: PlayerStats) {
         AchievementRow(stats.firstZeroTrap, "Zero Trap", "Trick a bot with your 0")
         AchievementRow(stats.zeroHeroUnlocked, "Zero Hero", "Unlock The Fool + Zero Trap")
 
+        // âœ… NEW ACHIEVEMENTS (show them)
         AchievementRow(stats.drySeasonWin, "Dry Season", "Win without ever choosing 3")
         AchievementRow(stats.ghostCupWin, "Ghost Cup", "Win without being targeted")
         AchievementRow(stats.onARoll, "On a Roll", "3 correct guesses in a row")
         AchievementRow(stats.dumbLuck, "Dumb Luck", "Correctly guess a 3 in round 1")
         AchievementRow(stats.hatFinisher, "Hat Finisher", "Win after starting because you had the Hat")
-        AchievementRow(stats.caughtTheStrobe, "Caught the Strobe", "Correctly guess Strobe’s 3 twice in one game")
-        AchievementRow(stats.pushover, "Pushover", "Correctly guess Three-Pusher’s 3 four times in one game")
+        AchievementRow(stats.caughtTheStrobe, "Caught the Strobe", "Correctly guess Strobeâ€™s 3 twice in one game")
+        AchievementRow(stats.pushover, "Pushover", "Correctly guess Three-Pusherâ€™s 3 four times in one game")
 
         // --- Milestones ---
         AchievementRow(
@@ -1209,7 +1172,7 @@ private fun AchievementRow(
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(
-            text = if (unlocked) "✓" else "X",
+            text = if (unlocked) "âœ“â€œ " else "X",
             color = if (unlocked) Color(0xFF0000FF) else Color.Gray,
             fontSize = 24.sp
         )
@@ -1284,7 +1247,7 @@ private fun TargetDropdown(
     onSelect: (Int?) -> Unit
 ) {
     var expanded by remember { mutableStateOf(false) }
-    val selectedName = options.firstOrNull { it.id == selectedTargetId }?.baseName ?: "”"
+    val selectedName = options.firstOrNull { it.id == selectedTargetId }?.baseName ?: "â€”"
 
     ExposedDropdownMenuBox(
         expanded = expanded,
@@ -1336,7 +1299,7 @@ private fun DifficultyDropdownNullable(
         Difficulty.EASY -> "Easy (show archetypes and scores)"
         Difficulty.NORMAL -> "Normal (hides archetypes and scores)"
         Difficulty.HARD -> "Hard (bots block your win)"
-        null -> "Select difficulty¦"
+        null -> "Select difficultyâ€¦"
     }
 
     ExposedDropdownMenuBox(
