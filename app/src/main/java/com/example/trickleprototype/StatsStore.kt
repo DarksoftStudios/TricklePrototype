@@ -29,6 +29,7 @@ data class PlayerStats(
     // Win milestones
     var won13thGame: Boolean = false,
     var won113thGame: Boolean = false,
+    var won1113thGame: Boolean = false,
 
     // Play milestones
     var played13Games: Boolean = false,
@@ -122,6 +123,7 @@ class StatsStore(context: Context) {
 
             won13thGame = prefs.getBoolean("won13thGame", false),
             won113thGame = prefs.getBoolean("won113thGame", false),
+            won1113thGame = prefs.getBoolean("won1113thGame", false),
 
             played13Games = prefs.getBoolean("played13Games", false),
             played113Games = prefs.getBoolean("played113Games", false),

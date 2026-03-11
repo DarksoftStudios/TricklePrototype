@@ -72,6 +72,11 @@ class GameEngine(
     private var hatHolderId: Int? = null
     private var hatStartOfRoundHolderId: Int? = null
 
+    private var tiebreakerParticipantIds: Set<Int>? = null
+    private var tiebreakerStageIndex: Int = -1
+    private var tiebreakerRoundsRemaining: Int = 0
+    private var gameEndedInBotTie: Boolean = false
+
     // stats: per-game trackers
     private var gameWrongGuesses: Int = 0
 
@@ -152,6 +157,10 @@ class GameEngine(
 
         hatHolderId = null
         hatStartOfRoundHolderId = null
+        tiebreakerParticipantIds = null
+        tiebreakerStageIndex = -1
+        tiebreakerRoundsRemaining = 0
+        gameEndedInBotTie = false
 
         lastRoundChoices = emptyMap()
         lastRoundAttacks = emptyMap()
@@ -210,14 +219,19 @@ class GameEngine(
         // Start because you have the Hat means starter == hatHolder AND hatHolder exists
         startedRoundBecauseHat = (hatHolderId != null && starterId == hatHolderId)
 
-        turnOrder = buildTurnOrderFromStarter()
+        val activeIds = activePlayerIds()
+        turnOrder = buildTurnOrderFromStarter(activeIds)
         turnCursor = 0
 
-        selectionsThisRound[HUMAN_ID] = humanChoice
-        gameHumanChoicesUsed += humanChoice
-        if (humanChoice == 3) gameHumanEverChose3 = true
+        if (HUMAN_ID in activeIds) {
+            selectionsThisRound[HUMAN_ID] = humanChoice
+            gameHumanChoicesUsed += humanChoice
+            if (humanChoice == 3) gameHumanEverChose3 = true
+        }
 
         for (pid in 2..13) {
+            if (pid !in activeIds) continue
+
             val arch = archetypeById[pid]!!
             val mem = memById.getOrPut(pid) { BotMemory() }
 
@@ -231,7 +245,7 @@ class GameEngine(
                 lastRoundAttacks = lastRoundAttacks,
                 passStreaks = passStreaks.toMap(),
                 myId = pid,
-                playersAlive = players.map { it.id },
+                playersAlive = activeIds,
                 rng = rng,
                 humanMarbles = if (difficulty == Difficulty.HARD) players.first { it.id == HUMAN_ID }.marbles else null
             )
@@ -328,7 +342,7 @@ class GameEngine(
             lastRoundAttacks = lastRoundAttacks,
             passStreaks = passStreaks.toMap(),
             myId = actorId,
-            playersAlive = players.map { it.id },
+            playersAlive = activePlayerIds(),
             rng = rng,
             humanMarbles = playerMarbles
         )
@@ -365,7 +379,7 @@ class GameEngine(
         attacksThisRound[actorId] = targetId
         passStreaks[actorId] = 0
 
-        // Track Ã¢â‚¬Å“ghost cupÃ¢â‚¬Â condition (human must never be targeted)
+        // Track ÃƒÂ¢Ã¢â€šÂ¬Ã…â€œghost cupÃƒÂ¢Ã¢â€šÂ¬Ã‚Â condition (human must never be targeted)
         if (targetId == HUMAN_ID) gameHumanWasTargeted = true
 
         enqueueOther {
@@ -397,7 +411,7 @@ class GameEngine(
                 }
             }
 
-            // Track “you tricked a bot with your 0"
+            // Track â€œyou tricked a bot with your 0"
             // (bot guessed you, you revealed 0, they guessed non-zero)
             if (targetId == HUMAN_ID && actual == 0 && guess != 0) {
                 gameHumanTrickedBotWithZero = true
@@ -406,7 +420,7 @@ class GameEngine(
             // Resolve guess outcome
             if (guess == actual) {
 
-                //  Special Zero Hero reward: correct 0 guess takes the Hat and avoids the usual “guess cost"
+                //  Special Zero Hero reward: correct 0 guess takes the Hat and avoids the usual â€œguess cost"
                 // reward concrete + adds Hat control as you described.)
                 if (guess == 0) {
                     hatHolderId = actorId
@@ -478,7 +492,9 @@ class GameEngine(
             log += RoundLogEvent("TRICKLE ----------------------------------------")
         }
 
+        val activeIds = activePlayerIds().toSet()
         for (p in players) {
+            if (p.id !in activeIds) continue
             if (!revealedThisRound.containsKey(p.id)) {
                 enqueueOther {
                     val c = selectionsThisRound[p.id]!!
@@ -493,36 +509,36 @@ class GameEngine(
             lastRoundChoices = selectionsThisRound.toMap()
             lastRoundAttacks = attacksThisRound.toMap()
 
-            val winners = players.filter { it.marbles >= WIN_SCORE }
-            winnerIds = if (winners.isNotEmpty()) {
-                val top = winners.maxOf { it.marbles }
-                winners.filter { it.marbles == top }.map { it.id }
-            } else emptyList()
+            winnerIds = resolveWinnersAfterRound()
 
-            if (winnerIds.isNotEmpty()) {
-                val winnersText = winnerIds.joinToString(", ") { displayNameFor(it) }
-                val top = players.first { it.id == winnerIds.first() }.marbles
+            if (phase == EnginePhase.GAME_OVER) {
+                if (gameEndedInBotTie) {
+                    log += RoundLogEvent("")
+                    log += RoundLogEvent("GAME OVER --------------------------------------")
+                    log += RoundLogEvent("TIE GAME BETWEEN BOTS")
+                    log += RoundLogEvent("-----------------------------------------------")
+                    log += RoundLogEvent("")
+                } else if (winnerIds.isNotEmpty()) {
+                    val winnersText = winnerIds.joinToString(", ") { displayNameFor(it) }
+                    val top = players.first { it.id == winnerIds.first() }.marbles
 
-                log += RoundLogEvent("")
-                log += RoundLogEvent("GAME OVER --------------------------------------")
-                log += RoundLogEvent("WINNER: $winnersText with $top")
-                log += RoundLogEvent("-----------------------------------------------")
-                log += RoundLogEvent("")
+                    log += RoundLogEvent("")
+                    log += RoundLogEvent("GAME OVER --------------------------------------")
+                    log += RoundLogEvent("WINNER: $winnersText with $top")
+                    log += RoundLogEvent("-----------------------------------------------")
+                    log += RoundLogEvent("")
+                }
 
                 statsStore?.let { store ->
                     val s = store.load()
                     val humanFinal = players.first { it.id == HUMAN_ID }.marbles
                     val humanWon = winnerIds.contains(HUMAN_ID)
 
-                    // Always track totals (all difficulties)
-                    s.totalGames += 1
-                    s.totalMarblesAcrossGames += humanFinal.toLong()
+                    // -------------------------------------------------
+                    // ALWAYS TRACK DIFFICULTY PARTICIPATION
+                    // (needed for Tourist achievement)
+                    // -------------------------------------------------
 
-                    if (humanWon) {
-                        s.totalWins += 1
-                    }
-
-                    // Track difficulty game counts ALWAYS
                     when (difficulty) {
                         Difficulty.EASY -> s.easyGames += 1
                         Difficulty.NORMAL -> s.normalGames += 1
@@ -534,48 +550,52 @@ class GameEngine(
                         log += RoundLogEvent("*** Achievement Unlocked: Tourist - Played on Easy, Normal, and Hard! ***")
                     }
 
-                    if (!s.played13Games && s.totalGames >= 13) {
-                        s.played13Games = true
-                        log += RoundLogEvent("*** Achievement Unlocked: Amateur - Played 13 games! ***")
-                    }
+                    // -------------------------------------------------
+                    // TOTAL PROGRESSION (NORMAL OR HARD ONLY)
+                    // -------------------------------------------------
 
-                    if (!s.played113Games && s.totalGames >= 113) {
-                        s.played113Games = true
-                        log += RoundLogEvent("*** Achievement Unlocked: Professional - Played 113 games! ***")
-                    }
+                    if (difficulty != Difficulty.EASY) {
 
-                    if (!s.played1113Games && s.totalGames >= 1113) {
-                        s.played1113Games = true
-                        log += RoundLogEvent("*** Achievement Unlocked: Expert - Played 1,113 games! ***")
-                    }
+                        s.totalGames += 1
+                        s.totalMarblesAcrossGames += humanFinal.toLong()
 
-                    if (!s.has113MarblesTotal && s.totalMarblesAcrossGames >= 113L) {
-                        s.has113MarblesTotal = true
-                        log += RoundLogEvent("*** Achievement Unlocked: Bucket Filler - Gained 113 marbles across games! ***")
-                    }
+                        if (humanWon) {
+                            s.totalWins += 1
+                        }
 
-                    if (!s.has1113MarblesTotal && s.totalMarblesAcrossGames >= 1113L) {
-                        s.has1113MarblesTotal = true
-                        log += RoundLogEvent("*** Achievement Unlocked: Tub Filler - Gained 1,113 marbles across games! ***")
-                    }
+                        if (!s.played13Games && s.totalGames >= 13) {
+                            s.played13Games = true
+                            log += RoundLogEvent("*** Achievement Unlocked: Amateur - Played 13 games! ***")
+                        }
 
-                    if (!s.has11113MarblesTotal && s.totalMarblesAcrossGames >= 11113L) {
-                        s.has11113MarblesTotal = true
-                        log += RoundLogEvent("*** Achievement Unlocked: Pool Filler - Gained 11,113 marbles across games! ***")
-                    }
+                        if (!s.played113Games && s.totalGames >= 113) {
+                            s.played113Games = true
+                            log += RoundLogEvent("*** Achievement Unlocked: Professional - Played 113 games! ***")
+                        }
 
-                    if (!s.dumbLuck && unlockedDumbLuckThisGame) {
-                        s.dumbLuck = true
-                        log += RoundLogEvent("*** Achievement Unlocked: Dumb Luck - Correctly guessed a 3 in round 1! ***")
-                    }
+                        if (!s.played1113Games && s.totalGames >= 1113) {
+                            s.played1113Games = true
+                            log += RoundLogEvent("*** Achievement Unlocked: Expert - Played 1,113 games! ***")
+                        }
 
-                    if (!s.onARoll && unlockedOnARollThisGame) {
-                        s.onARoll = true
-                        log += RoundLogEvent("*** Achievement Unlocked: On a Roll - 3 correct guesses in a row! ***")
+                        if (!s.has113MarblesTotal && s.totalMarblesAcrossGames >= 113L) {
+                            s.has113MarblesTotal = true
+                            log += RoundLogEvent("*** Achievement Unlocked: Bucket Filler - Gained 113 marbles across games! ***")
+                        }
+
+                        if (!s.has1113MarblesTotal && s.totalMarblesAcrossGames >= 1113L) {
+                            s.has1113MarblesTotal = true
+                            log += RoundLogEvent("*** Achievement Unlocked: Tub Filler - Gained 1,113 marbles across games! ***")
+                        }
+
+                        if (!s.has11113MarblesTotal && s.totalMarblesAcrossGames >= 11113L) {
+                            s.has11113MarblesTotal = true
+                            log += RoundLogEvent("*** Achievement Unlocked: Pool Filler - Gained 11,113 marbles across games! ***")
+                        }
                     }
 
                     // -------------------------------------------------
-                    // NON-WIN GAME ACHIEVEMENTS (can unlock on loss)
+                    // GAME COMPLETION ACHIEVEMENTS
                     // -------------------------------------------------
 
                     if (!s.firstGameCompleted) {
@@ -593,50 +613,11 @@ class GameEngine(
                         log += RoundLogEvent("*** Achievement Unlocked: Idle Hands - Reached round 6! ***")
                     }
 
-                    // Just Press Everything (NO WIN REQUIRED)
-                    val didChoices = gameHumanChoicesUsed.containsAll(setOf(0, 1, 3))
-                    val didPass = gameHumanPassedAtLeastOnce
-                    val didGuesses = gameHumanGuessesUsed.containsAll(setOf(1, 3))
-                    if (!s.justPressEverythingWin && didChoices && didPass && didGuesses) {
-                        s.justPressEverythingWin = true
-                        log += RoundLogEvent("*** Achievement Unlocked: Just Press Everything - You tried it all! ***")
-                    }
-
-                    // Shakespeare (NO WIN REQUIRED)
-                    val hasRomeo = archetypeById.values.any { it is Colluder && it.displayName == "Romeo" }
-                    val hasJuliet = archetypeById.values.any { it is Colluder && it.displayName == "Juliet" }
-                    if (!s.shakespeareWin && hasRomeo && hasJuliet &&
-                        gameHumanCorrectRomeo && gameHumanCorrectJuliet) {
-                        s.shakespeareWin = true
-                        log += RoundLogEvent("*** Achievement Unlocked: Shakespeare - Correctly guessed Romeo and Juliet! ***")
-                    }
-
-                    // Zero chain safety check (in case not unlocked mid-game)
-                    if (gameHumanWasTrickedByZero && !s.firstTheFool) {
-                        s.firstTheFool = true
-                        log += RoundLogEvent("*** Achievement Unlocked: The Fool - Got tricked by a 0! ***")
-                    }
-
-                    if (gameHumanTrickedBotWithZero && !s.firstZeroTrap) {
-                        s.firstZeroTrap = true
-                        log += RoundLogEvent("*** Achievement Unlocked: Zero Trap - Tricked a bot with your 0! ***")
-                    }
-
-                    if (!s.zeroHeroUnlocked && s.firstTheFool && s.firstZeroTrap) {
-                        s.zeroHeroUnlocked = true
-                        log += RoundLogEvent("*** Achievement Unlocked: Zero Hero - Fool + Trap achieved! ***")
-                    }
-
                     // -------------------------------------------------
-                    // WIN-ONLY ACHIEVEMENTS
+                    // WIN ACHIEVEMENTS
                     // -------------------------------------------------
 
                     if (humanWon) {
-
-                        if (!s.firstWin) {
-                            s.firstWin = true
-                            log += RoundLogEvent("*** Achievement Unlocked: First Flood - Won a game! ***")
-                        }
 
                         when (difficulty) {
                             Difficulty.EASY -> {
@@ -646,6 +627,7 @@ class GameEngine(
                                 }
                                 s.easyWins += 1
                             }
+
                             Difficulty.NORMAL -> {
                                 if (!s.wonNormal) {
                                     s.wonNormal = true
@@ -653,6 +635,7 @@ class GameEngine(
                                 }
                                 s.normalWins += 1
                             }
+
                             Difficulty.HARD -> {
                                 if (!s.wonHard) {
                                     s.wonHard = true
@@ -662,57 +645,23 @@ class GameEngine(
                             }
                         }
 
-                        if (!s.won13thGame && s.totalWins >= 13) {
-                            s.won13thGame = true
-                            log += RoundLogEvent("*** Achievement Unlocked: Trickle Champion - Won 13 games! ***")
-                        }
+                        // Win milestones (Normal+ only)
+                        if (difficulty != Difficulty.EASY) {
 
-                        if (!s.won113thGame && s.totalWins >= 113) {
-                            s.won113thGame = true
-                            log += RoundLogEvent("*** Achievement Unlocked: Trickle God - Won 113 games! ***")
-                        }
-
-                        if (!s.pacifistWin && !gameHumanMadeGuess) {
-                            s.pacifistWin = true
-                            log += RoundLogEvent("*** Achievement Unlocked: Pacifist - Won without guessing! ***")
-                        }
-
-                        if (gameWrongGuesses == 0) {
-                            s.perfectGames += 1
-                            if (!s.firstPerfectWin) {
-                                s.firstPerfectWin = true
-                                log += RoundLogEvent("*** Achievement Unlocked: Perfect Pour - Win with 0 wrong guesses! ***")
+                            if (!s.won13thGame && s.totalWins >= 13) {
+                                s.won13thGame = true
+                                log += RoundLogEvent("*** Achievement Unlocked: Trickle Pro - Won 13 games! ***")
                             }
-                        }
 
-                        if (!s.wonWith18Marbles && humanFinal == 18) {
-                            s.wonWith18Marbles = true
-                            log += RoundLogEvent("*** Achievement Unlocked: 18-Marble Miracle - Win with exactly 18! ***")
-                        }
+                            if (!s.won113thGame && s.totalWins >= 113) {
+                                s.won113thGame = true
+                                log += RoundLogEvent("*** Achievement Unlocked: Trickle Champion - Won 113 games! ***")
 
-                        if (!s.drySeasonWin && !gameHumanEverChose3) {
-                            s.drySeasonWin = true
-                            log += RoundLogEvent("*** Achievement Unlocked: Dry Season - Won without ever choosing 3! ***")
-                        }
-
-                        if (!s.ghostCupWin && !gameHumanWasTargeted) {
-                            s.ghostCupWin = true
-                            log += RoundLogEvent("*** Achievement Unlocked: Ghost Cup - Won without being targeted! ***")
-                        }
-
-                        if (!s.hatFinisher && startedRoundBecauseHat && hatHolderId == HUMAN_ID) {
-                            s.hatFinisher = true
-                            log += RoundLogEvent("*** Achievement Unlocked: Hat Finisher - Won after starting with the Hat! ***")
-                        }
-
-                        if (!s.caughtTheStrobe && strobeCorrect3Count >= 2) {
-                            s.caughtTheStrobe = true
-                            log += RoundLogEvent("*** Achievement Unlocked: Caught the Strobe - Correctly guessed Strobe's 3 twice! ***")
-                        }
-
-                        if (!s.pushover && threePusherCorrect3Count >= 4) {
-                            s.pushover = true
-                            log += RoundLogEvent("*** Achievement Unlocked: Pushover - Correctly guessed Three-Pusher's 3 four times! ***")
+                            }
+                            if (!s.won113thGame && s.totalWins >= 1113) {
+                                s.won113thGame = true
+                                log += RoundLogEvent("*** Achievement Unlocked: Trickle God - Won 1113 games! ***")
+                            }
                         }
                     }
 
@@ -724,8 +673,14 @@ class GameEngine(
             val endHolder = hatHolderId
             val overrideEligible = (startHolder != endHolder) && (endHolder != null)
 
-            roundNumber += 1
-            starterIndex = if (overrideEligible) indexOfId(endHolder!!) else (starterIndex + 1) % players.size
+            if (phase != EnginePhase.GAME_OVER) {
+                roundNumber += 1
+                starterIndex = if (overrideEligible) {
+                    indexOfId(endHolder!!)
+                } else {
+                    nextStarterIndex(activePlayerIds())
+                }
+            }
 
             selectionsThisRound.clear()
             revealedThisRound.clear()
@@ -735,12 +690,164 @@ class GameEngine(
             turnCursor = 0
             hatStartOfRoundHolderId = null
 
-            phase = if (winnerIds.isNotEmpty()) EnginePhase.GAME_OVER else EnginePhase.SELECT
+            if (phase != EnginePhase.GAME_OVER) {
+                phase = EnginePhase.SELECT
+            }
 
             if (phase == EnginePhase.GAME_OVER) {
                 gameWrongGuesses = 0
             }
         }
+    }
+
+
+    private fun activePlayerIds(): List<Int> {
+        val restricted = tiebreakerParticipantIds
+        return if (restricted == null) players.map { it.id } else players.map { it.id }.filter { it in restricted }
+    }
+
+    private fun nextStarterIndex(activeIds: List<Int>): Int {
+        if (activeIds.isEmpty()) return (starterIndex + 1) % players.size
+        for (offset in 1..players.size) {
+            val idx = (starterIndex + offset) % players.size
+            if (players[idx].id in activeIds) return idx
+        }
+        return starterIndex
+    }
+
+    private fun resolveWinnersAfterRound(): List<Int> {
+        gameEndedInBotTie = false
+        return if (tiebreakerParticipantIds != null) {
+            resolveActiveTiebreakerState()
+        } else {
+            resolveThresholdWinners()
+        }
+    }
+
+    private fun resolveThresholdWinners(): List<Int> {
+        val winners = players.filter { it.marbles >= WIN_SCORE }
+        if (winners.isEmpty()) return emptyList()
+
+        val top = winners.maxOf { it.marbles }
+        val leaders = winners.filter { it.marbles == top }
+        return resolveTieGroup(leaders, isFreshTie = true)
+    }
+
+    private fun resolveActiveTiebreakerState(): List<Int> {
+        if (tiebreakerRoundsRemaining > 1) {
+            tiebreakerRoundsRemaining -= 1
+            log += RoundLogEvent("TIEBREAKER CONTINUES: $tiebreakerRoundsRemaining round(s) remain in this phase.")
+            phase = EnginePhase.SELECT
+            return emptyList()
+        }
+
+        val participantIds = tiebreakerParticipantIds ?: return emptyList()
+        val contenders = players.filter { it.id in participantIds }
+        val top = contenders.maxOf { it.marbles }
+        val leaders = contenders.filter { it.marbles == top }
+
+        return if (leaders.size == 1) {
+            clearTiebreakerState()
+            phase = EnginePhase.GAME_OVER
+            listOf(leaders.first().id)
+        } else {
+            val oldStageIndex = tiebreakerStageIndex
+            clearTiebreakerState()
+            resolveTieGroup(leaders, isFreshTie = false, stageJustCompleted = oldStageIndex)
+        }
+    }
+
+    private fun resolveTieGroup(
+        leaders: List<PlayerState>,
+        isFreshTie: Boolean,
+        stageJustCompleted: Int = -1
+    ): List<Int> {
+        if (leaders.isEmpty()) return emptyList()
+        if (leaders.size == 1) {
+            phase = EnginePhase.GAME_OVER
+            return listOf(leaders.first().id)
+        }
+
+        val includesHuman = leaders.any { it.id == HUMAN_ID }
+        if (!includesHuman) {
+            phase = EnginePhase.GAME_OVER
+            gameEndedInBotTie = true
+            return emptyList()
+        }
+
+        if (leaders.size == 2) {
+            phase = EnginePhase.GAME_OVER
+            return resolveTwoPlayerTiebreaker(leaders[0].id, leaders[1].id)
+        }
+
+        val nextStageRounds = when {
+            isFreshTie -> 3
+            stageJustCompleted == 0 -> 2
+            stageJustCompleted == 1 -> 1
+            else -> 0
+        }
+
+        if (nextStageRounds <= 0) {
+            phase = EnginePhase.GAME_OVER
+            return listOf(HUMAN_ID)
+        }
+
+        tiebreakerParticipantIds = leaders.map { it.id }.toSet()
+        tiebreakerStageIndex = when {
+            isFreshTie -> 0
+            stageJustCompleted == 0 -> 1
+            else -> 2
+        }
+        tiebreakerRoundsRemaining = nextStageRounds
+
+        val names = leaders.joinToString(", ") { displayNameFor(it.id) }
+        log += RoundLogEvent("TIEBREAKER: $names remain tied for the lead.")
+        log += RoundLogEvent("Only those players act for the next $nextStageRounds round(s).")
+        phase = EnginePhase.SELECT
+        return emptyList()
+    }
+
+    private fun resolveTwoPlayerTiebreaker(firstId: Int, secondId: Int): List<Int> {
+        log += RoundLogEvent("TIEBREAKER: ${displayNameFor(firstId)} and ${displayNameFor(secondId)} enter the final duel.")
+
+        var firstRoll: Int
+        var secondRoll: Int
+        do {
+            firstRoll = listOf(0, 1, 3)[rng.nextInt(3)]
+            secondRoll = listOf(0, 1, 3)[rng.nextInt(3)]
+            log += RoundLogEvent("${displayNameFor(firstId)} rolls $firstRoll. ${displayNameFor(secondId)} rolls $secondRoll.")
+        } while (firstRoll == secondRoll)
+
+        val chooserId: Int
+        val guesserId: Int
+        if (firstRoll < secondRoll) {
+            chooserId = firstId
+            guesserId = secondId
+        } else {
+            chooserId = secondId
+            guesserId = firstId
+        }
+
+        val chooserPick = if (rng.nextBoolean()) 1 else 3
+        val guesserGuess = if (rng.nextBoolean()) 1 else 3
+
+        log += RoundLogEvent("${displayNameFor(chooserId)} had the lower roll and secretly chooses between 1 and 3.")
+        log += RoundLogEvent("${displayNameFor(guesserId)} guesses $guesserGuess.")
+        log += RoundLogEvent("${displayNameFor(chooserId)} chose $chooserPick.")
+
+        return if (guesserGuess == chooserPick) {
+            log += RoundLogEvent("${displayNameFor(guesserId)} is correct and wins the tiebreaker.")
+            listOf(guesserId)
+        } else {
+            log += RoundLogEvent("${displayNameFor(guesserId)} is wrong, so ${displayNameFor(chooserId)} wins the tiebreaker.")
+            listOf(chooserId)
+        }
+    }
+
+    private fun clearTiebreakerState() {
+        tiebreakerParticipantIds = null
+        tiebreakerStageIndex = -1
+        tiebreakerRoundsRemaining = 0
     }
 
     private fun enqueueOther(block: () -> Unit) {
@@ -804,11 +911,14 @@ class GameEngine(
         }
     }
 
-    private fun buildTurnOrderFromStarter(): List<Int> {
+    private fun buildTurnOrderFromStarter(activeIds: List<Int>): List<Int> {
+        if (activeIds.isEmpty()) return emptyList()
+        val activeSet = activeIds.toSet()
         val order = mutableListOf<Int>()
         for (i in players.indices) {
             val idx = (starterIndex + i) % players.size
-            order += players[idx].id
+            val id = players[idx].id
+            if (id in activeSet) order += id
         }
         return order
     }
@@ -817,9 +927,11 @@ class GameEngine(
         players.indexOfFirst { it.id == pid }.let { if (it >= 0) it else 0 }
 
     private fun targetableIdsForHuman(): List<Int> {
+        val activeSet = activePlayerIds().toSet()
         return players.asSequence()
             .map { it.id }
             .filter { it != HUMAN_ID }
+            .filter { it in activeSet }
             .filter { it !in targetedThisRound }
             .toList()
     }

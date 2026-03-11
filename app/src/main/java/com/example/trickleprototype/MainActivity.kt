@@ -252,7 +252,7 @@ private fun TrickleApp() {
 
                 val result = engine.step()
                 lastResult = result
-                logText = buildLogText(result)
+                logText = buildLogText(result, difficulty!!)
 
                 if (result.phase == EnginePhase.BOT_TURN) {
                     val base = if (result.lastEventKind == LogEventKind.PASS) 300L else 1000L
@@ -480,7 +480,7 @@ private fun TrickleApp() {
 
                         val snap = engineSnapshot(engine)
                         lastResult = snap
-                        logText = buildLogText(snap)
+                        logText = buildLogText(snap, difficulty!!)
 
                         humanActionLocked = false
                         startLocked = false
@@ -771,7 +771,7 @@ private fun TrickleApp() {
                                         startLocked = true
                                         val result = engine.startRound(choice)
                                         lastResult = result
-                                        logText = buildLogText(result)
+                                        logText = buildLogText(result, difficulty!!)
                                         targetId = null
                                     }
                                     EnginePhase.PLAYER_TURN -> {
@@ -784,7 +784,7 @@ private fun TrickleApp() {
                                             guess = frozenGuess
                                         )
                                         lastResult = result
-                                        logText = buildLogText(result)
+                                        logText = buildLogText(result, difficulty!!)
 
                                         if (result.phase == EnginePhase.PLAYER_TURN) {
                                             humanActionLocked = false
@@ -976,8 +976,12 @@ private fun engineSnapshot(engine: GameEngine): RoundResult {
     )
 }
 
-private fun buildLogText(result: RoundResult): String {
-    return result.log.asReversed().joinToString("\n") { it.text }.ifBlank { "" }
+private fun buildLogText(result: RoundResult, difficulty: Difficulty): String {
+    val visibleEvents =
+        if (difficulty == Difficulty.HARD) result.log.takeLast(6)
+        else result.log
+
+    return visibleEvents.asReversed().joinToString("\n") { it.text }.ifBlank { "" }
 }
 
 // -------------------- Dialog + Text Blocks --------------------
@@ -1168,9 +1172,8 @@ private fun AchievementsText(stats: PlayerStats) {
         Text("Achievements", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
         Spacer(Modifier.height(8.dp))
 
-        // --- First milestones ---
+        // --- First game ---
         AchievementRow(stats.firstGameCompleted, "Get Your Feet Wet", "Complete a game")
-        AchievementRow(stats.firstWin, "TRICKLE!", "Win a game")
 
         // --- Special wins / events ---
         AchievementRow(stats.firstPerfectWin, "Perfect Puddler", "Win with 0 wrong guesses")
@@ -1223,16 +1226,23 @@ private fun AchievementsText(stats: PlayerStats) {
         // --- Milestones ---
         AchievementRow(
             unlocked = stats.won13thGame,
-            title = "Trickle Champion",
+            title = "Trickle Pro",
             desc = "Win 13 games",
             progress = "${stats.totalWins}/13"
         )
         AchievementRow(
             unlocked = stats.won113thGame,
-            title = "Trickle God",
+            title = "Trickle Champion",
             desc = "Win 113 games",
             progress = "${stats.totalWins}/113"
         )
+        AchievementRow(
+            unlocked = stats.won113thGame,
+            title = "Trickle God",
+            desc = "Win 1113 games",
+            progress = "${stats.totalWins}/1113"
+        )
+
 
         AchievementRow(
             unlocked = stats.played13Games,
