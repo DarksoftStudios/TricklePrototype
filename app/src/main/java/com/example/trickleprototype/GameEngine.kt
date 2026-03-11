@@ -207,7 +207,7 @@ class GameEngine(
         hatStartOfRoundHolderId = hatHolderId
 
         val starterId = players[starterIndex].id
-        // â€œStart because you have the Hatâ€ means starter == hatHolder AND hatHolder exists
+        // Start because you have the Hat means starter == hatHolder AND hatHolder exists
         startedRoundBecauseHat = (hatHolderId != null && starterId == hatHolderId)
 
         turnOrder = buildTurnOrderFromStarter()
@@ -365,7 +365,7 @@ class GameEngine(
         attacksThisRound[actorId] = targetId
         passStreaks[actorId] = 0
 
-        // Track â€œghost cupâ€ condition (human must never be targeted)
+        // Track Ã¢â‚¬Å“ghost cupÃ¢â‚¬Â condition (human must never be targeted)
         if (targetId == HUMAN_ID) gameHumanWasTargeted = true
 
         enqueueOther {
@@ -397,7 +397,7 @@ class GameEngine(
                 }
             }
 
-            // Track â€œyou tricked a bot with your 0â€
+            // Track “you tricked a bot with your 0"
             // (bot guessed you, you revealed 0, they guessed non-zero)
             if (targetId == HUMAN_ID && actual == 0 && guess != 0) {
                 gameHumanTrickedBotWithZero = true
@@ -406,8 +406,7 @@ class GameEngine(
             // Resolve guess outcome
             if (guess == actual) {
 
-                // âœ… Special Zero Hero reward: correct 0 guess takes the Hat and avoids the usual â€œguess costâ€
-                // (There is no explicit guess-cost elsewhere in this engine right now, but this makes the
+                //  Special Zero Hero reward: correct 0 guess takes the Hat and avoids the usual “guess cost"
                 // reward concrete + adds Hat control as you described.)
                 if (guess == 0) {
                     hatHolderId = actorId
@@ -459,7 +458,7 @@ class GameEngine(
             if (actual == 0) {
                 if (actor.marbles > 0) actor.marbles -= 1
                 hatHolderId = actorId
-                log += RoundLogEvent("${displayNameFor(actorId)} was wrong on a 0, loses 1 (HAT â†’ ${displayNameFor(actorId)}).")
+                log += RoundLogEvent("${displayNameFor(actorId)} was wrong on a 0, loses 1 (HAT moves to ${displayNameFor(actorId)}).")
 
                 if (actorId == HUMAN_ID && guess != 0) {
                     gameWrongGuesses += 1
@@ -467,7 +466,7 @@ class GameEngine(
                 }
             } else {
                 target.marbles += actual
-                log += RoundLogEvent("${displayNameFor(actorId)} was wrong â€” ${displayNameFor(targetId)} gains $actual.")
+                log += RoundLogEvent("${displayNameFor(actorId)} was wrong, ${displayNameFor(targetId)} gains $actual.")
                 if (actorId == HUMAN_ID) gameWrongGuesses += 1
             }
         }
@@ -528,6 +527,51 @@ class GameEngine(
                         Difficulty.EASY -> s.easyGames += 1
                         Difficulty.NORMAL -> s.normalGames += 1
                         Difficulty.HARD -> s.hardGames += 1
+                    }
+
+                    if (!s.playedAllDifficulties && s.easyGames > 0 && s.normalGames > 0 && s.hardGames > 0) {
+                        s.playedAllDifficulties = true
+                        log += RoundLogEvent("*** Achievement Unlocked: Tourist - Played on Easy, Normal, and Hard! ***")
+                    }
+
+                    if (!s.played13Games && s.totalGames >= 13) {
+                        s.played13Games = true
+                        log += RoundLogEvent("*** Achievement Unlocked: Amateur - Played 13 games! ***")
+                    }
+
+                    if (!s.played113Games && s.totalGames >= 113) {
+                        s.played113Games = true
+                        log += RoundLogEvent("*** Achievement Unlocked: Professional - Played 113 games! ***")
+                    }
+
+                    if (!s.played1113Games && s.totalGames >= 1113) {
+                        s.played1113Games = true
+                        log += RoundLogEvent("*** Achievement Unlocked: Expert - Played 1,113 games! ***")
+                    }
+
+                    if (!s.has113MarblesTotal && s.totalMarblesAcrossGames >= 113L) {
+                        s.has113MarblesTotal = true
+                        log += RoundLogEvent("*** Achievement Unlocked: Bucket Filler - Gained 113 marbles across games! ***")
+                    }
+
+                    if (!s.has1113MarblesTotal && s.totalMarblesAcrossGames >= 1113L) {
+                        s.has1113MarblesTotal = true
+                        log += RoundLogEvent("*** Achievement Unlocked: Tub Filler - Gained 1,113 marbles across games! ***")
+                    }
+
+                    if (!s.has11113MarblesTotal && s.totalMarblesAcrossGames >= 11113L) {
+                        s.has11113MarblesTotal = true
+                        log += RoundLogEvent("*** Achievement Unlocked: Pool Filler - Gained 11,113 marbles across games! ***")
+                    }
+
+                    if (!s.dumbLuck && unlockedDumbLuckThisGame) {
+                        s.dumbLuck = true
+                        log += RoundLogEvent("*** Achievement Unlocked: Dumb Luck - Correctly guessed a 3 in round 1! ***")
+                    }
+
+                    if (!s.onARoll && unlockedOnARollThisGame) {
+                        s.onARoll = true
+                        log += RoundLogEvent("*** Achievement Unlocked: On a Roll - 3 correct guesses in a row! ***")
                     }
 
                     // -------------------------------------------------
@@ -594,20 +638,38 @@ class GameEngine(
                             log += RoundLogEvent("*** Achievement Unlocked: First Flood - Won a game! ***")
                         }
 
-                        // EASY WIN FIX (this was the bug)
                         when (difficulty) {
                             Difficulty.EASY -> {
-                                if (!s.wonEasy) s.wonEasy = true
+                                if (!s.wonEasy) {
+                                    s.wonEasy = true
+                                    log += RoundLogEvent("*** Achievement Unlocked: Comp Stomp - Won on Easy! ***")
+                                }
                                 s.easyWins += 1
                             }
                             Difficulty.NORMAL -> {
-                                if (!s.wonNormal) s.wonNormal = true
+                                if (!s.wonNormal) {
+                                    s.wonNormal = true
+                                    log += RoundLogEvent("*** Achievement Unlocked: Pattern Finder - Won on Normal! ***")
+                                }
                                 s.normalWins += 1
                             }
                             Difficulty.HARD -> {
-                                if (!s.wonHard) s.wonHard = true
+                                if (!s.wonHard) {
+                                    s.wonHard = true
+                                    log += RoundLogEvent("*** Achievement Unlocked: TR1CKL3! - Won on Hard! ***")
+                                }
                                 s.hardWins += 1
                             }
+                        }
+
+                        if (!s.won13thGame && s.totalWins >= 13) {
+                            s.won13thGame = true
+                            log += RoundLogEvent("*** Achievement Unlocked: Trickle Champion - Won 13 games! ***")
+                        }
+
+                        if (!s.won113thGame && s.totalWins >= 113) {
+                            s.won113thGame = true
+                            log += RoundLogEvent("*** Achievement Unlocked: Trickle God - Won 113 games! ***")
                         }
 
                         if (!s.pacifistWin && !gameHumanMadeGuess) {

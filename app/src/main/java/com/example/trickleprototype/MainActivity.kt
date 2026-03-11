@@ -1,6 +1,5 @@
 package com.example.trickleprototype
 
-import android.graphics.drawable.shapes.Shape
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -59,9 +58,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.geometry.CornerRadius
-import androidx.compose.ui.geometry.Rect
-import androidx.compose.ui.geometry.RoundRect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.graphics.ImageBitmap
@@ -81,7 +77,6 @@ import androidx.core.view.WindowCompat
 import com.example.trickleprototype.ui.theme.TricklePrototypeTheme
 import kotlinx.coroutines.delay
 import kotlin.random.Random
-
 
 
 class MainActivity : ComponentActivity() {
@@ -226,11 +221,11 @@ private fun TrickleApp() {
     var turbo by remember { mutableStateOf(false) }
 
     // Picked only when switching ON
-    var turboOnColor by remember { mutableStateOf(Color(0xFFB71C1C)) } // dark red
+    var turboOnColor by remember { mutableStateOf(Color(0xFFFFFFFF)) } // white
     val turboPalette = remember {
         listOf(
-            Color(0xFFB71C1C), // dark red
-            Color(0xFFF57F17), // dark amber (reads as "yellow" but not neon)
+            Color(0xFFC5DAFF), // light blue
+            Color(0xFF159DF8), // blue
             Color(0xFF0D47A1)  // dark blue
         )
     }
@@ -284,7 +279,7 @@ private fun TrickleApp() {
         SimpleDialog(
             title = "ADVANCED TIPS",
             onClose = { showTips = false },
-            accentColor = Color(0xFF7E7E7E)
+            accentColor = Color(0xFF808080)
         ) { AdvancedTipsText() }
     }
 
@@ -292,7 +287,7 @@ private fun TrickleApp() {
         SimpleDialog(
             title = "ARCHETYPES",
             onClose = { showArchetypes = false },
-            accentColor = Color(0xFF000000)
+            accentColor = Color(0xFF404040)
         ) { ArchetypesText() }
     }
 
@@ -444,7 +439,8 @@ private fun TrickleApp() {
                             Text(
                                 "Darksoft Game Studios",
                                 style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Black
+                                fontWeight = FontWeight.Black,
+                                color = Color.White
                             )
                             Spacer(Modifier.height(8.dp))
                         }
