@@ -27,7 +27,10 @@ data class RoundResult(
     val bannerText: String?,
     val targetableIdsForHuman: List<Int>,
     val currentActorId: Int?,
-    val lastEventKind: LogEventKind?
+    val lastEventKind: LogEventKind?,
+    val currentWeatherName: String?,
+    val currentWeatherEffect: String?,
+    val forcedGuessForHuman: Int?
 )
 
 class GameEngine(
@@ -39,6 +42,10 @@ class GameEngine(
     }
 
     private var difficulty: Difficulty = Difficulty.NORMAL
+    private var weatherEnabled: Boolean = true
+
+    private var currentWeatherCard: WeatherCard? = null
+    private var firstNonZeroGuessThisRound: Int? = null
 
     private val botNames = listOf(
         "Alessandro", "Barbara", "Clark", "David", "Erika", "Fred",
@@ -135,6 +142,11 @@ class GameEngine(
         if (phase == EnginePhase.SETUP) phase = EnginePhase.SELECT
     }
 
+    fun setWeatherEnabled(enabled: Boolean) {
+        weatherEnabled = enabled
+    }
+
+    fun isWeatherEnabled(): Boolean = weatherEnabled
     fun getDifficulty(): Difficulty = difficulty
     fun getPhase(): EnginePhase = phase
 
@@ -151,6 +163,8 @@ class GameEngine(
         revealedThisRound.clear()
         targetedThisRound.clear()
         attacksThisRound.clear()
+        currentWeatherCard = null
+        firstNonZeroGuessThisRound = null
 
         turnOrder = emptyList()
         turnCursor = 0
@@ -198,6 +212,76 @@ class GameEngine(
         assignRandomArchetypesToBots()
     }
 
+
+    private fun drawWeatherForRound() {
+        if (!weatherEnabled) {
+            currentWeatherCard = null
+            return
+        }
+
+        currentWeatherCard = if (roundNumber == 1) {
+            Weather.firstRoundWeather()
+        } else {
+            Weather.easyImplementationDeck()
+                .random(rng)
+        }
+    }
+
+    private fun weatherHas(tag: WeatherEffectTag): Boolean =
+        currentWeatherCard?.effectTags?.contains(tag) == true
+
+    private fun roundScoreForSelection(value: Int): Int =
+        when {
+            value == 1 && weatherHas(WeatherEffectTag.SCORE_ONES_AS_TWO) -> 2
+            value == 3 && weatherHas(WeatherEffectTag.SCORE_THREES_AS_FOUR) -> 4
+            else -> value
+        }
+
+    private fun lockedGuessForRound(): Int? {
+        val first = firstNonZeroGuessThisRound ?: return null
+        return when {
+            weatherHas(WeatherEffectTag.LOCK_GUESSES_SAME_AS_FIRST) -> first
+            weatherHas(WeatherEffectTag.LOCK_GUESSES_OPPOSITE_OF_FIRST) -> if (first == 1) 3 else 1
+            else -> null
+        }
+    }
+
+    private fun isUntargetableFromWeather(playerId: Int): Boolean {
+        val choice = selectionsThisRound[playerId] ?: return false
+        return when {
+            weatherHas(WeatherEffectTag.REVEAL_ONES) && choice == 1 -> true
+            weatherHas(WeatherEffectTag.REVEAL_THREES) && choice == 3 -> true
+            else -> false
+        }
+    }
+
+    private fun queueWeatherReveal(activeIds: List<Int>) {
+        val weather = currentWeatherCard ?: return
+
+        enqueueOther {
+            log += RoundLogEvent("Weather: ${weather.displayName} Ã¢â‚¬â€ ${weather.effectText}")
+        }
+
+        if (weatherHas(WeatherEffectTag.REVEAL_ONES) || weatherHas(WeatherEffectTag.REVEAL_THREES)) {
+            val revealValue = when {
+                weatherHas(WeatherEffectTag.REVEAL_ONES) -> 1
+                weatherHas(WeatherEffectTag.REVEAL_THREES) -> 3
+                else -> null
+            }
+
+            if (revealValue != null) {
+                enqueueOther {
+                    for (pid in activeIds) {
+                        if (selectionsThisRound[pid] == revealValue) {
+                            revealedThisRound[pid] = revealValue
+                            log += RoundLogEvent("${displayNameFor(pid)} is revealed early by weather: $revealValue")
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     fun startRound(humanChoice: Int): RoundResult {
         if (phase == EnginePhase.GAME_OVER) return snapshot()
         if (phase != EnginePhase.SELECT && phase != EnginePhase.ROUND_END) return snapshot()
@@ -212,6 +296,9 @@ class GameEngine(
         winnerIds = emptyList()
         pending.clear()
         lastEventKind = null
+        firstNonZeroGuessThisRound = null
+
+        drawWeatherForRound()
 
         hatStartOfRoundHolderId = hatHolderId
 
@@ -256,6 +343,7 @@ class GameEngine(
             log += RoundLogEvent("")
             log += RoundLogEvent("=== ROUND $roundNumber | Starter: ${displayNameFor(starterId)} ===")
         }
+        queueWeatherReveal(activeIds)
 
         phase = EnginePhase.BOT_TURN
         return stepInternalOrSnapshot()
@@ -281,6 +369,11 @@ class GameEngine(
                 return snapshot()
             }
             val g = guess ?: 1
+            val forcedGuess = lockedGuessForRound()
+            if (forcedGuess != null && g != forcedGuess) {
+                bannerText = "Weather locks your guess to $forcedGuess this round."
+                return snapshot()
+            }
 
             gameHumanMadeGuess = true
             gameHumanGuessesUsed += g
@@ -332,12 +425,17 @@ class GameEngine(
             return
         }
 
+        val weatherBlockedTargets = activePlayerIds()
+            .filter { it != actorId }
+            .filter { isUntargetableFromWeather(it) }
+            .toSet()
+
         val pub = PublicRoundInfo(
             roundIndex = roundNumber,
             startingPlayerId = starterId,
             hatHolderId = hatHolderId,
             revealedThisRound = revealedThisRound.toMap(),
-            targetedThisRound = targetedThisRound.toSet(),
+            targetedThisRound = (targetedThisRound + weatherBlockedTargets).toSet(),
             lastRoundChoices = lastRoundChoices,
             lastRoundAttacks = lastRoundAttacks,
             passStreaks = passStreaks.toMap(),
@@ -349,7 +447,11 @@ class GameEngine(
 
         when (val decision = arch.takeTurn(pub, mem)) {
             is TurnDecision.Pass -> queuePass(actorId)
-            is TurnDecision.Guess -> queueGuess(actorId, decision.targetId, decision.guess.v)
+            is TurnDecision.Guess -> {
+                val forcedGuess = lockedGuessForRound()
+                val finalGuess = forcedGuess ?: decision.guess.v
+                queueGuess(actorId, decision.targetId, finalGuess)
+            }
         }
     }
 
@@ -364,6 +466,17 @@ class GameEngine(
     }
 
     private fun queueGuess(actorId: Int, targetId: Int, guess: Int) {
+        if (isUntargetableFromWeather(targetId)) {
+            pending.addLast(
+                PendingLog(kind = LogEventKind.PASS) {
+                    log += RoundLogEvent("${displayNameFor(actorId)} tried to target ${displayNameFor(targetId)}, but weather protects them this round. (pass)")
+                    attacksThisRound[actorId] = 0
+                    passStreaks[actorId] = (passStreaks[actorId] ?: 0) + 1
+                }
+            )
+            return
+        }
+
         if (targetId in targetedThisRound) {
             pending.addLast(
                 PendingLog(kind = LogEventKind.PASS) {
@@ -375,11 +488,15 @@ class GameEngine(
             return
         }
 
+        if (guess != 0 && firstNonZeroGuessThisRound == null) {
+            firstNonZeroGuessThisRound = guess
+        }
+
         targetedThisRound += targetId
         attacksThisRound[actorId] = targetId
         passStreaks[actorId] = 0
 
-        // Track ÃƒÂ¢Ã¢â€šÂ¬Ã…â€œghost cupÃƒÂ¢Ã¢â€šÂ¬Ã‚Â condition (human must never be targeted)
+        // Track ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Â¦ÃƒÂ¢Ã¢â€šÂ¬Ã…â€œghost cupÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â condition (human must never be targeted)
         if (targetId == HUMAN_ID) gameHumanWasTargeted = true
 
         enqueueOther {
@@ -411,7 +528,7 @@ class GameEngine(
                 }
             }
 
-            // Track â€œyou tricked a bot with your 0"
+            // Track ÃƒÂ¢Ã¢â€šÂ¬Ã…â€œyou tricked a bot with your 0"
             // (bot guessed you, you revealed 0, they guessed non-zero)
             if (targetId == HUMAN_ID && actual == 0 && guess != 0) {
                 gameHumanTrickedBotWithZero = true
@@ -420,14 +537,15 @@ class GameEngine(
             // Resolve guess outcome
             if (guess == actual) {
 
-                //  Special Zero Hero reward: correct 0 guess takes the Hat and avoids the usual â€œguess cost"
+                //  Special Zero Hero reward: correct 0 guess takes the Hat and avoids the usual ÃƒÂ¢Ã¢â€šÂ¬Ã…â€œguess cost"
                 // reward concrete + adds Hat control as you described.)
                 if (guess == 0) {
                     hatHolderId = actorId
                     log += RoundLogEvent("${displayNameFor(actorId)} nailed a 0 and takes the Hat.")
                 } else {
-                    actor.marbles += guess
-                    log += RoundLogEvent("${displayNameFor(actorId)} was correct and gains $guess.")
+                    val reward = roundScoreForSelection(guess)
+                    actor.marbles += reward
+                    log += RoundLogEvent("${displayNameFor(actorId)} was correct and gains $reward.")
                 }
 
                 // Human-specific correct streak tracking + special achievements
@@ -479,8 +597,9 @@ class GameEngine(
                     gameHumanWasTrickedByZero = true
                 }
             } else {
-                target.marbles += actual
-                log += RoundLogEvent("${displayNameFor(actorId)} was wrong, ${displayNameFor(targetId)} gains $actual.")
+                val consolation = roundScoreForSelection(actual)
+                target.marbles += consolation
+                log += RoundLogEvent("${displayNameFor(actorId)} was wrong, ${displayNameFor(targetId)} gains $consolation.")
                 if (actorId == HUMAN_ID) gameWrongGuesses += 1
             }
         }
@@ -498,9 +617,10 @@ class GameEngine(
             if (!revealedThisRound.containsKey(p.id)) {
                 enqueueOther {
                     val c = selectionsThisRound[p.id]!!
+                    val trickle = roundScoreForSelection(c)
                     revealedThisRound[p.id] = c
-                    p.marbles += c
-                    log += RoundLogEvent("${displayNameFor(p.id)} wasn't targeted, trickles $c.")
+                    p.marbles += trickle
+                    log += RoundLogEvent("${displayNameFor(p.id)} wasn't targeted, trickles $trickle.")
                 }
             }
         }
@@ -933,6 +1053,7 @@ class GameEngine(
             .filter { it != HUMAN_ID }
             .filter { it in activeSet }
             .filter { it !in targetedThisRound }
+            .filter { !isUntargetableFromWeather(it) }
             .toList()
     }
 
@@ -961,7 +1082,10 @@ class GameEngine(
             bannerText = bannerText,
             targetableIdsForHuman = targetables,
             currentActorId = currentActor,
-            lastEventKind = lastEventKind
+            lastEventKind = lastEventKind,
+            currentWeatherName = currentWeatherCard?.displayName,
+            currentWeatherEffect = currentWeatherCard?.effectText,
+            forcedGuessForHuman = if (phase == EnginePhase.PLAYER_TURN) lockedGuessForRound() else lockedGuessForRound()
         )
     }
 }

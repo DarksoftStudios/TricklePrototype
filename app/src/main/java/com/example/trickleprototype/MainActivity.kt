@@ -158,12 +158,13 @@ private fun TrickleApp() {
         engine.setHumanName(playerName)
     }
 
-    // ✅ FIX: attach synchronously (no async race)
+    // Ã¢Å“â€¦ FIX: attach synchronously (no async race)
     SideEffect {
         engine.attachStatsStore(statsStore)
     }
 
     var difficulty by remember { mutableStateOf<Difficulty?>(null) }
+    var weatherEnabled by remember { mutableStateOf(true) }
 
     var choice by remember { mutableIntStateOf(1) }
     var targetId by remember { mutableStateOf<Int?>(null) }
@@ -239,9 +240,18 @@ private fun TrickleApp() {
     val phase = lastResult?.phase ?: engine.getPhase()
     val players = lastResult?.players ?: engine.getPlayersSnapshot()
     val gameOver = (phase == EnginePhase.GAME_OVER)
+    val currentWeatherName = lastResult?.currentWeatherName
+    val currentWeatherEffect = lastResult?.currentWeatherEffect
+    val forcedGuess = lastResult?.forcedGuessForHuman
 
     val scrollState = rememberScrollState()
     LaunchedEffect(logText) { scrollState.scrollTo(0) }
+
+    LaunchedEffect(forcedGuess) {
+        if (forcedGuess != null) {
+            guess = forcedGuess
+        }
+    }
 
     // BOT stepping with turbo
     LaunchedEffect(phase, turbo) {
@@ -307,10 +317,10 @@ private fun TrickleApp() {
         ) { AchievementsText(statsStore.load()) }
     }
 
-    // ✅ FIX 1: Use a full-screen Box so the background can sit behind ALL screens.
+    // Ã¢Å“â€¦ FIX 1: Use a full-screen Box so the background can sit behind ALL screens.
     Box(modifier = Modifier.fillMaxSize()) {
 
-        // ✅ FIX 1 (continued): Draw the background image on every screen EXCEPT the splash.
+        // Ã¢Å“â€¦ FIX 1 (continued): Draw the background image on every screen EXCEPT the splash.
         if (screen != AppScreen.SPLASH) {
             Image(
                 painter = painterResource(R.drawable.mainmenugen),
@@ -327,7 +337,7 @@ private fun TrickleApp() {
             )
         }
 
-        // ✅ FIX 2: Keep consistent safe padding for status + nav bars so buttons don't cramp.
+        // Ã¢Å“â€¦ FIX 2: Keep consistent safe padding for status + nav bars so buttons don't cramp.
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -477,6 +487,7 @@ private fun TrickleApp() {
                     fun startGame(picked: Difficulty) {
                         difficulty = picked
                         engine.setDifficulty(picked)
+                        engine.setWeatherEnabled(weatherEnabled)
 
                         val snap = engineSnapshot(engine)
                         lastResult = snap
@@ -499,6 +510,10 @@ private fun TrickleApp() {
                         verticalArrangement = Arrangement.spacedBy(35.dp, Alignment.CenterVertically),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
+                        MenuLinkButton(
+                            text = if (weatherEnabled) "WEATHER: ON" else "WEATHER: OFF"
+                        ) { weatherEnabled = !weatherEnabled }
+                        Spacer(Modifier.height(10.dp))
                         MenuLinkButton(text = "EASY") { startGame(Difficulty.EASY) }
                         Spacer(Modifier.height(10.dp))
                         MenuLinkButton(
@@ -719,6 +734,39 @@ private fun TrickleApp() {
                         players.filter { it.id in targetable && it.id != GameEngine.HUMAN_ID }
                     } else emptyList()
 
+                    if (!currentWeatherName.isNullOrBlank()) {
+                        Surface(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(12.dp),
+                            tonalElevation = 2.dp
+                        ) {
+                            Column(Modifier.padding(12.dp)) {
+                                Text(
+                                    text = "Weather: $currentWeatherName",
+                                    style = MaterialTheme.typography.titleSmall,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                if (!currentWeatherEffect.isNullOrBlank()) {
+                                    Spacer(Modifier.height(4.dp))
+                                    Text(
+                                        text = currentWeatherEffect,
+                                        style = MaterialTheme.typography.bodySmall
+                                    )
+                                }
+                                if (forcedGuess != null) {
+                                    Spacer(Modifier.height(6.dp))
+                                    Text(
+                                        text = "Locked guess this turn: $forcedGuess",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        fontWeight = FontWeight.SemiBold
+                                    )
+                                }
+                            }
+                        }
+
+                        Spacer(Modifier.height(10.dp))
+                    }
+
                     TargetDropdown(
                         options = dropdownOptions,
                         selectedTargetId = targetId,
@@ -734,10 +782,22 @@ private fun TrickleApp() {
 
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         if (zeroGuessUnlocked) {
-                            SmallChoiceButton("0", selected = (guess == 0), enabled = inputsEnabled) { guess = 0 }
+                            SmallChoiceButton(
+                                "0",
+                                selected = (guess == 0),
+                                enabled = inputsEnabled && forcedGuess == null
+                            ) { guess = 0 }
                         }
-                        SmallChoiceButton("1", selected = (guess == 1), enabled = inputsEnabled) { guess = 1 }
-                        SmallChoiceButton("3", selected = (guess == 3), enabled = inputsEnabled) { guess = 3 }
+                        SmallChoiceButton(
+                            "1",
+                            selected = (guess == 1),
+                            enabled = inputsEnabled && (forcedGuess == null || forcedGuess == 1)
+                        ) { guess = 1 }
+                        SmallChoiceButton(
+                            "3",
+                            selected = (guess == 3),
+                            enabled = inputsEnabled && (forcedGuess == null || forcedGuess == 3)
+                        ) { guess = 3 }
                     }
 
                     Spacer(Modifier.height(12.dp))
@@ -828,7 +888,7 @@ private fun TrickleApp() {
     }
 }
 
-/// Single-contour cloud: avoids internal “circle outlines” being stroked over the text.
+/// Single-contour cloud: avoids internal Ã¢â‚¬Å“circle outlinesÃ¢â‚¬Â being stroked over the text.
 private val CloudButtonShape: GenericShape = GenericShape { size, _ ->
     val w = size.width
     val h = size.height
@@ -839,7 +899,7 @@ private val CloudButtonShape: GenericShape = GenericShape { size, _ ->
     val top = 0.10f * h
     val bottom = 0.92f * h
 
-    // Cloud “puff line” control heights
+    // Cloud Ã¢â‚¬Å“puff lineÃ¢â‚¬Â control heights
     val puffY1 = 0.28f * h
     val puffY2 = 0.08f * h
     val puffY3 = 0.22f * h
@@ -901,7 +961,7 @@ private val CloudButtonShape: GenericShape = GenericShape { size, _ ->
 
 @Composable
 private fun MenuLinkButton(text: String, enabled: Boolean = true, onClick: () -> Unit) {
-    // Homogenized: one consistent “storm grey” for all menu buttons
+    // Homogenized: one consistent Ã¢â‚¬Å“storm greyÃ¢â‚¬Â for all menu buttons
     val outlineColor = Color(0xFF9AA3AD)
 
     val interactionSource = remember { MutableInteractionSource() }
@@ -972,7 +1032,10 @@ private fun engineSnapshot(engine: GameEngine): RoundResult {
         bannerText = null,
         targetableIdsForHuman = emptyList(),
         currentActorId = null,
-        lastEventKind = null
+        lastEventKind = null,
+        currentWeatherName = null,
+        currentWeatherEffect = null,
+        forcedGuessForHuman = null
     )
 }
 
@@ -1194,7 +1257,7 @@ private fun AchievementsText(stats: PlayerStats) {
         )
 
         AchievementRow(stats.pacifistWin, "Conscientious Objector", "Win without guessing")
-        // ✅ NEW: show pacifistGame in UI
+        // Ã¢Å“â€¦ NEW: show pacifistGame in UI
         AchievementRow(stats.pacifistGame, "Pacifist", "Complete a game without guessing")
 
         AchievementRow(
@@ -1214,7 +1277,7 @@ private fun AchievementsText(stats: PlayerStats) {
         AchievementRow(stats.firstZeroTrap, "Zero Trap", "Trick a bot with your 0")
         AchievementRow(stats.zeroHeroUnlocked, "Zero Hero", "Unlock The ability to Guess 0!")
 
-        // ✅ NEW ACHIEVEMENTS (show them)
+        // Ã¢Å“â€¦ NEW ACHIEVEMENTS (show them)
         AchievementRow(stats.drySeasonWin, "Dry Season", "Win without ever choosing 3")
         AchievementRow(stats.ghostCupWin, "Ghost Cup", "Win without being targeted")
         AchievementRow(stats.onARoll, "On a Roll", "3 correct guesses in a row")
@@ -1300,7 +1363,7 @@ private fun AchievementRow(
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(
-            text = if (unlocked) "✓" else "X",
+            text = if (unlocked) "Ã¢Å“â€œ" else "X",
             color = if (unlocked) Color(0xFF0000FF) else Color.Gray,
             fontSize = 24.sp
         )
