@@ -70,8 +70,55 @@ data class PlayerStats(
     var dumbLuck: Boolean = false,              // correctly guess a 3 in round 1
     var hatFinisher: Boolean = false,           // win in a round where you start because you have the Hat
     var caughtTheStrobe: Boolean = false,       // correctly guess Strobe's 3 twice in one game
-    var pushover: Boolean = false               // correctly guess the Three-Pusher's 3 four times in one game
+    var pushover: Boolean = false,              // correctly guess the Three-Pusher's 3 four times in one game
+
+    // Weather achievements
+    var unlockedWeatherAchievements: Set<String> = emptySet(),
+    var seenWeatherIds: Set<String> = emptySet(),
+    var stormChaser: Boolean = false
 )
+
+data class WeatherAchievementDef(
+    val id: String,
+    val title: String,
+    val desc: String
+)
+
+object WeatherAchievements {
+    val perCard: List<WeatherAchievementDef> = listOf(
+        WeatherAchievementDef("drizzle_light_rain", "Light Rain", "Complete a Drizzle round"),
+        WeatherAchievementDef("downpour_soaking_it_in", "Soaking It In", "Score with a 1 during Downpour"),
+        WeatherAchievementDef("fog_hidden_in_plain_sight", "Hidden in Plain Sight", "Be revealed early and protected during Fog"),
+        WeatherAchievementDef("sunny_day_bright_strategy", "Bright Strategy", "Score with a 3 during Sunny Day"),
+        WeatherAchievementDef("low_pressure_set_the_pressure", "Set the Pressure", "Be the first guesser during Low Pressure"),
+        WeatherAchievementDef("windshear_against_the_wind", "Against the Wind", "Be the first guesser during Windshear"),
+        WeatherAchievementDef("static_charge_first_strike", "First Strike", "Be the first guesser during Static Charge"),
+        WeatherAchievementDef("crosswinds_two_birds_one_guess", "Two Birds, One Guess", "Correctly guess both targets during Crosswinds"),
+        WeatherAchievementDef("sleet_cold_exchange", "Cold Exchange", "Gain marbles from another player during Sleet"),
+        WeatherAchievementDef("thunderstorm_shock_therapy", "Shock Therapy", "Be hit by a failed guess on a 0 during Thunderstorm"),
+        WeatherAchievementDef("drought_dry_spell", "Dry Spell", "Acquire the Hat during Drought"),
+        WeatherAchievementDef("tornado_eye_of_the_storm", "Eye of the Storm", "Successfully attack during Tornado"),
+        WeatherAchievementDef("hail_ice_storm", "Ice Storm", "Score with a 3 during Hail"),
+        WeatherAchievementDef("hurricane_storm_surge", "Storm Surge", "Score with a 0 during Hurricane"),
+        WeatherAchievementDef("rainbow_silver_lining", "Silver Lining", "Gain points from a failed guess during Rainbow"),
+        WeatherAchievementDef("perfect_storm_twelve", "Perfect Storm", "Score 12 points in one round during Perfect Storm"),
+        WeatherAchievementDef("lightning_storm_strike_twice", "Strike Twice", "Gain points from a failed guess during Lightning Storm"),
+        WeatherAchievementDef("heat_mirage_what_just_happened", "What Just Happened?", "Score after your number rotates during Heat Mirage"),
+        WeatherAchievementDef("smog_hidden_moves", "Hidden Moves", "Gain marbles from a trickle obscured by Smog"),
+        WeatherAchievementDef("high_pressure_one_shot", "One Shot", "Gain your single allowed positive score during High Pressure"),
+        WeatherAchievementDef("stormfront_cut_off", "Cut Off", "Trigger the target limit during Stormfront"),
+        WeatherAchievementDef("cold_rain_shared_storm", "Shared Storm", "Receive marbles from the Cold Rain redistribution"),
+        WeatherAchievementDef("thunderhead_top_of_the_storm", "Top of the Storm", "Be among the top scorers during Thunderhead"),
+        WeatherAchievementDef("cool_breeze_quiet_advantage", "Quiet Advantage", "Be among the lowest positive scorers during Cool Breeze")
+    )
+
+    const val STORM_CHASER_ID = "storm_chaser"
+
+    val allWeatherIds: Set<String> =
+        Weather.allCards.filter { it.enabled && it.includedInDeck }.map { it.id }.toSet()
+
+    fun unlocked(ids: Set<String>, defId: String): Boolean = ids.contains(defId)
+}
 
 /**
  * Simple persistent stats store using SharedPreferences.
@@ -159,6 +206,10 @@ class StatsStore(context: Context) {
             hatFinisher = prefs.getBoolean("hatFinisher", false),
             caughtTheStrobe = prefs.getBoolean("caughtTheStrobe", false),
             pushover = prefs.getBoolean("pushover", false),
+
+            unlockedWeatherAchievements = prefs.getStringSet("unlockedWeatherAchievements", emptySet())?.toSet() ?: emptySet(),
+            seenWeatherIds = prefs.getStringSet("seenWeatherIds", emptySet())?.toSet() ?: emptySet(),
+            stormChaser = prefs.getBoolean("stormChaser", false),
         )
     }
 
@@ -186,6 +237,7 @@ class StatsStore(context: Context) {
 
             .putBoolean("won13thGame", stats.won13thGame)
             .putBoolean("won113thGame", stats.won113thGame)
+            .putBoolean("won1113thGame", stats.won1113thGame)
 
             .putBoolean("played13Games", stats.played13Games)
             .putBoolean("played113Games", stats.played113Games)
@@ -221,6 +273,10 @@ class StatsStore(context: Context) {
             .putBoolean("hatFinisher", stats.hatFinisher)
             .putBoolean("caughtTheStrobe", stats.caughtTheStrobe)
             .putBoolean("pushover", stats.pushover)
+
+            .putStringSet("unlockedWeatherAchievements", stats.unlockedWeatherAchievements)
+            .putStringSet("seenWeatherIds", stats.seenWeatherIds)
+            .putBoolean("stormChaser", stats.stormChaser)
 
             .apply()
     }

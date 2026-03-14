@@ -107,7 +107,7 @@ private fun guessFromLastChoice(public: PublicRoundInfo, targetId: Int, defaultG
 }
 
 // A lightweight "baseline" chooser (for Romeo/Juliet), matching the bravery ramp you specified.
-// NOTE: This does NOT implement the full core-bot guardrails (revenge/learning/endgame) â€” that belongs in GameEngine.
+// NOTE: This does NOT implement the full core-bot guardrails (revenge/learning/endgame) - that belongs in GameEngine.
 // This just gives them a consistent "human-ish" distribution if you keep them as archetypes.
 private fun baselineBraveryDie(public: PublicRoundInfo, allowZeroThisRound: Boolean): DieChoice {
     val r = public.rng.nextInt(100)
@@ -122,7 +122,7 @@ private fun baselineBraveryDie(public: PublicRoundInfo, allowZeroThisRound: Bool
     // Default: ONE vs THREE by bravery curve
     val base = if (r < pThree) DieChoice.THREE else DieChoice.ONE
 
-    // Zero is only even *allowed* if they were targeted last round; and even then itâ€™s not guaranteed.
+    // Zero is only even *allowed* if they were targeted last round; and even then it's not guaranteed.
     // Use a modest chance to actually take ZERO (defensive), otherwise stick to ONE/THREE.
     if (allowZeroThisRound) {
         val zRoll = public.rng.nextInt(100)
@@ -136,10 +136,10 @@ private fun baselineBraveryDie(public: PublicRoundInfo, allowZeroThisRound: Bool
 
 /**
  * A: Teacher (UPDATED CANON)
- * - Die: rounds 1â€“3 choose 1.
+ * - Die: rounds 1-3 choose 1.
  * - If targeted last round: next round choose 0.
  * - Otherwise follow: 1,1,1,3,3 (repeat 3s after that).
- * - Action: pass rounds 1â€“3. From round 4+ target someone who chose 3 last round, guess 3.
+ * - Action: pass rounds 1-3. From round 4+ target someone who chose 3 last round, guess 3.
  */
 class Teacher : Archetype {
     override val code = "A"
@@ -410,8 +410,8 @@ class SpitePlayer : Archetype {
 
 /**
  * H: Accretion (UPDATED CANON)
- * - Die: rounds 1â€“2 choose 1; rounds 3+ choose 3.
- * - Action: pass rounds 1â€“4.
+ * - Die: rounds 1-2 choose 1; rounds 3+ choose 3.
+ * - Action: pass rounds 1-4.
  * - Round 5+: target someone who chose 3 last round and guess 3 (else pass).
  */
 class Accretion : Archetype {
@@ -442,7 +442,7 @@ class Accretion : Archetype {
 /**
  * I: Auditor (UPDATED CANON)
  * - Die: 50/50 1 or 3.
- * - Action: pass rounds 1â€“2.
+ * - Action: pass rounds 1-2.
  * - Round 3+: target players who have passed 2+ rounds in a row; guess 3.
  *   If none exist, pass.
  */

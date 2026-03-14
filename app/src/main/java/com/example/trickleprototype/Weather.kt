@@ -80,7 +80,7 @@ object Weather {
         WeatherCard(
             id = "drizzle",
             displayName = "Drizzle",
-            effectText = "normal gameplay.",
+            effectText = "Normal gameplay.",
             ruleText = "Use base Trickle rules with no modifications.",
             category = WeatherCategory.BASELINE,
             complexity = WeatherComplexity.EASY,
@@ -92,7 +92,7 @@ object Weather {
         WeatherCard(
             id = "downpour",
             displayName = "Downpour",
-            effectText = "all 1s score as 2. if your 1 goes untargeted it trickles for 2. if you are guessed wrong with a 1 you earn 2, and if you guess someones 1 correctly you gain 2.",
+            effectText = "All 1s score as 2.",
             ruleText = "During Trickling, if a player was not targeted and their selection is 1, award 2 instead of 1. Before trickling, if a player who chose 1 is guessed incorrectly, they are awarded 2 instead of 1. If a player guesses another player's 1 correctly, the guesser is awarded 2 instead of 1.",
             category = WeatherCategory.SCORING,
             complexity = WeatherComplexity.EASY,
@@ -128,7 +128,7 @@ object Weather {
         WeatherCard(
             id = "low_pressure",
             displayName = "Low Pressure",
-            effectText = "after the first guess of the round, every later guesser must guess the same number as that first guess.",
+            effectText = "Every guess must copy the first.",
             ruleText = "Once the first targeting action with a guess occurs, store that guessed value. For the rest of the round, any later player who targets must use that same guess value. They cannot choose the other guess.",
             category = WeatherCategory.TARGETING,
             complexity = WeatherComplexity.MEDIUM,
@@ -140,7 +140,7 @@ object Weather {
         WeatherCard(
             id = "windshear",
             displayName = "Windshear",
-            effectText = "after the first guess of the round, every later guesser must guess the opposite number.",
+            effectText = "No one can copy the first guess.",
             ruleText = "Once the first targeting action with a guess occurs, store that guessed value. For the rest of the round, any later player who targets must guess the other value: if the first guess was 1, later guessers must guess 3; if the first guess was 3, later guessers must guess 1.",
             category = WeatherCategory.TARGETING,
             complexity = WeatherComplexity.MEDIUM,
@@ -152,12 +152,12 @@ object Weather {
         WeatherCard(
             id = "static_charge",
             displayName = "Static Charge",
-            effectText = "the first guesser gets no reward if correct; if that first guesser is wrong on a 0, they do not lose a marble, but the Hat still moves. Everyone after the first resolves normally.",
+            effectText = " No marbles move for the first guesser, everything after is normal.",
             ruleText = "Identify the first player this round who makes a target-and-guess action. If their guess is correct, award them 0 instead of the normal reward. If their guess is wrong and the target actually chose 0, do not subtract 1 from the guesser, but still move the Jester Hat to that guesser. All other targeting resolutions use normal rules.",
             category = WeatherCategory.TARGETING,
             complexity = WeatherComplexity.MEDIUM,
             copies = 3,
-            enabled = false,
+            enabled = true,
             effectTags = setOf(
                 WeatherEffectTag.FIRST_GUESSER_NO_REWARD_IF_CORRECT,
                 WeatherEffectTag.FIRST_WRONG_ON_ZERO_NO_LOSS_BUT_HAT_MOVES
@@ -167,79 +167,79 @@ object Weather {
         WeatherCard(
             id = "crosswinds",
             displayName = "Crosswinds",
-            effectText = "if a player chooses to target, they must target 2 players with the same guess.",
+            effectText = "If you target, you must target 2 players with the same guess.",
             ruleText = "On a players Step 2 turn, they may still pass. If they target, they must choose exactly 2 untargeted targets, and they must apply the same guess value to both. Resolve both targetings as part of that one action. A player cannot choose only 1 target under this weather, if they only have 1 target they must pass.",
             category = WeatherCategory.TARGETING,
             complexity = WeatherComplexity.HARD,
             copies = 2,
-            enabled = false,
+            enabled = true,
             effectTags = setOf(WeatherEffectTag.MUST_TARGET_TWO_WITH_SAME_GUESS_IF_TARGETING)
         ),
 
         WeatherCard(
             id = "sleet",
             displayName = "Sleet",
-            effectText = "scoring flow changes from bowlcup to cupcup.",
+            effectText = "Scoring flow changes from bowl->cup to cup->cup.",
             ruleText = "If a players choice is untargeted, they get points from the bowl like usual. If a player guesses another player wrong, the target takes their choice from the guesser's total instead of the bowl. If a player has their choice guessed correctly, they give that many marbles from their total to the guesser. If a player guesses wrong and the right answer was a 0, the guesser gives 1 marble to the target instead of back to the bowl. If the amount of marbles that need to transfer is greater than those that can be removed from a player, take as many as will leave that player at 0 and then stop. Players can not have negative marbles.",
             category = WeatherCategory.ECONOMY,
             complexity = WeatherComplexity.HARD,
             copies = 2,
-            enabled = false,
+            enabled = true,
             effectTags = setOf(WeatherEffectTag.USE_CUP_TO_CUP_TRANSFERS)
         ),
 
         WeatherCard(
             id = "thunderstorm",
             displayName = "Thunderstorm",
-            effectText = "wrong guesses on a 0 cost 3 marbles instead of 1, and the Hat moves as normal.",
+            effectText = "Wrong guesses on a 0 cost 3 marbles instead of 1.",
             ruleText = "If a guesser targets a player, guesses wrong, and that target actually chose 0, subtract 3 from the guesser instead of 1, to a minimum of 0 if needed. Then move the Jester Hat to the guesser.",
             category = WeatherCategory.RISK,
             complexity = WeatherComplexity.EASY,
             copies = 2,
-            enabled = false,
+            enabled = true,
             effectTags = setOf(WeatherEffectTag.WRONG_ZERO_COSTS_THREE)
         ),
 
         WeatherCard(
             id = "drought",
             displayName = "Drought",
-            effectText = "no marbles move at all, but the Hat can still move.",
+            effectText = "No marbles move at all, but the Hat can still move.",
             ruleText = "Correct guesses award 0. Wrong guesses on 1 or 3 award 0 to the target. Trickling awards 0 to untargeted players. If a guess is wrong on a 0, the usual Hat movement still happens, but no marble loss occurs because no marbles move this round.",
             category = WeatherCategory.ECONOMY,
             complexity = WeatherComplexity.MEDIUM,
-            copies = 2,
-            enabled = false,
+            copies = 1,
+            enabled = true,
             effectTags = setOf(WeatherEffectTag.NO_MARBLES_MOVE)
         ),
 
         WeatherCard(
             id = "lightning_storm",
             displayName = "Lightning Storm",
-            effectText = "the first player who guesses wrong on a 0 gets +3 marbles.",
+            effectText = "The first player who guesses wrong on a 0 gets +3 marbles.",
             ruleText = "The first time in the round that a player guesses wrong and the target actually chose 0, that guesser gains 3 marbles instead of losing 1. The Hat still moves to that guesser. Any later wrong-on-0 events in the same round resolve normally unless otherwise specified.",
             category = WeatherCategory.RISK,
             complexity = WeatherComplexity.MEDIUM,
             copies = 1,
-            enabled = false,
+            enabled = true,
             effectTags = setOf(WeatherEffectTag.FIRST_WRONG_ZERO_GIVES_THREE)
         ),
 
         WeatherCard(
             id = "tornado",
             displayName = "Tornado",
-            effectText = "if you can target, you must target.",
+            effectText = "If you can target, you must target.",
             ruleText = "On a players Step 2 turn, if there is at least one legal untargeted player they are allowed to target, they may not pass. They must make a targeting action. Only players with no legal target may pass.",
             category = WeatherCategory.TARGETING,
             complexity = WeatherComplexity.MEDIUM,
             copies = 1,
-            enabled = false,
+            enabled = true,
             effectTags = setOf(WeatherEffectTag.MUST_TARGET_IF_LEGAL)
         ),
 
         WeatherCard(
             id = "hail",
             displayName = "Hail",
-            effectText = "all 3s score as 4. if your 3 goes untargeted it trickles for 4. if you are guessed wrong with a 3 you earn 4, and if you guess someones 3 correctly you gain 4.",
+            effectText = "All 3s score as 4s.",
             ruleText = "During Trickling, if a player was not targeted and their selection is 3, award 4 instead of 3. Before trickling, if a player who chose 3 is guessed incorrectly, they are awarded 4 instead of 3. If a player guesses another player's 3 correctly, the guesser is awarded 4 instead of 3.",
             category = WeatherCategory.SCORING,
             complexity = WeatherComplexity.EASY,
@@ -251,36 +251,36 @@ object Weather {
         WeatherCard(
             id = "hurricane",
             displayName = "Hurricane",
-            effectText = "untargeted 0s gain 1 marble during Trickling.",
+            effectText = "Untargeted 0s gain 1 marble during Trickling.",
             ruleText = "During Trickling, if a player chose 0 and was not targeted and guessed as a 0, award them 1 marble.",
             category = WeatherCategory.ECONOMY,
             complexity = WeatherComplexity.EASY,
             copies = 1,
-            enabled = false,
+            enabled = true,
             effectTags = setOf(WeatherEffectTag.UNTARGETED_ZERO_TRICKLES_FOR_ONE)
         ),
 
         WeatherCard(
             id = "rainbow",
             displayName = "Rainbow",
-            effectText = "wrong guesses on a 0 give the guesser +1 marble instead of -1, and the Hat moves to the guesser.",
+            effectText = "Wrong guesses on a 0 give the guesser +1 marble instead of -1",
             ruleText = "If a guesser guesses wrong and the target actually chose 0, add 1 marble to the guesser instead of subtracting 1. Then move the Jester Hat to the guesser.",
             category = WeatherCategory.RISK,
             complexity = WeatherComplexity.EASY,
             copies = 1,
-            enabled = false,
+            enabled = true,
             effectTags = setOf(WeatherEffectTag.WRONG_ZERO_GIVES_ONE)
         ),
 
         WeatherCard(
             id = "perfect_storm",
             displayName = "Perfect Storm",
-            effectText = "all scoring is doubled, and wrong guesses on a 0 cost 2 marbles instead of 1.",
+            effectText = "All scoring is doubled.",
             ruleText = "Double all marble gains this round. Double all marble losses this round. Specifically, wrong-on-0 penalties become -2 instead of -1, and the Hat still moves. Correct guesses of 1 become +2, correct guesses of 3 become +6, wrong guesses into actual 1 become target +2, wrong guesses into actual 3 become target +6, untargeted trickle of 1 becomes +2, untargeted trickle of 3 becomes +6.",
             category = WeatherCategory.SCORING,
             complexity = WeatherComplexity.HARD,
             copies = 1,
-            enabled = false,
+            enabled = true,
             effectTags = setOf(
                 WeatherEffectTag.DOUBLE_ALL_MARBLE_GAINS,
                 WeatherEffectTag.DOUBLE_ALL_MARBLE_LOSSES,
@@ -291,12 +291,12 @@ object Weather {
         WeatherCard(
             id = "heat_mirage",
             displayName = "Heat Mirage",
-            effectText = "all selections rotate before resolution: 0→1, 1→3, 3→0.",
+            effectText = "Choices rotate before the targeting phase: 0->1, 1->3, 3->0.",
             ruleText = "After all players have selected and weather is revealed, transform each players effective selection for this round as follows: 0 becomes 1, 1 becomes 3, 3 becomes 0. All targeting and Trickling then resolve using the transformed value, not the originally chosen value.",
             category = WeatherCategory.TRANSFORM,
             complexity = WeatherComplexity.MEDIUM,
             copies = 2,
-            enabled = false,
+            enabled = true,
             digitalOnly = true,
             effectTags = setOf(WeatherEffectTag.ROTATE_SELECTED_VALUES_0_TO_1_TO_3_TO_0)
         ),
@@ -304,12 +304,12 @@ object Weather {
         WeatherCard(
             id = "high_pressure",
             displayName = "High Pressure",
-            effectText = "each player may score from only one source this round.",
+            effectText = "You may score from only one source this round.",
             ruleText = "For each player, only the first scoring event that would give them marbles this round actually gives marbles. Any later positive marble gains to that same player during the same round become 0. Negative effects and Hat movement still resolve normally. i.e. if a player gains points from guessing correctly, they do not trickle later on. if a player gains points because they were guessed incorrectly, they must pass instead of targeting.",
             category = WeatherCategory.RESOLUTION,
             complexity = WeatherComplexity.HARD,
             copies = 2,
-            enabled = false,
+            enabled = true,
             digitalOnly = true,
             effectTags = setOf(WeatherEffectTag.ONE_POSITIVE_SCORING_EVENT_PER_PLAYER)
         ),
@@ -317,12 +317,12 @@ object Weather {
         WeatherCard(
             id = "stormfront",
             displayName = "Stormfront",
-            effectText = "only the first floor(N/2) targeting actions are allowed; all later players must pass.",
+            effectText = "Only the first half of players can target; all later players must pass.",
             ruleText = "Let N be the number of players in the game. This round, only the first floor(N/2) actual target-and-guess actions may occur. Once that many targeting actions have happened, every remaining player must pass on their Step 2 turn. Trickling still happens normally.",
             category = WeatherCategory.TARGETING,
             complexity = WeatherComplexity.HARD,
             copies = 2,
-            enabled = false,
+            enabled = true,
             digitalOnly = true,
             effectTags = setOf(WeatherEffectTag.LIMIT_TARGETING_ACTIONS_TO_HALF_ROUNDED_DOWN)
         ),
@@ -330,12 +330,12 @@ object Weather {
         WeatherCard(
             id = "cold_rain",
             displayName = "Cold Rain",
-            effectText = "after normal scoring, all net marbles gained this round are pooled and redistributed evenly to all players.",
+            effectText = "Marbles are divided evenly at the end of the round.",
             ruleText = "Resolve the round normally. Compute each players net marble gain for the round, counting only positive net gains into the pool. Sum those gains into one pool. Evenly distribute that pool among all players. Any remainder stays in the bowl.",
             category = WeatherCategory.RESOLUTION,
             complexity = WeatherComplexity.HARD,
             copies = 1,
-            enabled = false,
+            enabled = true,
             digitalOnly = true,
             effectTags = setOf(WeatherEffectTag.REDISTRIBUTE_ALL_POSITIVE_NET_GAINS_TO_ALL_PLAYERS)
         ),
@@ -343,12 +343,12 @@ object Weather {
         WeatherCard(
             id = "thunderhead",
             displayName = "Thunderhead",
-            effectText = "only the top round-scorers keep their points; everyone else gets 0 for the round.",
+            effectText = "only the top round-scorers keep their points.",
             ruleText = "After the round resolves, compare how many marbles each player gained this round. Only the player or players tied for the highest round gain keep those gains. All other players round gains are reduced to 0. Hat movement and non-scoring state changes still stand.",
             category = WeatherCategory.RESOLUTION,
             complexity = WeatherComplexity.HARD,
             copies = 1,
-            enabled = false,
+            enabled = true,
             digitalOnly = true,
             effectTags = setOf(WeatherEffectTag.ONLY_TOP_ROUND_SCORERS_KEEP_POINTS)
         ),
@@ -356,26 +356,26 @@ object Weather {
         WeatherCard(
             id = "cool_breeze",
             displayName = "Cool Breeze",
-            effectText = "only the lowest round-scorers keep their points; everyone else gets 0 for the round.",
+            effectText = "only the lowest round-scorers keep their points.",
             ruleText = "After the round resolves, compare how many marbles each player gained this round. Only the player or players tied for the lowest positive kept qualifying round gain keep those gains, according to your established Cool Breeze interpretation. All other players round gains are reduced to 0. Players who gained 0 points do not count as the lowest, you must gain at least 1 point to be considered a scorer.",
             category = WeatherCategory.RESOLUTION,
             complexity = WeatherComplexity.HARD,
             copies = 1,
-            enabled = false,
+            enabled = true,
             digitalOnly = true,
-            includedInDeck = false,
+            includedInDeck = true,
             effectTags = setOf(WeatherEffectTag.ONLY_LOWEST_POSITIVE_ROUND_SCORERS_KEEP_POINTS)
         ),
 
         WeatherCard(
             id = "smog",
             displayName = "Smog",
-            effectText = "untargeted players selections are not revealed during Trickling.",
+            effectText = "Untargeted players selections are not revealed during Trickling.",
             ruleText = "Scoring still resolves normally for untargeted players, but their chosen values are not shown to players or logs as public reveal information. The system still knows the values internally; visibility only is suppressed.",
             category = WeatherCategory.INFORMATION,
             complexity = WeatherComplexity.MEDIUM,
             copies = 1,
-            enabled = false,
+            enabled = true,
             digitalOnly = true,
             effectTags = setOf(WeatherEffectTag.HIDE_UNTARGETED_TRICKLE_REVEALS)
         )
