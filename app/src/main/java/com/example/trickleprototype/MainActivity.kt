@@ -8,6 +8,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.ui.geometry.Offset
 import kotlin.math.cos
 import kotlin.math.sin
+import android.media.MediaPlayer
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -66,6 +67,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
@@ -167,12 +169,18 @@ private fun parseAchievementPopup(line: String): AchievementPopup? {
 private fun TrickleApp() {
     val engine = remember { GameEngine() }
 
-    val appContext = LocalContext.current.applicationContext
+    val context = LocalContext.current
+    val appContext = context.applicationContext
     val statsStore = remember { StatsStore(appContext) }
+    val settingsPrefs = remember {
+        appContext.getSharedPreferences("trickle_settings", ComponentActivity.MODE_PRIVATE)
+    }
 
     var screen by remember { mutableStateOf(AppScreen.SPLASH) }
 
     var showResetStatsConfirm by remember { mutableStateOf(false) }
+    var soundEnabled by remember { mutableStateOf(settingsPrefs.getBoolean("sound_enabled", true)) }
+    var musicEnabled by remember { mutableStateOf(settingsPrefs.getBoolean("music_enabled", true)) }
 
     // Player identity
     var playerName by remember { mutableStateOf(statsStore.getPlayerName()) }
@@ -203,6 +211,48 @@ private fun TrickleApp() {
     // Achievement popups
     var achievementQueue by remember { mutableStateOf<List<AchievementPopup>>(emptyList()) }
     var activeAchievement by remember { mutableStateOf<AchievementPopup?>(null) }
+    var splashSoundPlayer by remember { mutableStateOf<MediaPlayer?>(null) }
+
+    val bgmPlayer = remember {
+        MediaPlayer.create(context, R.raw.mainthemegen)?.apply {
+            isLooping = true
+            setVolume(0.35f, 0.35f)
+        }
+    }
+
+    LaunchedEffect(screen, musicEnabled) {
+        if (!musicEnabled) {
+            if (bgmPlayer?.isPlaying == true) {
+                bgmPlayer.pause()
+            }
+        } else {
+            if (bgmPlayer?.isPlaying != true) {
+                bgmPlayer?.start()
+            }
+        }
+    }
+
+    DisposableEffect(Unit) {
+        onDispose {
+            splashSoundPlayer?.release()
+            bgmPlayer?.stop()
+            bgmPlayer?.release()
+        }
+    }
+
+    LaunchedEffect(soundEnabled) {
+        settingsPrefs.edit().putBoolean("sound_enabled", soundEnabled).apply()
+
+        if (!soundEnabled) {
+            splashSoundPlayer?.stop()
+            splashSoundPlayer?.release()
+            splashSoundPlayer = null
+        }
+    }
+
+    LaunchedEffect(musicEnabled) {
+        settingsPrefs.edit().putBoolean("music_enabled", musicEnabled).apply()
+    }
 
     // must be above LaunchedEffect or it won't exist yet
     val seenAchievements = remember { mutableSetOf<String>() }
@@ -460,15 +510,28 @@ private fun TrickleApp() {
             when (screen) {
                 AppScreen.SPLASH -> {
                     LaunchedEffect(Unit) {
+                        if (soundEnabled) {
+                            splashSoundPlayer?.release()
+                            splashSoundPlayer = MediaPlayer.create(context, R.raw.darksoftlogo)?.apply {
+                                setOnCompletionListener {
+                                    it.release()
+                                    if (splashSoundPlayer === it) {
+                                        splashSoundPlayer = null
+                                    }
+                                }
+                                start()
+                            }
+                        }
+
                         delay(3000L)
                         screen = AppScreen.MAIN_MENU
                     }
                     Box(
                         modifier = Modifier
                             .fillMaxSize()
-                            .background(Color.Black)              // true black full-screen background
-                            .clickable { screen = AppScreen.MAIN_MENU }, // tap anywhere
-                        contentAlignment = Alignment.Center      // centers the whole splash
+                            .background(Color.Black)
+                            .clickable { screen = AppScreen.MAIN_MENU },
+                        contentAlignment = Alignment.Center
                     ) {
                         Column(
                             modifier = Modifier.wrapContentSize(),
@@ -693,9 +756,31 @@ private fun TrickleApp() {
                             )
                         }
 
-                        MenuLinkButton(text = "SOUND (COMING SOON)") { /* placeholder */ }
+                        MenuLinkButton(
+                            text = if (soundEnabled) "SOUND: ON" else "SOUND: OFF"
+                        ) {
+                            soundEnabled = !soundEnabled
+
+                            if (!soundEnabled) {
+                                splashSoundPlayer?.stop()
+                                splashSoundPlayer?.release()
+                                splashSoundPlayer = null
+                            }
+                        }
                         Spacer(Modifier.height(10.dp))
-                        MenuLinkButton(text = "MUSIC (COMING SOON)") { /* placeholder */ }
+                        MenuLinkButton(
+                            text = if (musicEnabled) "MUSIC: ON" else "MUSIC: OFF"
+                        ) {
+                            musicEnabled = !musicEnabled
+
+                            if (!musicEnabled) {
+                                bgmPlayer?.pause()
+                            } else {
+                                if (bgmPlayer?.isPlaying != true) {
+                                    bgmPlayer?.start()
+                                }
+                            }
+                        }
                         Spacer(Modifier.height(10.dp))
                         MenuLinkButton(text = "RESET STATS") {
                             showResetStatsConfirm = true
@@ -1125,7 +1210,8 @@ private fun engineSnapshot(engine: GameEngine): RoundResult {
         currentWeatherEffect = null,
         forcedGuessForHuman = null,
         mustTargetForHuman = false,
-        requiresSecondTargetForHuman = false
+        requiresSecondTargetForHuman = false,
+        hatHolderId = null
     )
 }
 

@@ -343,7 +343,7 @@ object Weather {
         WeatherCard(
             id = "thunderhead",
             displayName = "Thunderhead",
-            effectText = "only the top round-scorers keep their points.",
+            effectText = "Only the top round-scorers keep their points.",
             ruleText = "After the round resolves, compare how many marbles each player gained this round. Only the player or players tied for the highest round gain keep those gains. All other players round gains are reduced to 0. Hat movement and non-scoring state changes still stand.",
             category = WeatherCategory.RESOLUTION,
             complexity = WeatherComplexity.HARD,
@@ -356,7 +356,7 @@ object Weather {
         WeatherCard(
             id = "cool_breeze",
             displayName = "Cool Breeze",
-            effectText = "only the lowest round-scorers keep their points.",
+            effectText = "Only the lowest round-scorers keep their points.",
             ruleText = "After the round resolves, compare how many marbles each player gained this round. Only the player or players tied for the lowest positive kept qualifying round gain keep those gains, according to your established Cool Breeze interpretation. All other players round gains are reduced to 0. Players who gained 0 points do not count as the lowest, you must gain at least 1 point to be considered a scorer.",
             category = WeatherCategory.RESOLUTION,
             complexity = WeatherComplexity.HARD,
