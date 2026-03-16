@@ -202,6 +202,9 @@ private fun TrickleApp() {
     var targetId by remember { mutableStateOf<Int?>(null) }
     var secondTargetId by remember { mutableStateOf<Int?>(null) }
     var guess by remember { mutableIntStateOf(3) }
+    var displayedRound by remember { mutableIntStateOf(1) }
+    var pendingHumanAction by remember { mutableStateOf(PendingHumanAction.NONE) }
+    var showLogOverlay by remember { mutableStateOf(false) }
 
     var dieButtonsEnabled by remember { mutableStateOf(true) }
 
@@ -329,6 +332,19 @@ private fun TrickleApp() {
     val scrollState = rememberScrollState()
     LaunchedEffect(logText) { scrollState.scrollTo(0) }
 
+    LaunchedEffect(lastResult?.log) {
+        val latestRound = lastResult
+            ?.log
+            ?.mapNotNull { event ->
+                Regex("=== ROUND (\\d+)").find(event.text)?.groupValues?.getOrNull(1)?.toIntOrNull()
+            }
+            ?.lastOrNull()
+
+        if (latestRound != null) {
+            displayedRound = latestRound
+        }
+    }
+
     LaunchedEffect(forcedGuess) {
         if (forcedGuess != null) {
             guess = forcedGuess
@@ -454,7 +470,11 @@ private fun TrickleApp() {
 
                                 choice = 1
                                 targetId = null
+                                secondTargetId = null
                                 guess = 3
+                                displayedRound = 1
+                                pendingHumanAction = PendingHumanAction.NONE
+                                showLogOverlay = false
 
                                 humanActionLocked = false
                                 startLocked = false
@@ -473,6 +493,16 @@ private fun TrickleApp() {
 
                     val turboContainerColor = if (turbo) turboOnColor else Color(0xFF6A6A6A)
                     val turboContentColor = if (turbo && turboOnColor == Color.Yellow) Color.Black else Color.White
+
+                    if (screen == AppScreen.GAME) {
+                        Text(
+                            text = "Trickle",
+                            modifier = Modifier.align(Alignment.Center),
+                            color = Color.White,
+                            fontWeight = FontWeight.Black,
+                            fontSize = 22.sp
+                        )
+                    }
 
                     if (screen == AppScreen.GAME) {
                         Button(
@@ -601,7 +631,11 @@ private fun TrickleApp() {
 
                         choice = 1
                         targetId = null
+                        secondTargetId = null
                         guess = 3
+                        displayedRound = 1
+                        pendingHumanAction = PendingHumanAction.NONE
+                        showLogOverlay = false
 
                         screen = AppScreen.GAME
                     }
@@ -805,203 +839,170 @@ private fun TrickleApp() {
                 return@Column
             }
 
+
             // GAME SCREEN
-            val playerScore = players.firstOrNull { it.id == GameEngine.HUMAN_ID }?.marbles ?: 0
-            Text("Your marbles: $playerScore", style = MaterialTheme.typography.bodyMedium)
-            Spacer(Modifier.height(10.dp))
+            val humanPlayer = players.firstOrNull { it.id == GameEngine.HUMAN_ID }
+            val playerScore = humanPlayer?.marbles ?: 0
+            val playerTitle = humanPlayer?.baseName ?: "You"
 
             val isPlayerTurn = (phase == EnginePhase.PLAYER_TURN)
             val inputsEnabled = !gameOver && isPlayerTurn && !humanActionLocked
 
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(14.dp),
-                verticalAlignment = Alignment.Top
+            val dropdownOptions = if (isPlayerTurn) {
+                val targetable = lastResult?.targetableIdsForHuman ?: emptyList()
+                players.filter { it.id in targetable && it.id != GameEngine.HUMAN_ID }
+            } else {
+                emptyList()
+            }
+
+            val secondDropdownOptions = dropdownOptions.filter { it.id != targetId }
+
+            val zeroGuessUnlocked = statsStore.load().zeroHeroUnlocked
+
+            val playerPhaseBadge = phaseBadgeText(
+                roundNumber = displayedRound,
+                enginePhase = phase,
+                pendingHumanAction = pendingHumanAction,
+                humanActionLocked = humanActionLocked,
+                targetId = targetId,
+                secondTargetId = secondTargetId,
+                needsSecondTarget = needsSecondTarget,
+                latestLogLine = lastResult?.log?.lastOrNull()?.text
+            )
+
+            val leftBots = players.filter { it.id != GameEngine.HUMAN_ID }.take(6)
+            val rightBots = players.filter { it.id != GameEngine.HUMAN_ID }.drop(6).take(6)
+
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f)
             ) {
-                Column(modifier = Modifier.weight(1f)) {
-
-                    Text("Your choice:", style = MaterialTheme.typography.bodyMedium)
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        val dieEnabled = !gameOver && !startLocked && (phase == EnginePhase.SELECT)
-                        SmallChoiceButton("0", selected = (choice == 0), enabled = dieEnabled) { choice = 0 }
-                        SmallChoiceButton("1", selected = (choice == 1), enabled = dieEnabled) { choice = 1 }
-                        SmallChoiceButton("3", selected = (choice == 3), enabled = dieEnabled) { choice = 3 }
-                    }
-
-                    Spacer(Modifier.height(10.dp))
-
-                    val isPassing = (targetId == null)
-
+                Column(
+                    modifier = Modifier.fillMaxSize(),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
                     Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 6.dp),
+                        horizontalArrangement = Arrangement.Center,
+                        verticalAlignment = Alignment.Top
                     ) {
-                        Button(
-                            onClick = {
-                                targetId = null
-                                secondTargetId = null
-                            },
-                            enabled = inputsEnabled && !isPassing && !mustTarget,
-                            modifier = Modifier.heightIn(min = 48.dp)
-                        ) { OneLineButtonText("Pass") }
-
-                        Button(
-                            onClick = {
-                                val targetable = lastResult?.targetableIdsForHuman ?: emptyList()
-                                val firstTarget = targetable.firstOrNull()
-                                targetId = firstTarget
-                                secondTargetId = targetable.firstOrNull { it != firstTarget }
-                            },
-                            enabled = inputsEnabled && isPassing && (lastResult?.targetableIdsForHuman?.isNotEmpty() == true),
-                            modifier = Modifier.heightIn(min = 48.dp)
-                        ) { OneLineButtonText("Target") }
-                    }
-
-                    Spacer(Modifier.height(8.dp))
-
-                    val dropdownOptions = if (isPlayerTurn) {
-                        val targetable = lastResult?.targetableIdsForHuman ?: emptyList()
-                        players.filter { it.id in targetable && it.id != GameEngine.HUMAN_ID }
-                    } else emptyList()
-
-                    val secondDropdownOptions = dropdownOptions.filter { it.id != targetId }
-
-                    if (!currentWeatherName.isNullOrBlank()) {
-                        Surface(
-                            modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(12.dp),
-                            tonalElevation = 2.dp
-                        ) {
-                            Column(Modifier.padding(12.dp)) {
-                                Text(
-                                    text = "Weather: $currentWeatherName",
-                                    style = MaterialTheme.typography.titleSmall,
-                                    fontWeight = FontWeight.Bold
-                                )
-                                if (!currentWeatherEffect.isNullOrBlank()) {
-                                    Spacer(Modifier.height(4.dp))
-                                    Text(
-                                        text = currentWeatherEffect,
-                                        style = MaterialTheme.typography.bodySmall
-                                    )
-                                }
-                                if (forcedGuess != null) {
-                                    Spacer(Modifier.height(6.dp))
-                                    Text(
-                                        text = "Locked guess this turn: $forcedGuess",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        fontWeight = FontWeight.SemiBold
-                                    )
-                                }
-                                if (mustTarget) {
-                                    Spacer(Modifier.height(6.dp))
-                                    Text(
-                                        text = "You must target this turn if a legal target exists.",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        fontWeight = FontWeight.SemiBold
-                                    )
-                                }
-                                if (needsSecondTarget) {
-                                    Spacer(Modifier.height(6.dp))
-                                    Text(
-                                        text = "If you target this turn, you must pick two different targets.",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        fontWeight = FontWeight.SemiBold
-                                    )
-                                }
-                            }
-                        }
-
-                        Spacer(Modifier.height(10.dp))
-                    }
-
-                    TargetDropdown(
-                        options = dropdownOptions,
-                        selectedTargetId = targetId,
-                        enabled = inputsEnabled && targetId != null && dropdownOptions.isNotEmpty(),
-                        onSelect = {
-                            targetId = it
-                            if (secondTargetId == it) {
-                                secondTargetId = null
-                            }
-                        }
-                    )
-
-                    if (needsSecondTarget && targetId != null) {
-                        Spacer(Modifier.height(8.dp))
-                        TargetDropdown(
-                            options = secondDropdownOptions,
-                            selectedTargetId = secondTargetId,
-                            enabled = inputsEnabled && secondDropdownOptions.isNotEmpty(),
-                            label = "Second target",
-                            onSelect = { secondTargetId = it }
+                        WeatherInfoBadge(
+                            weatherName = currentWeatherName,
+                            weatherEffect = currentWeatherEffect,
+                            forcedGuess = forcedGuess,
+                            mustTarget = mustTarget,
+                            needsSecondTarget = needsSecondTarget,
+                            modifier = Modifier.weight(1f)
                         )
-                    }
 
-                    Spacer(Modifier.height(10.dp))
+                        Spacer(Modifier.widthIn(min = 10.dp))
 
-                    Text("Your guess:", style = MaterialTheme.typography.bodyMedium)
+                        PlayerStatusStack(
+                            playerTitle = playerTitle,
+                            playerScore = playerScore,
+                            modifier = Modifier.weight(1.1f)
+                        )
 
-                    val zeroGuessUnlocked = statsStore.load().zeroHeroUnlocked
+                        Spacer(Modifier.widthIn(min = 10.dp))
 
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        if (zeroGuessUnlocked) {
-                            SmallChoiceButton(
-                                "0",
-                                selected = (guess == 0),
-                                enabled = inputsEnabled && forcedGuess == null
-                            ) { guess = 0 }
-                        }
-                        SmallChoiceButton(
-                            "1",
-                            selected = (guess == 1),
-                            enabled = inputsEnabled && (forcedGuess == null || forcedGuess == 1)
-                        ) { guess = 1 }
-                        SmallChoiceButton(
-                            "3",
-                            selected = (guess == 3),
-                            enabled = inputsEnabled && (forcedGuess == null || forcedGuess == 3)
-                        ) { guess = 3 }
+                        PhaseBadge(
+                            text = playerPhaseBadge,
+                            modifier = Modifier.weight(1f)
+                        )
                     }
 
                     Spacer(Modifier.height(12.dp))
 
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .weight(1f)
                     ) {
-                        val leftLabel = when (phase) {
-                            EnginePhase.SELECT, EnginePhase.ROUND_END -> "Start Round->"
-                            EnginePhase.PLAYER_TURN -> "Submit Turn->"
-                            EnginePhase.BOT_TURN -> "Bots Acting..."
-                            EnginePhase.GAME_OVER -> "Game Over!"
-                            EnginePhase.SETUP -> "Setup..."
-                        }
-
-                        val leftEnabled = when (phase) {
-                            EnginePhase.SELECT, EnginePhase.ROUND_END -> !gameOver && !startLocked
-                            EnginePhase.PLAYER_TURN -> !gameOver && !humanActionLocked
-                            else -> false
-                        }
-
-                        Button(
+                        GameTableSurface(
                             modifier = Modifier
-                                .weight(1f)
-                                .heightIn(min = 48.dp),
-                            enabled = leftEnabled,
-                            onClick = {
+                                .align(Alignment.Center)
+                                .fillMaxWidth(0.54f)
+                                .height(470.dp)
+                        )
+
+                        BotCupColumn(
+                            bots = leftBots,
+                            modifier = Modifier
+                                .align(Alignment.CenterStart)
+                                .padding(start = 6.dp, top = 18.dp, bottom = 36.dp)
+                        )
+
+                        BotCupColumn(
+                            bots = rightBots,
+                            modifier = Modifier
+                                .align(Alignment.CenterEnd)
+                                .padding(end = 6.dp, top = 18.dp, bottom = 36.dp)
+                        )
+
+                        TableActionPanel(
+                            modifier = Modifier
+                                .align(Alignment.TopCenter)
+                                .fillMaxWidth(0.50f)
+                                .padding(top = 18.dp),
+                            choice = choice,
+                            onChoiceSelected = { choice = it },
+                            choiceEnabled = !gameOver && !startLocked && (phase == EnginePhase.SELECT || phase == EnginePhase.ROUND_END),
+                            inputsEnabled = inputsEnabled,
+                            pendingHumanAction = pendingHumanAction,
+                            onPassSelected = {
+                                targetId = null
+                                secondTargetId = null
+                                pendingHumanAction = PendingHumanAction.PASS
+                            },
+                            onTargetSelected = {
+                                targetId = null
+                                secondTargetId = null
+                                pendingHumanAction = PendingHumanAction.TARGET
+                            },
+                            dropdownOptions = dropdownOptions,
+                            selectedTargetId = targetId,
+                            onTargetPicked = {
+                                targetId = it
+                                if (secondTargetId == it) secondTargetId = null
+                            },
+                            needsSecondTarget = needsSecondTarget,
+                            secondDropdownOptions = secondDropdownOptions,
+                            selectedSecondTargetId = secondTargetId,
+                            onSecondTargetPicked = { secondTargetId = it },
+                            guess = guess,
+                            onGuessSelected = { guess = it },
+                            zeroGuessUnlocked = zeroGuessUnlocked,
+                            forcedGuess = forcedGuess,
+                            submitLabel = when (phase) {
+                                EnginePhase.SELECT, EnginePhase.ROUND_END -> "Start Round->"
+                                EnginePhase.PLAYER_TURN -> "Submit Turn->"
+                                EnginePhase.BOT_TURN -> "Bots Acting..."
+                                EnginePhase.GAME_OVER -> "Game Over!"
+                                EnginePhase.SETUP -> "Setup..."
+                            },
+                            submitEnabled = when (phase) {
+                                EnginePhase.SELECT, EnginePhase.ROUND_END -> !gameOver && !startLocked
+                                EnginePhase.PLAYER_TURN -> !gameOver && !humanActionLocked
+                                else -> false
+                            },
+                            onSubmit = {
                                 when (phase) {
                                     EnginePhase.SELECT, EnginePhase.ROUND_END -> {
                                         startLocked = true
+                                        pendingHumanAction = PendingHumanAction.NONE
                                         val result = engine.startRound(choice)
                                         lastResult = result
                                         logText = buildLogText(result, difficulty!!)
                                         targetId = null
                                         secondTargetId = null
+                                        humanActionLocked = false
                                     }
                                     EnginePhase.PLAYER_TURN -> {
                                         humanActionLocked = true
-                                        val frozenTarget = targetId
+                                        val frozenTarget = if (pendingHumanAction == PendingHumanAction.TARGET) targetId else null
                                         val frozenGuess = if (frozenTarget == null) null else guess
 
                                         val result = engine.submitHumanTurn(
@@ -1022,34 +1023,37 @@ private fun TrickleApp() {
                                     else -> Unit
                                 }
                             }
-                        ) { OneLineButtonText(leftLabel) }
+                        )
+
+                        if (showLogOverlay) {
+                            Box(
+                                modifier = Modifier
+                                    .align(Alignment.BottomCenter)
+                                    .fillMaxWidth(0.78f)
+                                    .padding(bottom = 54.dp)
+                            ) {
+                                LogPanel(
+                                    logText = logText,
+                                    scrollState = scrollState
+                                )
+                            }
+                        }
+
+                        Button(
+                            onClick = { showLogOverlay = !showLogOverlay },
+                            modifier = Modifier
+                                .align(Alignment.BottomCenter)
+                                .padding(bottom = 6.dp),
+                            shape = RoundedCornerShape(12.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = Color(0xFF4E342E),
+                                contentColor = Color.White
+                            )
+                        ) {
+                            Text(if (showLogOverlay) "Hide Log" else "Log")
+                        }
                     }
                 }
-
-                if (difficulty == Difficulty.EASY) {
-                    MarblesBox(
-                        players = players,
-                        modifier = Modifier
-                            .wrapContentWidth()
-                            .widthIn(max = 200.dp)
-                    )
-                }
-            }
-
-            Spacer(Modifier.height(12.dp))
-
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .weight(1f)
-                    .verticalScroll(scrollState)
-                    .padding(8.dp)
-            ) {
-                Text(
-                    text = logText.ifBlank { "(log will appear here)" },
-                    fontFamily = FontFamily.Monospace,
-                    softWrap = true
-                )
             }
         }
     }
@@ -1058,6 +1062,422 @@ private fun TrickleApp() {
             popup = popup,
             onDismiss = { activeAchievement = null }
         )
+    }
+}
+
+
+
+private enum class PendingHumanAction {
+    NONE,
+    PASS,
+    TARGET
+}
+
+private fun phaseBadgeText(
+    roundNumber: Int,
+    enginePhase: EnginePhase,
+    pendingHumanAction: PendingHumanAction,
+    humanActionLocked: Boolean,
+    targetId: Int?,
+    secondTargetId: Int?,
+    needsSecondTarget: Boolean,
+    latestLogLine: String?
+): String {
+    val isTrickling = enginePhase == EnginePhase.BOT_TURN && (
+            latestLogLine?.startsWith("TRICKLE") == true ||
+                    latestLogLine?.contains("trickles", ignoreCase = true) == true ||
+                    latestLogLine?.contains("Trickle obscured", ignoreCase = true) == true
+            )
+
+    val instruction = when (enginePhase) {
+        EnginePhase.SELECT, EnginePhase.ROUND_END -> "Choose your number"
+        EnginePhase.BOT_TURN -> {
+            if (isTrickling) {
+                "Trickling"
+            } else if (humanActionLocked || pendingHumanAction != PendingHumanAction.NONE) {
+                "Wait for next round"
+            } else {
+                "Wait your turn"
+            }
+        }
+        EnginePhase.PLAYER_TURN -> {
+            when (pendingHumanAction) {
+                PendingHumanAction.NONE -> "Pass or target"
+                PendingHumanAction.PASS -> "Wait for next round"
+                PendingHumanAction.TARGET -> {
+                    val targetReady = targetId != null && (!needsSecondTarget || secondTargetId != null)
+                    if (targetReady) "Choose their number" else "Choose your target"
+                }
+            }
+        }
+        EnginePhase.GAME_OVER -> "Game over"
+        EnginePhase.SETUP -> "Choose your number"
+    }
+
+    val phaseNumber = when (enginePhase) {
+        EnginePhase.SELECT, EnginePhase.ROUND_END, EnginePhase.SETUP -> 1
+        EnginePhase.BOT_TURN -> {
+            when {
+                isTrickling -> 3
+                humanActionLocked || pendingHumanAction == PendingHumanAction.PASS || pendingHumanAction == PendingHumanAction.TARGET -> 2
+                else -> 1
+            }
+        }
+        EnginePhase.PLAYER_TURN -> 2
+        EnginePhase.GAME_OVER -> 3
+    }
+
+    return "Round $roundNumber, Phase $phaseNumber: $instruction"
+}
+
+@Composable
+private fun WeatherInfoBadge(
+    weatherName: String?,
+    weatherEffect: String?,
+    forcedGuess: Int?,
+    mustTarget: Boolean,
+    needsSecondTarget: Boolean,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        modifier = modifier,
+        shape = RoundedCornerShape(16.dp),
+        color = Color(0xAA1E1E1E),
+        tonalElevation = 2.dp
+    ) {
+        Column(
+            modifier = Modifier.padding(10.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            Text(
+                text = if (weatherName.isNullOrBlank()) "Weather: Clear" else "Weather: $weatherName",
+                color = Color.White,
+                fontWeight = FontWeight.Bold,
+                fontSize = 14.sp
+            )
+            if (!weatherEffect.isNullOrBlank()) {
+                Text(
+                    text = weatherEffect,
+                    color = Color(0xFFD7E3FC),
+                    fontSize = 12.sp
+                )
+            }
+            if (forcedGuess != null) {
+                Text(
+                    text = "Locked guess: $forcedGuess",
+                    color = Color(0xFFFFF59D),
+                    fontSize = 12.sp
+                )
+            }
+            if (mustTarget) {
+                Text(
+                    text = "Must target if able.",
+                    color = Color(0xFFFFCCBC),
+                    fontSize = 12.sp
+                )
+            }
+            if (needsSecondTarget) {
+                Text(
+                    text = "Targeting needs two picks.",
+                    color = Color(0xFFFFCCBC),
+                    fontSize = 12.sp
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun PhaseBadge(
+    text: String,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        modifier = modifier,
+        shape = RoundedCornerShape(16.dp),
+        color = Color(0xAA1F2A44)
+    ) {
+        Box(
+            modifier = Modifier
+                .padding(horizontal = 12.dp, vertical = 10.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = text,
+                color = Color.White,
+                textAlign = TextAlign.Center,
+                fontWeight = FontWeight.Bold,
+                fontSize = 14.sp
+            )
+        }
+    }
+}
+
+@Composable
+private fun PlayerStatusStack(
+    playerTitle: String,
+    playerScore: Int,
+    modifier: Modifier = Modifier
+) {
+    Column(
+        modifier = modifier,
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        TableCup(
+            label = "YOU",
+            highlighted = true
+        )
+        Spacer(Modifier.height(6.dp))
+        Text(
+            text = playerTitle,
+            color = Color.White,
+            fontWeight = FontWeight.Bold,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+        Text(
+            text = "Score: $playerScore",
+            color = Color(0xFFFFF59D),
+            fontWeight = FontWeight.SemiBold,
+            fontSize = 13.sp
+        )
+    }
+}
+
+@Composable
+private fun BotCupColumn(
+    bots: List<PlayerState>,
+    modifier: Modifier = Modifier
+) {
+    Column(
+        modifier = modifier,
+        verticalArrangement = Arrangement.SpaceEvenly,
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        bots.forEach { bot ->
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                TableCup(
+                    label = bot.baseName.take(1).uppercase(),
+                    highlighted = false
+                )
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    text = bot.baseName,
+                    color = Color.White,
+                    fontSize = 12.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Spacer(Modifier.height(6.dp))
+            }
+        }
+    }
+}
+
+@Composable
+private fun TableCup(
+    label: String,
+    highlighted: Boolean
+) {
+    Surface(
+        modifier = Modifier.size(width = 58.dp, height = 74.dp),
+        shape = RoundedCornerShape(bottomStart = 18.dp, bottomEnd = 18.dp, topStart = 10.dp, topEnd = 10.dp),
+        color = if (highlighted) Color(0xFF90CAF9) else Color(0xFFE0E0E0),
+        border = BorderStroke(2.dp, if (highlighted) Color(0xFF1565C0) else Color(0xFF8D6E63))
+    ) {
+        Box(contentAlignment = Alignment.Center) {
+            Text(
+                text = label,
+                color = Color.Black,
+                fontWeight = FontWeight.Black
+            )
+        }
+    }
+}
+
+@Composable
+private fun GameTableSurface(
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        modifier = modifier,
+        shape = RoundedCornerShape(40.dp),
+        color = Color(0xFF6D4C41),
+        border = BorderStroke(4.dp, Color(0xFF3E2723)),
+        shadowElevation = 10.dp
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(12.dp)
+        )
+    }
+}
+
+@Composable
+private fun TableActionPanel(
+    modifier: Modifier = Modifier,
+    choice: Int,
+    onChoiceSelected: (Int) -> Unit,
+    choiceEnabled: Boolean,
+    inputsEnabled: Boolean,
+    pendingHumanAction: PendingHumanAction,
+    onPassSelected: () -> Unit,
+    onTargetSelected: () -> Unit,
+    dropdownOptions: List<PlayerState>,
+    selectedTargetId: Int?,
+    onTargetPicked: (Int) -> Unit,
+    needsSecondTarget: Boolean,
+    secondDropdownOptions: List<PlayerState>,
+    selectedSecondTargetId: Int?,
+    onSecondTargetPicked: (Int) -> Unit,
+    guess: Int,
+    onGuessSelected: (Int) -> Unit,
+    zeroGuessUnlocked: Boolean,
+    forcedGuess: Int?,
+    submitLabel: String,
+    submitEnabled: Boolean,
+    onSubmit: () -> Unit
+) {
+    val showChoiceButtons = choiceEnabled
+    val showActionButtons = inputsEnabled && pendingHumanAction == PendingHumanAction.NONE
+    val showTargeting = inputsEnabled && pendingHumanAction == PendingHumanAction.TARGET
+    val targetsReady = selectedTargetId != null && (!needsSecondTarget || selectedSecondTargetId != null)
+    val showGuessButtons = showTargeting && targetsReady
+
+    Surface(
+        modifier = modifier,
+        shape = RoundedCornerShape(20.dp),
+        color = Color(0xA6191919),
+        border = BorderStroke(2.dp, Color(0x66FFFFFF))
+    ) {
+        Column(
+            modifier = Modifier.padding(12.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            if (showChoiceButtons) {
+                Text("Choose your number", color = Color.White, fontWeight = FontWeight.Bold)
+                Spacer(Modifier.height(8.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    SmallChoiceButton("0", selected = choice == 0, enabled = choiceEnabled) { onChoiceSelected(0) }
+                    SmallChoiceButton("1", selected = choice == 1, enabled = choiceEnabled) { onChoiceSelected(1) }
+                    SmallChoiceButton("3", selected = choice == 3, enabled = choiceEnabled) { onChoiceSelected(3) }
+                }
+                Spacer(Modifier.height(12.dp))
+            }
+
+            if (showActionButtons) {
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Button(
+                        onClick = onPassSelected,
+                        enabled = inputsEnabled,
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFF546E7A),
+                            contentColor = Color.White
+                        )
+                    ) { OneLineButtonText("Pass") }
+
+                    Button(
+                        onClick = onTargetSelected,
+                        enabled = inputsEnabled && dropdownOptions.isNotEmpty(),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFF8D6E63),
+                            contentColor = Color.White
+                        )
+                    ) { OneLineButtonText("Target") }
+                }
+                Spacer(Modifier.height(12.dp))
+            }
+
+            if (showTargeting) {
+                TargetDropdown(
+                    options = dropdownOptions,
+                    selectedTargetId = selectedTargetId,
+                    enabled = dropdownOptions.isNotEmpty(),
+                    label = "Target",
+                    onSelect = onTargetPicked
+                )
+
+                if (needsSecondTarget && selectedTargetId != null) {
+                    Spacer(Modifier.height(8.dp))
+                    TargetDropdown(
+                        options = secondDropdownOptions,
+                        selectedTargetId = selectedSecondTargetId,
+                        enabled = secondDropdownOptions.isNotEmpty(),
+                        label = "Second target",
+                        onSelect = onSecondTargetPicked
+                    )
+                }
+
+                Spacer(Modifier.height(12.dp))
+            }
+
+            if (showGuessButtons) {
+                Text("Choose their number", color = Color.White, fontWeight = FontWeight.Bold)
+                Spacer(Modifier.height(8.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    if (zeroGuessUnlocked) {
+                        SmallChoiceButton(
+                            "0",
+                            selected = guess == 0,
+                            enabled = forcedGuess == null
+                        ) { onGuessSelected(0) }
+                    }
+                    SmallChoiceButton(
+                        "1",
+                        selected = guess == 1,
+                        enabled = forcedGuess == null || forcedGuess == 1
+                    ) { onGuessSelected(1) }
+                    SmallChoiceButton(
+                        "3",
+                        selected = guess == 3,
+                        enabled = forcedGuess == null || forcedGuess == 3
+                    ) { onGuessSelected(3) }
+                }
+                Spacer(Modifier.height(12.dp))
+            }
+
+            Button(
+                onClick = onSubmit,
+                enabled = submitEnabled,
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = Color(0xFF263238),
+                    contentColor = Color.White
+                )
+            ) {
+                OneLineButtonText(submitLabel)
+            }
+        }
+    }
+}
+
+@Composable
+private fun LogPanel(
+    logText: String,
+    scrollState: androidx.compose.foundation.ScrollState
+) {
+    Surface(
+        shape = RoundedCornerShape(18.dp),
+        color = Color(0xEE101010),
+        border = BorderStroke(2.dp, Color(0xFF795548))
+    ) {
+        Box(
+            modifier = Modifier
+                .height(220.dp)
+                .fillMaxWidth()
+                .verticalScroll(scrollState)
+                .padding(12.dp)
+        ) {
+            Text(
+                text = logText.ifBlank { "(log will appear here)" },
+                color = Color.White,
+                fontFamily = FontFamily.Monospace,
+                softWrap = true
+            )
+        }
     }
 }
 
@@ -1398,7 +1818,8 @@ private fun StatsText(stats: PlayerStats) {
                     "Perfect games: ${stats.perfectGames}\n\n" +
                     "Easy games: ${stats.easyGames} (wins ${stats.easyWins})\n" +
                     "Normal games: ${stats.normalGames} (wins ${stats.normalWins})\n" +
-                    "Hard games: ${stats.hardGames} (wins ${stats.hardWins})\n\n",
+                    "Hard games: ${stats.hardGames} (wins ${stats.hardWins})\n\n"+
+                    "(Stats do not track on Easy mode)",
             style = MaterialTheme.typography.bodyMedium
         )
     }
@@ -1606,7 +2027,7 @@ private fun AchievementUnlockOverlay(
 private fun AchievementsText(stats: PlayerStats) {
     Column {
         Spacer(Modifier.height(16.dp))
-        Text("Achievements", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+        Text("(Unlock on Normal or Hard)", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
         Spacer(Modifier.height(10.dp))
 
         AchievementSectionHeader("Core")
@@ -1832,7 +2253,7 @@ private fun TargetDropdown(
     selectedTargetId: Int?,
     enabled: Boolean,
     label: String = "You target",
-    onSelect: (Int?) -> Unit
+    onSelect: (Int) -> Unit
 ) {
     var expanded by remember { mutableStateOf(false) }
     val selectedName = options.firstOrNull { it.id == selectedTargetId }?.baseName ?: "-"
