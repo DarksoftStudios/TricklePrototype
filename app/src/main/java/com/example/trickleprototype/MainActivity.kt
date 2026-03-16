@@ -325,6 +325,7 @@ private fun TrickleApp() {
 
     val phase = lastResult?.phase ?: engine.getPhase()
     val players = lastResult?.players ?: engine.getPlayersSnapshot()
+    val currentActorId = lastResult?.currentActorId
     val gameOver = (phase == EnginePhase.GAME_OVER)
     val currentWeatherName = lastResult?.currentWeatherName
     val currentWeatherEffect = lastResult?.currentWeatherEffect
@@ -872,9 +873,10 @@ private fun TrickleApp() {
                 needsSecondTarget = needsSecondTarget,
                 latestLogLine = lastResult?.log?.lastOrNull()?.text
             )
+            val tableBots = players.filter { it.id != GameEngine.HUMAN_ID }
 
-            val leftBots = players.filter { it.id != GameEngine.HUMAN_ID }.take(6)
-            val rightBots = players.filter { it.id != GameEngine.HUMAN_ID }.drop(6).take(6)
+            val rightBots = tableBots.take(6)
+            val leftBots = tableBots.drop(6).take(6).reversed()
 
             Box(
                 modifier = Modifier
@@ -906,6 +908,7 @@ private fun TrickleApp() {
                         PlayerStatusStack(
                             playerTitle = playerTitle,
                             playerScore = playerScore,
+                            isCurrentTurn = currentActorId == GameEngine.HUMAN_ID,
                             modifier = Modifier.weight(1.1f)
                         )
 
@@ -933,6 +936,7 @@ private fun TrickleApp() {
 
                         BotCupColumn(
                             bots = leftBots,
+                            currentActorId = currentActorId,
                             modifier = Modifier
                                 .align(Alignment.CenterStart)
                                 .padding(start = 0.dp, top = 18.dp, bottom = 36.dp)
@@ -940,6 +944,7 @@ private fun TrickleApp() {
 
                         BotCupColumn(
                             bots = rightBots,
+                            currentActorId = currentActorId,
                             modifier = Modifier
                                 .align(Alignment.CenterEnd)
                                 .padding(end = 0.dp, top = 12.dp, bottom = 52.dp)
@@ -1221,6 +1226,7 @@ private fun PhaseBadge(
 private fun PlayerStatusStack(
     playerTitle: String,
     playerScore: Int,
+    isCurrentTurn: Boolean,
     modifier: Modifier = Modifier
 ) {
     Column(
@@ -1229,7 +1235,8 @@ private fun PlayerStatusStack(
     ) {
         TableCup(
             label = "YOU",
-            highlighted = true
+            highlighted = true,
+            isCurrentTurn = isCurrentTurn
         )
         Spacer(Modifier.height(6.dp))
         Text(
@@ -1251,6 +1258,7 @@ private fun PlayerStatusStack(
 @Composable
 private fun BotCupColumn(
     bots: List<PlayerState>,
+    currentActorId: Int?,
     modifier: Modifier = Modifier
 ) {
     Column(
@@ -1264,18 +1272,22 @@ private fun BotCupColumn(
             ) {
                 TableCup(
                     label = bot.baseName.take(1).uppercase(),
-                    highlighted = false
+                    highlighted = false,
+                    isCurrentTurn = currentActorId == bot.id
                 )
-                Spacer(Modifier.height(2.dp))
+
+                Spacer(Modifier.height(1.dp))
+
                 Text(
                     text = bot.baseName,
                     color = Color.White,
-                    fontSize = 16.sp,
+                    fontSize = 13.sp,
                     maxLines = 1,
                     textAlign = TextAlign.Center,
-                    modifier = Modifier.width(80.dp)
+                    modifier = Modifier.width(72.dp)
                 )
-                Spacer(Modifier.height(2.dp))
+
+                Spacer(Modifier.height(1.dp))
             }
         }
     }
@@ -1284,25 +1296,76 @@ private fun BotCupColumn(
 @Composable
 private fun TableCup(
     label: String,
-    highlighted: Boolean
+    highlighted: Boolean,
+    isCurrentTurn: Boolean = false
 ) {
-    Surface(
+    val bucketFill = if (highlighted) Color(0xFFFF5252) else Color(0xFFD32F2F)
+    val bucketBorder = if (highlighted) Color(0xFFFFCDD2) else Color(0xFF7F0000)
+    val turnGlowColor = Color(0xFFFFEB3B)
+    val cupShape = GenericShape { size, _ ->
+        val topInset = size.width * 0.04f
+        val bottomInset = size.width * 0.13f
+
+        moveTo(topInset, 0f)
+        lineTo(size.width - topInset, 0f)
+        lineTo(size.width - bottomInset, size.height)
+        lineTo(bottomInset, size.height)
+        close()
+    }
+
+    Box(
         modifier = Modifier.size(width = 52.dp, height = 64.dp),
-        shape = RoundedCornerShape(
-            bottomStart = 16.dp,
-            bottomEnd = 16.dp,
-            topStart = 9.dp,
-            topEnd = 9.dp
-        ),
-        color = if (highlighted) Color(0xFF90CAF9) else Color(0xFFE0E0E0),
-        border = BorderStroke(2.dp, if (highlighted) Color(0xFF1565C0) else Color(0xFF8D6E63))
+        contentAlignment = Alignment.Center
     ) {
-        Box(contentAlignment = Alignment.Center) {
-            Text(
-                text = label,
-                color = Color.Black,
-                fontWeight = FontWeight.Black
-            )
+        if (isCurrentTurn) {
+            Surface(
+                modifier = Modifier.size(width = 72.dp, height = 86.dp),
+                shape = cupShape,
+                color = turnGlowColor.copy(alpha = 0.20f),
+                border = BorderStroke(4.dp, turnGlowColor.copy(alpha = 0.95f)),
+                shadowElevation = 18.dp
+            ) {}
+        }
+
+        Surface(
+            modifier = Modifier.size(width = 60.dp, height = 74.dp),
+            shape = cupShape,
+            color = bucketFill,
+            border = BorderStroke(3.dp, if (isCurrentTurn) turnGlowColor else bucketBorder),
+            shadowElevation = if (isCurrentTurn) 12.dp else 6.dp
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 4.dp, vertical = 5.dp)
+            ) {
+                Surface(
+                    modifier = Modifier
+                        .align(Alignment.TopCenter)
+                        .fillMaxWidth()
+                        .height(8.dp),
+                    shape = RoundedCornerShape(3.dp),
+                    color = Color.White.copy(alpha = 0.20f)
+                ) {}
+
+                Surface(
+                    modifier = Modifier
+                        .align(Alignment.Center)
+                        .fillMaxWidth(0.76f)
+                        .fillMaxHeight(0.60f),
+                    shape = GenericShape { size, _ ->
+                        val innerTopInset = size.width * 0.03f
+                        val innerBottomInset = size.width * 0.14f
+
+                        moveTo(innerTopInset, 0f)
+                        lineTo(size.width - innerTopInset, 0f)
+                        lineTo(size.width - innerBottomInset, size.height)
+                        lineTo(innerBottomInset, size.height)
+                        close()
+                    },
+                    color = Color.Black.copy(alpha = 0.10f)
+                ) {}
+            }
         }
     }
 }
@@ -1322,7 +1385,19 @@ private fun GameTableSurface(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(12.dp)
-        )
+                .background(
+                    brush = Brush.verticalGradient(
+                        listOf(
+                            Color(0xFF7B574B),
+                            Color(0xFF6D4C41),
+                            Color(0xFF5D4037)
+                        )
+                    ),
+                    shape = RoundedCornerShape(28.dp)
+                )
+        ) {
+            // Content goes here if needed
+        }
     }
 }
 
