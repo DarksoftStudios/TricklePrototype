@@ -56,7 +56,7 @@ class GameEngine(
     private val roundStartMarbles = mutableMapOf<Int, Int>()
 
     private val botNames = listOf(
-        "Alessandro", "Barbara", "Clark", "David", "Erika", "Fred",
+        "Al", "Barbara", "Clark", "David", "Erika", "Fred",
         "Graham", "Harry", "Ian", "Josh", "Kelly", "Lois"
     )
 

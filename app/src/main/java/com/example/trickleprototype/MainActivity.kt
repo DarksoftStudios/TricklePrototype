@@ -2,13 +2,16 @@ package com.example.trickleprototype
 
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.animateFloat
+import androidx.compose.foundation.layout.width
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.ui.geometry.Offset
 import kotlin.math.cos
+import androidx.compose.foundation.layout.fillMaxWidth
 import kotlin.math.sin
 import android.media.MediaPlayer
+import androidx.compose.ui.text.style.TextAlign
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -55,6 +58,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -91,7 +95,6 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -924,22 +927,22 @@ private fun TrickleApp() {
                         GameTableSurface(
                             modifier = Modifier
                                 .align(Alignment.Center)
-                                .fillMaxWidth(0.54f)
-                                .height(470.dp)
+                                .fillMaxWidth(0.64f)
+                                .height(660.dp)
                         )
 
                         BotCupColumn(
                             bots = leftBots,
                             modifier = Modifier
                                 .align(Alignment.CenterStart)
-                                .padding(start = 6.dp, top = 18.dp, bottom = 36.dp)
+                                .padding(start = 0.dp, top = 18.dp, bottom = 36.dp)
                         )
 
                         BotCupColumn(
                             bots = rightBots,
                             modifier = Modifier
                                 .align(Alignment.CenterEnd)
-                                .padding(end = 6.dp, top = 18.dp, bottom = 36.dp)
+                                .padding(end = 0.dp, top = 12.dp, bottom = 52.dp)
                         )
 
                         TableActionPanel(
@@ -1029,7 +1032,7 @@ private fun TrickleApp() {
                             Box(
                                 modifier = Modifier
                                     .align(Alignment.BottomCenter)
-                                    .fillMaxWidth(0.78f)
+                                    .fillMaxWidth(0.62f)
                                     .padding(bottom = 54.dp)
                             ) {
                                 LogPanel(
@@ -1140,7 +1143,8 @@ private fun WeatherInfoBadge(
     modifier: Modifier = Modifier
 ) {
     Surface(
-        modifier = modifier,
+        modifier = modifier
+            .fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
         color = Color(0xAA1E1E1E),
         tonalElevation = 2.dp
@@ -1262,15 +1266,16 @@ private fun BotCupColumn(
                     label = bot.baseName.take(1).uppercase(),
                     highlighted = false
                 )
-                Spacer(Modifier.height(4.dp))
+                Spacer(Modifier.height(2.dp))
                 Text(
                     text = bot.baseName,
                     color = Color.White,
-                    fontSize = 12.sp,
+                    fontSize = 16.sp,
                     maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.width(80.dp)
                 )
-                Spacer(Modifier.height(6.dp))
+                Spacer(Modifier.height(2.dp))
             }
         }
     }
@@ -1282,8 +1287,13 @@ private fun TableCup(
     highlighted: Boolean
 ) {
     Surface(
-        modifier = Modifier.size(width = 58.dp, height = 74.dp),
-        shape = RoundedCornerShape(bottomStart = 18.dp, bottomEnd = 18.dp, topStart = 10.dp, topEnd = 10.dp),
+        modifier = Modifier.size(width = 52.dp, height = 64.dp),
+        shape = RoundedCornerShape(
+            bottomStart = 16.dp,
+            bottomEnd = 16.dp,
+            topStart = 9.dp,
+            topEnd = 9.dp
+        ),
         color = if (highlighted) Color(0xFF90CAF9) else Color(0xFFE0E0E0),
         border = BorderStroke(2.dp, if (highlighted) Color(0xFF1565C0) else Color(0xFF8D6E63))
     ) {
@@ -1475,6 +1485,8 @@ private fun LogPanel(
                 text = logText.ifBlank { "(log will appear here)" },
                 color = Color.White,
                 fontFamily = FontFamily.Monospace,
+                fontSize = 12.sp,
+                lineHeight = 14.sp,
                 softWrap = true
             )
         }
@@ -2208,7 +2220,7 @@ private fun AchievementRow(
 private fun MarblesBox(players: List<PlayerState>, modifier: Modifier = Modifier) {
     Column(modifier = modifier) {
         Text("Marbles:", style = MaterialTheme.typography.bodyMedium)
-        Spacer(Modifier.height(4.dp))
+        Spacer(Modifier.height(6.dp))
         players.forEach { p ->
             Text("${p.baseName}: ${p.marbles}", style = MaterialTheme.typography.bodySmall)
         }
