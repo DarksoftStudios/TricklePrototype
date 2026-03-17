@@ -109,6 +109,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.random.Random
 import androidx.compose.foundation.layout.Box
+import androidx.compose.ui.zIndex
 
 
 class MainActivity : ComponentActivity() {
@@ -216,39 +217,58 @@ private fun extractVisualIndicators(
 
     Regex("^(.+?) was correct and takes (\\d+) from (.+?)\\.$").matchEntire(line)?.let { match ->
         return listOfNotNull(
+            pairFor(match.groupValues[1], "RIGHT", IndicatorTone.GOOD),
+            pairFor(match.groupValues[3], "WRONG", IndicatorTone.BAD),
             pairFor(match.groupValues[1], "+${match.groupValues[2]}", IndicatorTone.GOOD),
             pairFor(match.groupValues[3], "-${match.groupValues[2]}", IndicatorTone.BAD)
         )
     }
 
     Regex("^(.+?) was correct and gains (\\d+)\\.$").matchEntire(line)?.let { match ->
-        return listOfNotNull(pairFor(match.groupValues[1], "+${match.groupValues[2]}", IndicatorTone.GOOD))
+        return listOfNotNull(
+            pairFor(match.groupValues[1], "RIGHT", IndicatorTone.GOOD),
+            pairFor(match.groupValues[1], "+${match.groupValues[2]}", IndicatorTone.GOOD)
+        )
     }
 
     Regex("^(.+?) was wrong on a 0 and gives (\\d+) to (.+?) \\(HAT moves to .+?\\)\\.$").matchEntire(line)?.let { match ->
         return listOfNotNull(
+            pairFor(match.groupValues[1], "WRONG", IndicatorTone.BAD),
+            pairFor(match.groupValues[3], "RIGHT", IndicatorTone.GOOD),
             pairFor(match.groupValues[1], "-${match.groupValues[2]}", IndicatorTone.BAD),
             pairFor(match.groupValues[3], "+${match.groupValues[2]}", IndicatorTone.GOOD)
         )
     }
 
     Regex("^(.+?) was wrong on a 0, loses (\\d+) \\(HAT moves to .+?\\)\\.$").matchEntire(line)?.let { match ->
-        return listOfNotNull(pairFor(match.groupValues[1], "-${match.groupValues[2]}", IndicatorTone.BAD))
+        return listOfNotNull(
+            pairFor(match.groupValues[1], "WRONG", IndicatorTone.BAD),
+            pairFor(match.groupValues[1], "-${match.groupValues[2]}", IndicatorTone.BAD)
+        )
     }
 
     Regex("^(.+?) was wrong on a 0, gains (\\d+) \\(HAT moves to .+?\\)\\.$").matchEntire(line)?.let { match ->
-        return listOfNotNull(pairFor(match.groupValues[1], "+${match.groupValues[2]}", IndicatorTone.GOOD))
+        return listOfNotNull(
+            pairFor(match.groupValues[1], "WRONG", IndicatorTone.BAD),
+            pairFor(match.groupValues[1], "+${match.groupValues[2]}", IndicatorTone.GOOD)
+        )
     }
 
     Regex("^(.+?) was wrong, (.+?) takes (\\d+) from them\\.$").matchEntire(line)?.let { match ->
         return listOfNotNull(
+            pairFor(match.groupValues[1], "WRONG", IndicatorTone.BAD),
+            pairFor(match.groupValues[2], "RIGHT", IndicatorTone.GOOD),
             pairFor(match.groupValues[1], "-${match.groupValues[3]}", IndicatorTone.BAD),
             pairFor(match.groupValues[2], "+${match.groupValues[3]}", IndicatorTone.GOOD)
         )
     }
 
     Regex("^(.+?) was wrong, (.+?) gains (\\d+)\\.$").matchEntire(line)?.let { match ->
-        return listOfNotNull(pairFor(match.groupValues[2], "+${match.groupValues[3]}", IndicatorTone.GOOD))
+        return listOfNotNull(
+            pairFor(match.groupValues[1], "WRONG", IndicatorTone.BAD),
+            pairFor(match.groupValues[2], "RIGHT", IndicatorTone.GOOD),
+            pairFor(match.groupValues[2], "+${match.groupValues[3]}", IndicatorTone.GOOD)
+        )
     }
 
     Regex("^(.+?) wasn't targeted, trickles (\\d+)\\.$").matchEntire(line)?.let { match ->
@@ -1020,9 +1040,9 @@ private fun TrickleApp() {
                 latestLogLine = lastResult?.log?.lastOrNull()?.text
             )
             val tableBots = players.filter { it.id != GameEngine.HUMAN_ID }
-
-            val rightBots = tableBots.take(6)
-            val leftBots = tableBots.drop(6).take(6).reversed()
+            val splitIndex = (tableBots.size + 1) / 2
+            val rightBots = tableBots.take(splitIndex)
+            val leftBots = tableBots.drop(splitIndex).reversed()
 
             Box(
                 modifier = Modifier
@@ -1068,7 +1088,7 @@ private fun TrickleApp() {
                         )
                     }
 
-                    Spacer(Modifier.height(12.dp))
+                    Spacer(Modifier.height(4.dp))
 
                     Box(
                         modifier = Modifier
@@ -1089,7 +1109,8 @@ private fun TrickleApp() {
                             indicators = floatingIndicators,
                             modifier = Modifier
                                 .align(Alignment.CenterStart)
-                                .padding(start = 0.dp, top = 18.dp, bottom = 36.dp)
+                                .fillMaxHeight()
+                                .padding(start = 0.dp, top = 8.dp, bottom = 16.dp)
                         )
 
                         BotCupColumn(
@@ -1099,7 +1120,8 @@ private fun TrickleApp() {
                             indicators = floatingIndicators,
                             modifier = Modifier
                                 .align(Alignment.CenterEnd)
-                                .padding(end = 0.dp, top = 12.dp, bottom = 52.dp)
+                                .fillMaxHeight()
+                                .padding(end = 0.dp, top = 8.dp, bottom = 16.dp)
                         )
 
                         TableActionPanel(
@@ -1394,7 +1416,7 @@ private fun PlayerStatusStack(
             indicator = indicator,
             hasHat = hasHat
         )
-        Spacer(Modifier.height(6.dp))
+        Spacer(Modifier.height(3.dp))
         Text(
             text = playerTitle,
             color = Color.White,
@@ -1421,7 +1443,7 @@ private fun BotCupColumn(
 ) {
     Column(
         modifier = modifier,
-        verticalArrangement = Arrangement.SpaceEvenly,
+        verticalArrangement = Arrangement.spacedBy(0.dp, Alignment.Top),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         bots.forEach { bot ->
@@ -1436,18 +1458,16 @@ private fun BotCupColumn(
                     hasHat = hatHolderId == bot.id
                 )
 
-                Spacer(Modifier.height(1.dp))
-
                 Text(
                     text = bot.baseName,
                     color = Color.White,
                     fontSize = 13.sp,
+                    lineHeight = 13.sp,
                     maxLines = 1,
                     textAlign = TextAlign.Center,
-                    modifier = Modifier.width(72.dp)
+                    modifier = Modifier.width(54.dp)
                 )
-
-                Spacer(Modifier.height(1.dp))
+                Spacer(Modifier.height(13.dp))
             }
         }
     }
@@ -1476,7 +1496,7 @@ private fun TableCup(
     }
 
     Box(
-        modifier = Modifier.size(width = 72.dp, height = 106.dp),
+        modifier = Modifier.size(width = 56.dp, height = 72.dp),
         contentAlignment = Alignment.BottomCenter
     ) {
         if (hasHat) {
@@ -1487,67 +1507,37 @@ private fun TableCup(
             )
         }
 
-        if (indicator != null) {
-            val alpha = remember(indicator.token) { Animatable(1f) }
-            LaunchedEffect(indicator.token) {
-                alpha.snapTo(1f)
-                alpha.animateTo(
-                    targetValue = 0f,
-                    animationSpec = tween(durationMillis = 3000, easing = LinearEasing)
-                )
-            }
-
-            Surface(
-                modifier = Modifier
-                    .align(Alignment.TopCenter)
-                    .padding(top = if (hasHat) 30.dp else 4.dp)
-                    .alpha(alpha.value),
-                shape = RoundedCornerShape(12.dp),
-                color = indicatorToneColor(indicator.tone).copy(alpha = 0.92f),
-                border = BorderStroke(1.dp, Color.Black.copy(alpha = 0.35f)),
-                shadowElevation = 8.dp
-            ) {
-                Text(
-                    text = indicator.text,
-                    color = Color.Black,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 11.sp,
-                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
-                )
-            }
-        }
-
         Box(
-            modifier = Modifier.size(width = 52.dp, height = 64.dp),
+            modifier = Modifier.size(width = 40.dp, height = 46.dp),
             contentAlignment = Alignment.Center
         ) {
             if (isCurrentTurn) {
                 Surface(
-                    modifier = Modifier.size(width = 72.dp, height = 86.dp),
+                    modifier = Modifier.size(width = 50.dp, height = 58.dp),
                     shape = cupShape,
                     color = turnGlowColor.copy(alpha = 0.20f),
-                    border = BorderStroke(4.dp, turnGlowColor.copy(alpha = 0.95f)),
-                    shadowElevation = 18.dp
+                    border = BorderStroke(3.dp, turnGlowColor.copy(alpha = 0.95f)),
+                    shadowElevation = 14.dp
                 ) {}
             }
 
             Surface(
-                modifier = Modifier.size(width = 60.dp, height = 74.dp),
+                modifier = Modifier.size(width = 44.dp, height = 52.dp),
                 shape = cupShape,
                 color = bucketFill,
-                border = BorderStroke(3.dp, if (isCurrentTurn) turnGlowColor else bucketBorder),
-                shadowElevation = if (isCurrentTurn) 12.dp else 6.dp
+                border = BorderStroke(2.dp, if (isCurrentTurn) turnGlowColor else bucketBorder),
+                shadowElevation = if (isCurrentTurn) 10.dp else 5.dp
             ) {
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
-                        .padding(horizontal = 4.dp, vertical = 5.dp)
+                        .padding(horizontal = 3.dp, vertical = 4.dp)
                 ) {
                     Surface(
                         modifier = Modifier
                             .align(Alignment.TopCenter)
                             .fillMaxWidth()
-                            .height(8.dp),
+                            .height(6.dp),
                         shape = RoundedCornerShape(3.dp),
                         color = Color.White.copy(alpha = 0.20f)
                     ) {}
@@ -1569,9 +1559,38 @@ private fun TableCup(
                         },
                         color = Color.Black.copy(alpha = 0.10f)
                     ) {}
-
-
                 }
+            }
+        }
+
+        if (indicator != null) {
+            val alpha = remember(indicator.token) { Animatable(1f) }
+            LaunchedEffect(indicator.token) {
+                alpha.snapTo(1f)
+                alpha.animateTo(
+                    targetValue = 0f,
+                    animationSpec = tween(durationMillis = 3000, easing = LinearEasing)
+                )
+            }
+
+            Surface(
+                modifier = Modifier
+                    .align(Alignment.Center)
+                    .zIndex(3f)
+                    .padding(bottom = if (hasHat) 0.dp else 4.dp)
+                    .alpha(alpha.value),
+                shape = RoundedCornerShape(10.dp),
+                color = indicatorToneColor(indicator.tone).copy(alpha = 0.92f),
+                border = BorderStroke(1.dp, Color.Black.copy(alpha = 0.35f)),
+                shadowElevation = 6.dp
+            ) {
+                Text(
+                    text = indicator.text,
+                    color = Color.Black,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 9.sp,
+                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                )
             }
         }
     }
@@ -1693,10 +1712,14 @@ private fun TableActionPanel(
             }
 
             if (showActionButtons) {
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
                     Button(
                         onClick = onPassSelected,
                         enabled = inputsEnabled,
+                        modifier = Modifier.fillMaxWidth(),
                         colors = ButtonDefaults.buttonColors(
                             containerColor = Color(0xFF546E7A),
                             contentColor = Color.White
@@ -1706,6 +1729,7 @@ private fun TableActionPanel(
                     Button(
                         onClick = onTargetSelected,
                         enabled = inputsEnabled && dropdownOptions.isNotEmpty(),
+                        modifier = Modifier.fillMaxWidth(),
                         colors = ButtonDefaults.buttonColors(
                             containerColor = Color(0xFF8D6E63),
                             contentColor = Color.White
