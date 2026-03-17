@@ -79,6 +79,8 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.animation.core.Animatable
+import androidx.compose.runtime.Immutable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -104,6 +106,7 @@ import androidx.compose.ui.window.DialogProperties
 import androidx.core.view.WindowCompat
 import com.example.trickleprototype.ui.theme.TricklePrototypeTheme
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlin.random.Random
 import androidx.compose.foundation.layout.Box
 
@@ -142,6 +145,119 @@ private enum class AppScreen {
     SETTINGS,
     GAME
 }
+
+private enum class IndicatorTone {
+    NEUTRAL,
+    GOOD,
+    BAD,
+    ALERT
+}
+
+@Immutable
+private data class FloatingIndicator(
+    val token: Long,
+    val text: String,
+    val tone: IndicatorTone
+)
+
+
+private fun indicatorToneColor(tone: IndicatorTone): Color {
+    return when (tone) {
+        IndicatorTone.NEUTRAL -> Color(0xFFE3F2FD)
+        IndicatorTone.GOOD -> Color(0xFFC8E6C9)
+        IndicatorTone.BAD -> Color(0xFFFFCDD2)
+        IndicatorTone.ALERT -> Color(0xFFFFF59D)
+    }
+}
+
+private fun hatStripeColor(index: Int): Color {
+    return if (index % 2 == 0) Color.White else Color.Black
+}
+
+private fun resolvePlayerIdByName(players: List<PlayerState>, rawName: String): Int? {
+    val trimmed = rawName.trim().removeSuffix(".")
+    return players.firstOrNull { it.baseName.equals(trimmed, ignoreCase = true) }?.id
+}
+
+private fun splitTargetNames(rawNames: String): List<String> {
+    return rawNames
+        .split(" and ")
+        .map { it.trim() }
+        .filter { it.isNotEmpty() }
+}
+
+private fun extractVisualIndicators(
+    players: List<PlayerState>,
+    line: String
+): List<Pair<Int, Pair<String, IndicatorTone>>> {
+    fun pairFor(name: String, text: String, tone: IndicatorTone): Pair<Int, Pair<String, IndicatorTone>>? {
+        val playerId = resolvePlayerIdByName(players, name) ?: return null
+        return playerId to (text to tone)
+    }
+
+    Regex("^(.+?) passes\\.$").matchEntire(line)?.let { match ->
+        return listOfNotNull(pairFor(match.groupValues[1], "PASS", IndicatorTone.NEUTRAL))
+    }
+
+    Regex("^(.+?) targets (.+?) and guesses (\\d+)\\.$").matchEntire(line)?.let { match ->
+        val actorName = match.groupValues[1]
+        val targetNames = splitTargetNames(match.groupValues[2])
+        val indicators = mutableListOf<Pair<Int, Pair<String, IndicatorTone>>>()
+        pairFor(actorName, "AIM", IndicatorTone.ALERT)?.let { indicators += it }
+        targetNames.forEach { name ->
+            pairFor(name, "TARGET", IndicatorTone.ALERT)?.let { indicators += it }
+        }
+        return indicators
+    }
+
+    Regex("^(.+?) nailed a 0 and takes the Hat\\.$").matchEntire(line)?.let { match ->
+        return listOfNotNull(pairFor(match.groupValues[1], "HAT", IndicatorTone.ALERT))
+    }
+
+    Regex("^(.+?) was correct and takes (\\d+) from (.+?)\\.$").matchEntire(line)?.let { match ->
+        return listOfNotNull(
+            pairFor(match.groupValues[1], "+${match.groupValues[2]}", IndicatorTone.GOOD),
+            pairFor(match.groupValues[3], "-${match.groupValues[2]}", IndicatorTone.BAD)
+        )
+    }
+
+    Regex("^(.+?) was correct and gains (\\d+)\\.$").matchEntire(line)?.let { match ->
+        return listOfNotNull(pairFor(match.groupValues[1], "+${match.groupValues[2]}", IndicatorTone.GOOD))
+    }
+
+    Regex("^(.+?) was wrong on a 0 and gives (\\d+) to (.+?) \\(HAT moves to .+?\\)\\.$").matchEntire(line)?.let { match ->
+        return listOfNotNull(
+            pairFor(match.groupValues[1], "-${match.groupValues[2]}", IndicatorTone.BAD),
+            pairFor(match.groupValues[3], "+${match.groupValues[2]}", IndicatorTone.GOOD)
+        )
+    }
+
+    Regex("^(.+?) was wrong on a 0, loses (\\d+) \\(HAT moves to .+?\\)\\.$").matchEntire(line)?.let { match ->
+        return listOfNotNull(pairFor(match.groupValues[1], "-${match.groupValues[2]}", IndicatorTone.BAD))
+    }
+
+    Regex("^(.+?) was wrong on a 0, gains (\\d+) \\(HAT moves to .+?\\)\\.$").matchEntire(line)?.let { match ->
+        return listOfNotNull(pairFor(match.groupValues[1], "+${match.groupValues[2]}", IndicatorTone.GOOD))
+    }
+
+    Regex("^(.+?) was wrong, (.+?) takes (\\d+) from them\\.$").matchEntire(line)?.let { match ->
+        return listOfNotNull(
+            pairFor(match.groupValues[1], "-${match.groupValues[3]}", IndicatorTone.BAD),
+            pairFor(match.groupValues[2], "+${match.groupValues[3]}", IndicatorTone.GOOD)
+        )
+    }
+
+    Regex("^(.+?) was wrong, (.+?) gains (\\d+)\\.$").matchEntire(line)?.let { match ->
+        return listOfNotNull(pairFor(match.groupValues[2], "+${match.groupValues[3]}", IndicatorTone.GOOD))
+    }
+
+    Regex("^(.+?) wasn't targeted, trickles (\\d+)\\.$").matchEntire(line)?.let { match ->
+        return listOfNotNull(pairFor(match.groupValues[1], "+${match.groupValues[2]}", IndicatorTone.GOOD))
+    }
+
+    return emptyList()
+}
+
 
 private fun parseAchievementPopup(line: String): AchievementPopup? {
     val marker = "Achievement Unlocked:"
@@ -213,6 +329,8 @@ private fun TrickleApp() {
 
     var lastResult by remember { mutableStateOf<RoundResult?>(null) }
     var logText by remember { mutableStateOf("") }
+    var floatingIndicators by remember { mutableStateOf<Map<Int, FloatingIndicator>>(emptyMap()) }
+    var nextIndicatorToken by remember { mutableStateOf(1L) }
 
     // Achievement popups
     var achievementQueue by remember { mutableStateOf<List<AchievementPopup>>(emptyList()) }
@@ -346,6 +464,34 @@ private fun TrickleApp() {
 
         if (latestRound != null) {
             displayedRound = latestRound
+        }
+    }
+
+    LaunchedEffect(lastResult?.log?.size, players) {
+        val latestLine = lastResult?.log?.lastOrNull()?.text ?: return@LaunchedEffect
+        val parsedIndicators = extractVisualIndicators(players, latestLine)
+        if (parsedIndicators.isEmpty()) return@LaunchedEffect
+
+        parsedIndicators.forEach { (playerId, parsed) ->
+            val token = nextIndicatorToken
+            nextIndicatorToken += 1
+            val indicator = FloatingIndicator(
+                token = token,
+                text = parsed.first,
+                tone = parsed.second
+            )
+            floatingIndicators = floatingIndicators.toMutableMap().apply {
+                this[playerId] = indicator
+            }
+
+            launch {
+                delay(3000)
+                if (floatingIndicators[playerId]?.token == token) {
+                    floatingIndicators = floatingIndicators.toMutableMap().apply {
+                        remove(playerId)
+                    }
+                }
+            }
         }
     }
 
@@ -909,6 +1055,8 @@ private fun TrickleApp() {
                             playerTitle = playerTitle,
                             playerScore = playerScore,
                             isCurrentTurn = currentActorId == GameEngine.HUMAN_ID,
+                            indicator = floatingIndicators[GameEngine.HUMAN_ID],
+                            hasHat = lastResult?.hatHolderId == GameEngine.HUMAN_ID,
                             modifier = Modifier.weight(1.1f)
                         )
 
@@ -937,6 +1085,8 @@ private fun TrickleApp() {
                         BotCupColumn(
                             bots = leftBots,
                             currentActorId = currentActorId,
+                            hatHolderId = lastResult?.hatHolderId,
+                            indicators = floatingIndicators,
                             modifier = Modifier
                                 .align(Alignment.CenterStart)
                                 .padding(start = 0.dp, top = 18.dp, bottom = 36.dp)
@@ -945,6 +1095,8 @@ private fun TrickleApp() {
                         BotCupColumn(
                             bots = rightBots,
                             currentActorId = currentActorId,
+                            hatHolderId = lastResult?.hatHolderId,
+                            indicators = floatingIndicators,
                             modifier = Modifier
                                 .align(Alignment.CenterEnd)
                                 .padding(end = 0.dp, top = 12.dp, bottom = 52.dp)
@@ -1227,6 +1379,8 @@ private fun PlayerStatusStack(
     playerTitle: String,
     playerScore: Int,
     isCurrentTurn: Boolean,
+    indicator: FloatingIndicator?,
+    hasHat: Boolean,
     modifier: Modifier = Modifier
 ) {
     Column(
@@ -1236,7 +1390,9 @@ private fun PlayerStatusStack(
         TableCup(
             label = "YOU",
             highlighted = true,
-            isCurrentTurn = isCurrentTurn
+            isCurrentTurn = isCurrentTurn,
+            indicator = indicator,
+            hasHat = hasHat
         )
         Spacer(Modifier.height(6.dp))
         Text(
@@ -1259,6 +1415,8 @@ private fun PlayerStatusStack(
 private fun BotCupColumn(
     bots: List<PlayerState>,
     currentActorId: Int?,
+    hatHolderId: Int?,
+    indicators: Map<Int, FloatingIndicator>,
     modifier: Modifier = Modifier
 ) {
     Column(
@@ -1273,7 +1431,9 @@ private fun BotCupColumn(
                 TableCup(
                     label = bot.baseName.take(1).uppercase(),
                     highlighted = false,
-                    isCurrentTurn = currentActorId == bot.id
+                    isCurrentTurn = currentActorId == bot.id,
+                    indicator = indicators[bot.id],
+                    hasHat = hatHolderId == bot.id
                 )
 
                 Spacer(Modifier.height(1.dp))
@@ -1297,7 +1457,9 @@ private fun BotCupColumn(
 private fun TableCup(
     label: String,
     highlighted: Boolean,
-    isCurrentTurn: Boolean = false
+    isCurrentTurn: Boolean = false,
+    indicator: FloatingIndicator? = null,
+    hasHat: Boolean = false
 ) {
     val bucketFill = if (highlighted) Color(0xFFFF5252) else Color(0xFFD32F2F)
     val bucketBorder = if (highlighted) Color(0xFFFFCDD2) else Color(0xFF7F0000)
@@ -1314,57 +1476,134 @@ private fun TableCup(
     }
 
     Box(
-        modifier = Modifier.size(width = 52.dp, height = 64.dp),
-        contentAlignment = Alignment.Center
+        modifier = Modifier.size(width = 72.dp, height = 106.dp),
+        contentAlignment = Alignment.BottomCenter
     ) {
-        if (isCurrentTurn) {
-            Surface(
-                modifier = Modifier.size(width = 72.dp, height = 86.dp),
-                shape = cupShape,
-                color = turnGlowColor.copy(alpha = 0.20f),
-                border = BorderStroke(4.dp, turnGlowColor.copy(alpha = 0.95f)),
-                shadowElevation = 18.dp
-            ) {}
+        if (hasHat) {
+            JesterHatBadge(
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .padding(top = 0.dp)
+            )
         }
 
-        Surface(
-            modifier = Modifier.size(width = 60.dp, height = 74.dp),
-            shape = cupShape,
-            color = bucketFill,
-            border = BorderStroke(3.dp, if (isCurrentTurn) turnGlowColor else bucketBorder),
-            shadowElevation = if (isCurrentTurn) 12.dp else 6.dp
-        ) {
-            Box(
+        if (indicator != null) {
+            val alpha = remember(indicator.token) { Animatable(1f) }
+            LaunchedEffect(indicator.token) {
+                alpha.snapTo(1f)
+                alpha.animateTo(
+                    targetValue = 0f,
+                    animationSpec = tween(durationMillis = 3000, easing = LinearEasing)
+                )
+            }
+
+            Surface(
                 modifier = Modifier
-                    .fillMaxSize()
-                    .padding(horizontal = 4.dp, vertical = 5.dp)
+                    .align(Alignment.TopCenter)
+                    .padding(top = if (hasHat) 30.dp else 4.dp)
+                    .alpha(alpha.value),
+                shape = RoundedCornerShape(12.dp),
+                color = indicatorToneColor(indicator.tone).copy(alpha = 0.92f),
+                border = BorderStroke(1.dp, Color.Black.copy(alpha = 0.35f)),
+                shadowElevation = 8.dp
             ) {
+                Text(
+                    text = indicator.text,
+                    color = Color.Black,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 11.sp,
+                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                )
+            }
+        }
+
+        Box(
+            modifier = Modifier.size(width = 52.dp, height = 64.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            if (isCurrentTurn) {
                 Surface(
-                    modifier = Modifier
-                        .align(Alignment.TopCenter)
-                        .fillMaxWidth()
-                        .height(8.dp),
-                    shape = RoundedCornerShape(3.dp),
-                    color = Color.White.copy(alpha = 0.20f)
+                    modifier = Modifier.size(width = 72.dp, height = 86.dp),
+                    shape = cupShape,
+                    color = turnGlowColor.copy(alpha = 0.20f),
+                    border = BorderStroke(4.dp, turnGlowColor.copy(alpha = 0.95f)),
+                    shadowElevation = 18.dp
                 ) {}
+            }
 
-                Surface(
+            Surface(
+                modifier = Modifier.size(width = 60.dp, height = 74.dp),
+                shape = cupShape,
+                color = bucketFill,
+                border = BorderStroke(3.dp, if (isCurrentTurn) turnGlowColor else bucketBorder),
+                shadowElevation = if (isCurrentTurn) 12.dp else 6.dp
+            ) {
+                Box(
                     modifier = Modifier
-                        .align(Alignment.Center)
-                        .fillMaxWidth(0.76f)
-                        .fillMaxHeight(0.60f),
-                    shape = GenericShape { size, _ ->
-                        val innerTopInset = size.width * 0.03f
-                        val innerBottomInset = size.width * 0.14f
+                        .fillMaxSize()
+                        .padding(horizontal = 4.dp, vertical = 5.dp)
+                ) {
+                    Surface(
+                        modifier = Modifier
+                            .align(Alignment.TopCenter)
+                            .fillMaxWidth()
+                            .height(8.dp),
+                        shape = RoundedCornerShape(3.dp),
+                        color = Color.White.copy(alpha = 0.20f)
+                    ) {}
 
-                        moveTo(innerTopInset, 0f)
-                        lineTo(size.width - innerTopInset, 0f)
-                        lineTo(size.width - innerBottomInset, size.height)
-                        lineTo(innerBottomInset, size.height)
+                    Surface(
+                        modifier = Modifier
+                            .align(Alignment.Center)
+                            .fillMaxWidth(0.76f)
+                            .fillMaxHeight(0.60f),
+                        shape = GenericShape { size, _ ->
+                            val innerTopInset = size.width * 0.03f
+                            val innerBottomInset = size.width * 0.14f
+
+                            moveTo(innerTopInset, 0f)
+                            lineTo(size.width - innerTopInset, 0f)
+                            lineTo(size.width - innerBottomInset, size.height)
+                            lineTo(innerBottomInset, size.height)
+                            close()
+                        },
+                        color = Color.Black.copy(alpha = 0.10f)
+                    ) {}
+
+
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun JesterHatBadge(
+    modifier: Modifier = Modifier
+) {
+    Row(
+        modifier = modifier.height(26.dp),
+        horizontalArrangement = Arrangement.spacedBy(2.dp),
+        verticalAlignment = Alignment.Bottom
+    ) {
+        repeat(3) { index ->
+            Canvas(
+                modifier = Modifier.size(width = 12.dp, height = if (index == 1) 24.dp else 18.dp)
+            ) {
+                drawPath(
+                    path = androidx.compose.ui.graphics.Path().apply {
+                        moveTo(size.width / 2f, 0f)
+                        lineTo(size.width, size.height * 0.78f)
+                        lineTo(0f, size.height * 0.78f)
                         close()
                     },
-                    color = Color.Black.copy(alpha = 0.10f)
-                ) {}
+                    color = hatStripeColor(index)
+                )
+                drawCircle(
+                    color = if (index % 2 == 0) Color.Black else Color.White,
+                    radius = size.minDimension * 0.11f,
+                    center = Offset(size.width / 2f, size.height * 0.88f)
+                )
             }
         }
     }
