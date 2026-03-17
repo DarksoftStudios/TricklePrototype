@@ -17,6 +17,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
@@ -1055,10 +1056,10 @@ private fun TrickleApp() {
                 ) {
                     Row(
                         modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 6.dp),
-                        horizontalArrangement = Arrangement.Center,
-                        verticalAlignment = Alignment.Top
+                            .fillMaxWidth(0.90f)
+                            .padding(horizontal = 0.dp, vertical = 8.dp),
+                        horizontalArrangement = Arrangement.spacedBy(0.dp, Alignment.CenterHorizontally),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
                         WeatherInfoBadge(
                             weatherName = currentWeatherName,
@@ -1066,10 +1067,8 @@ private fun TrickleApp() {
                             forcedGuess = forcedGuess,
                             mustTarget = mustTarget,
                             needsSecondTarget = needsSecondTarget,
-                            modifier = Modifier.weight(1f)
+                            modifier = Modifier.weight(1.77f)
                         )
-
-                        Spacer(Modifier.widthIn(min = 10.dp))
 
                         PlayerStatusStack(
                             playerTitle = playerTitle,
@@ -1077,18 +1076,16 @@ private fun TrickleApp() {
                             isCurrentTurn = currentActorId == GameEngine.HUMAN_ID,
                             indicator = floatingIndicators[GameEngine.HUMAN_ID],
                             hasHat = lastResult?.hatHolderId == GameEngine.HUMAN_ID,
-                            modifier = Modifier.weight(1.1f)
+                            modifier = Modifier.weight(0.95f)
                         )
-
-                        Spacer(Modifier.widthIn(min = 10.dp))
 
                         PhaseBadge(
                             text = playerPhaseBadge,
-                            modifier = Modifier.weight(1f)
+                            modifier = Modifier.weight(1.35f)
                         )
                     }
 
-                    Spacer(Modifier.height(4.dp))
+                    Spacer(Modifier.height(8.dp))
 
                     Box(
                         modifier = Modifier
@@ -1323,47 +1320,57 @@ private fun WeatherInfoBadge(
 ) {
     Surface(
         modifier = modifier
-            .fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
+            .fillMaxWidth()
+            .heightIn(min = 108.dp)
+            .animateContentSize(),
+        shape = RoundedCornerShape(18.dp),
         color = Color(0xAA1E1E1E),
         tonalElevation = 2.dp
     ) {
         Column(
-            modifier = Modifier.padding(10.dp),
-            verticalArrangement = Arrangement.spacedBy(4.dp)
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 14.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp)
         ) {
             Text(
                 text = if (weatherName.isNullOrBlank()) "Weather: Clear" else "Weather: $weatherName",
                 color = Color.White,
                 fontWeight = FontWeight.Bold,
-                fontSize = 14.sp
+                fontSize = 16.sp,
+                lineHeight = 20.sp
             )
+
             if (!weatherEffect.isNullOrBlank()) {
                 Text(
                     text = weatherEffect,
                     color = Color(0xFFD7E3FC),
-                    fontSize = 12.sp
+                    fontSize = 13.sp,
+                    lineHeight = 16.sp
                 )
             }
+
             if (forcedGuess != null) {
                 Text(
                     text = "Locked guess: $forcedGuess",
                     color = Color(0xFFFFF59D),
-                    fontSize = 12.sp
+                    fontSize = 13.sp
                 )
             }
+
             if (mustTarget) {
                 Text(
                     text = "Must target if able.",
                     color = Color(0xFFFFCCBC),
-                    fontSize = 12.sp
+                    fontSize = 13.sp
                 )
             }
+
             if (needsSecondTarget) {
                 Text(
                     text = "Targeting needs two picks.",
                     color = Color(0xFFFFCCBC),
-                    fontSize = 12.sp
+                    fontSize = 13.sp
                 )
             }
         }
@@ -1376,13 +1383,15 @@ private fun PhaseBadge(
     modifier: Modifier = Modifier
 ) {
     Surface(
-        modifier = modifier,
-        shape = RoundedCornerShape(16.dp),
+        modifier = modifier
+            .heightIn(min = 108.dp),
+        shape = RoundedCornerShape(18.dp),
         color = Color(0xAA1F2A44)
     ) {
         Box(
             modifier = Modifier
-                .padding(horizontal = 12.dp, vertical = 10.dp),
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 12.dp),
             contentAlignment = Alignment.Center
         ) {
             Text(
@@ -1390,7 +1399,8 @@ private fun PhaseBadge(
                 color = Color.White,
                 textAlign = TextAlign.Center,
                 fontWeight = FontWeight.Bold,
-                fontSize = 14.sp
+                fontSize = 16.sp,
+                lineHeight = 20.sp
             )
         }
     }
@@ -1467,7 +1477,7 @@ private fun BotCupColumn(
                     textAlign = TextAlign.Center,
                     modifier = Modifier.width(54.dp)
                 )
-                Spacer(Modifier.height(13.dp))
+                Spacer(Modifier.height(10.dp))
             }
         }
     }
