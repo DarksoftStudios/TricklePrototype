@@ -2394,7 +2394,7 @@ private fun AchievementsText(stats: PlayerStats) {
         AchievementRow(stats.firstGameCompleted, "Get Your Feet Wet", "Complete a game")
         AchievementRow(stats.firstPerfectWin, "Perfect Puddler", "Win with 0 wrong guesses")
         AchievementRow(stats.reachedRound6, "Idle Hands", "Reach round 6")
-        AchievementRow(stats.wonWith18Marbles, "Legal Limit", "Win with exactly 18 marbles")
+        AchievementRow(stats.wonWith18Marbles, "Is That Legal?", "Win with 18+ marbles")
 
         Spacer(Modifier.height(14.dp))
         AchievementSectionHeader("Difficulty")
@@ -2413,7 +2413,7 @@ private fun AchievementsText(stats: PlayerStats) {
         AchievementRow(stats.pacifistWin, "Conscientious Objector", "Win without guessing")
         AchievementRow(stats.pacifistGame, "Pacifist", "Complete a game without guessing")
         AchievementRow(
-            stats.justPressEverythingWin,
+            stats.justPressEverything,
             "Just Press Everything",
             "In one game: choose 0/1/3, pass once, guess 1 and 3"
         )

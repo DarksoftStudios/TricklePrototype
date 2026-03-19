@@ -1203,6 +1203,31 @@ class GameEngine(
                         log += RoundLogEvent("*** Achievement Unlocked: First Drip - Completed a game! ***")
                     }
 
+                    if (!s.firstTheFool && gameHumanWasTrickedByZero) {
+                        s.firstTheFool = true
+                        log += RoundLogEvent("*** Achievement Unlocked: The Fool - Get tricked by a 0! ***")
+                    }
+
+                    if (!s.firstZeroTrap && gameHumanTrickedBotWithZero) {
+                        s.firstZeroTrap = true
+                        log += RoundLogEvent("*** Achievement Unlocked: Zero Trap - Trick someone with a 0! ***")
+                    }
+
+                    if (!s.zeroHeroUnlocked && s.firstTheFool && s.firstZeroTrap) {
+                        s.zeroHeroUnlocked = true
+                        log += RoundLogEvent("*** Achievement Unlocked: Zero Hero - Experience both sides of the 0! ***")
+                    }
+
+                    if (!s.dumbLuck && unlockedDumbLuckThisGame) {
+                        s.dumbLuck = true
+                        log += RoundLogEvent("*** Achievement Unlocked: Dumb Luck - Correctly guessed a 3 in round 1! ***")
+                    }
+
+                    if (!s.onARoll && unlockedOnARollThisGame) {
+                        s.onARoll = true
+                        log += RoundLogEvent("*** Achievement Unlocked: On a Roll - Get 3 correct guesses in a row in one game! ***")
+                    }
+
                     if (!s.pacifistGame && !gameHumanMadeGuess) {
                         s.pacifistGame = true
                         log += RoundLogEvent("*** Achievement Unlocked: Pacifist (Game) - Finished a game without guessing! ***")
@@ -1213,11 +1238,71 @@ class GameEngine(
                         log += RoundLogEvent("*** Achievement Unlocked: Idle Hands - Reached round 6! ***")
                     }
 
+                    if (!s.justPressEverything &&
+                        gameHumanPassedAtLeastOnce &&
+                        gameHumanChoicesUsed.containsAll(setOf(0, 1, 3)) &&
+                        gameHumanGuessesUsed.containsAll(setOf(1, 3))) {
+                        s.justPressEverything = true
+                        log += RoundLogEvent("*** Achievement Unlocked: Just Press Everything - Do every action possible in a game ***")
+                    }
                     // -------------------------------------------------
                     // WIN ACHIEVEMENTS
                     // -------------------------------------------------
 
                     if (humanWon) {
+                        if (!s.firstWin) {
+                            s.firstWin = true
+                            log += RoundLogEvent("*** Achievement Unlocked: Get Your Feet Wet - Win your first game! ***")
+                        }
+
+                        if (gameWrongGuesses == 0) {
+                            s.perfectGames += 1
+                            if (!s.firstPerfectWin) {
+                                s.firstPerfectWin = true
+                                log += RoundLogEvent("*** Achievement Unlocked: Perfect Puddler - Win without a wrong guess! ***")
+                            }
+                        }
+
+                        if (!s.wonWith18Marbles && humanFinal >= 18) {
+                            s.wonWith18Marbles = true
+                            log += RoundLogEvent("*** Achievement Unlocked: Legal Limit - Win with 18+ marbles! ***")
+                        }
+
+
+                        if (!s.pacifistWin && !gameHumanMadeGuess) {
+                            s.pacifistWin = true
+                            log += RoundLogEvent("*** Achievement Unlocked: Pacifist - Win without guessing! ***")
+                        }
+
+                        if (!s.shakespeareWin && gameHumanCorrectRomeo && gameHumanCorrectJuliet) {
+                            s.shakespeareWin = true
+                            log += RoundLogEvent("*** Achievement Unlocked: Shakespeare - Win after correctly guessing Romeo and Juliet! ***")
+                        }
+
+                        if (!s.drySeasonWin && !gameHumanEverChose3) {
+                            s.drySeasonWin = true
+                            log += RoundLogEvent("*** Achievement Unlocked: Dry Season - Win without ever choosing 3! ***")
+                        }
+
+                        if (!s.ghostCupWin && !gameHumanWasTargeted) {
+                            s.ghostCupWin = true
+                            log += RoundLogEvent("*** Achievement Unlocked: Ghost Cup - Win without being targeted! ***")
+                        }
+
+                        if (!s.hatFinisher && startedRoundBecauseHat) {
+                            s.hatFinisher = true
+                            log += RoundLogEvent("*** Achievement Unlocked: Hat Finisher - Win a round you started because of the Hat! ***")
+                        }
+
+                        if (!s.caughtTheStrobe && strobeCorrect3Count >= 2) {
+                            s.caughtTheStrobe = true
+                            log += RoundLogEvent("*** Achievement Unlocked: Caught the Strobe - Correctly guess Strobe's 3 twice in one game! ***")
+                        }
+
+                        if (!s.pushover && threePusherCorrect3Count >= 4) {
+                            s.pushover = true
+                            log += RoundLogEvent("*** Achievement Unlocked: Pushover - Correctly guess the Three-Pusher's 3 four times in one game! ***")
+                        }
 
                         when (difficulty) {
                             Difficulty.EASY -> {

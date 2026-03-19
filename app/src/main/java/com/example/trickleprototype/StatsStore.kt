@@ -53,7 +53,7 @@ data class PlayerStats(
     var playedAllDifficulties: Boolean = false,  // Tourist
 
     // Zero chain
-    var firstTheFool: Boolean = true,          // guessed wrong on bot's zero
+    var firstTheFool: Boolean = false,         // guessed wrong on bot's zero
     var firstZeroTrap: Boolean = false,         // tricked bot with your zero
     var zeroHeroUnlocked: Boolean = false,      // both above true
 
@@ -61,7 +61,7 @@ data class PlayerStats(
     var pacifistWin: Boolean = false,           // win without guessing/targeting
     var pacifistGame: Boolean = false,          // COMPLETE a game without guessing/targeting (new)
     var shakespeareWin: Boolean = false,        // won after correctly guessing both R&J
-    var justPressEverythingWin: Boolean = false,// won using every action type at least once
+    var justPressEverything: Boolean = false,// won using every action type at least once
 
     // === NEW ACHIEVEMENTS (you approved these) ===
     var drySeasonWin: Boolean = false,          // win without ever choosing 3
@@ -196,7 +196,7 @@ class StatsStore(context: Context) {
             pacifistWin = prefs.getBoolean("pacifistWin", false),
             pacifistGame = prefs.getBoolean("pacifistGame", false),
             shakespeareWin = prefs.getBoolean("shakespeareWin", false),
-            justPressEverythingWin = prefs.getBoolean("justPressEverythingWin", false),
+            justPressEverything = prefs.getBoolean("justPressEverything", false),
 
             // New achievements
             drySeasonWin = prefs.getBoolean("drySeasonWin", false),
@@ -263,7 +263,7 @@ class StatsStore(context: Context) {
             .putBoolean("pacifistWin", stats.pacifistWin)
             .putBoolean("pacifistGame", stats.pacifistGame)
             .putBoolean("shakespeareWin", stats.shakespeareWin)
-            .putBoolean("justPressEverythingWin", stats.justPressEverythingWin)
+            .putBoolean("justPressEverything", stats.justPressEverything)
 
             // New achievements
             .putBoolean("drySeasonWin", stats.drySeasonWin)
