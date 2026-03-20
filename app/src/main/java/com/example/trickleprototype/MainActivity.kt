@@ -73,6 +73,7 @@ import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -89,6 +90,8 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.TransformOrigin
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.painter.BitmapPainter
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -493,6 +496,10 @@ private fun TrickleApp() {
     val scope = rememberCoroutineScope()
 
     var screen by remember { mutableStateOf(AppScreen.SPLASH) }
+    var difficultyEntryTransitionActive by remember { mutableStateOf(false) }
+    val difficultyEntryZoom = remember { Animatable(1f) }
+    val difficultyEntryFade = remember { Animatable(0f) }
+    val uiContentFade = remember { Animatable(1f) }
 
     var showResetStatsConfirm by remember { mutableStateOf(false) }
     var soundEnabled by remember { mutableStateOf(settingsPrefs.getBoolean("sound_enabled", true)) }
@@ -651,7 +658,26 @@ private fun TrickleApp() {
         if (difficulty == null) menuVisitKey += 1
     }
 
+    LaunchedEffect(screen, difficultyEntryTransitionActive) {
+        if (screen == AppScreen.SPLASH) {
+            uiContentFade.snapTo(1f)
+            return@LaunchedEffect
+        }
+
+        if (difficultyEntryTransitionActive) {
+            uiContentFade.snapTo(0f)
+            return@LaunchedEffect
+        }
+
+        uiContentFade.snapTo(0f)
+        uiContentFade.animateTo(
+            targetValue = 1f,
+            animationSpec = tween(durationMillis = 320, easing = LinearEasing)
+        )
+    }
+
     val phase = lastResult?.phase ?: engine.getPhase()
+    val displayedRoundFromEngine = lastResult?.roundNumber ?: engine.getRoundNumber()
     val players = lastResult?.players ?: engine.getPlayersSnapshot()
     val currentActorId = lastResult?.currentActorId
     val gameOver = (phase == EnginePhase.GAME_OVER)
@@ -664,17 +690,8 @@ private fun TrickleApp() {
     val scrollState = rememberScrollState()
     LaunchedEffect(logText) { scrollState.scrollTo(0) }
 
-    LaunchedEffect(lastResult?.log) {
-        val latestRound = lastResult
-            ?.log
-            ?.mapNotNull { event ->
-                Regex("=== ROUND (\\d+)").find(event.text)?.groupValues?.getOrNull(1)?.toIntOrNull()
-            }
-            ?.lastOrNull()
-
-        if (latestRound != null) {
-            displayedRound = latestRound
-        }
+    LaunchedEffect(displayedRoundFromEngine) {
+        displayedRound = displayedRoundFromEngine
     }
 
     LaunchedEffect(lastResult?.log?.size, players) {
@@ -870,12 +887,26 @@ private fun TrickleApp() {
 
     Box(modifier = Modifier.fillMaxSize()) {
         if (screen != AppScreen.SPLASH) {
+            val backgroundResId = when (screen) {
+                AppScreen.GAME -> R.drawable.gamescreengen
+                else -> R.drawable.mainmenugen
+            }
+
             Image(
-                painter = painterResource(R.drawable.mainmenugen),
+                painter = painterResource(backgroundResId),
                 contentDescription = "Background",
                 contentScale = ContentScale.Crop,
                 modifier = Modifier.fillMaxSize()
             )
+
+            if (difficultyEntryTransitionActive) {
+                DifficultyEntryTransitionOverlay(
+                    zoom = difficultyEntryZoom.value,
+                    nextImageAlpha = difficultyEntryFade.value,
+                    currentImageRes = R.drawable.mainmenugen,
+                    nextImageRes = R.drawable.gamescreengen
+                )
+            }
 
             Box(
                 modifier = Modifier
@@ -889,9 +920,14 @@ private fun TrickleApp() {
                 .fillMaxSize()
                 .statusBarsPadding()
                 .navigationBarsPadding()
-                .padding(12.dp),
+                .padding(12.dp)
+                .alpha(uiContentFade.value),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
+            if (difficultyEntryTransitionActive) {
+                return@Column
+            }
+
             if (screen != AppScreen.SPLASH) {
                 Box(modifier = Modifier.fillMaxWidth()) {
                     if (difficulty != null) {
@@ -1138,6 +1174,30 @@ private fun TrickleApp() {
                         showLogOverlay = false
 
                         screen = AppScreen.GAME
+
+                        scope.launch {
+                            difficultyEntryTransitionActive = true
+                            difficultyEntryZoom.snapTo(1f)
+                            difficultyEntryFade.snapTo(0f)
+
+                            launch {
+                                difficultyEntryZoom.animateTo(
+                                    targetValue = 1.42f,
+                                    animationSpec = tween(durationMillis = 1250, easing = FastOutSlowInEasing)
+                                )
+                            }
+
+                            delay(300L)
+
+                            difficultyEntryFade.animateTo(
+                                targetValue = 1f,
+                                animationSpec = tween(durationMillis = 820, easing = LinearEasing)
+                            )
+
+                            difficultyEntryTransitionActive = false
+                            difficultyEntryZoom.snapTo(1f)
+                            difficultyEntryFade.snapTo(0f)
+                        }
                     }
 
                     Column(
@@ -1339,7 +1399,7 @@ private fun TrickleApp() {
 
             val humanPlayer = players.firstOrNull { it.id == GameEngine.HUMAN_ID }
             val playerScore = humanPlayer?.marbles ?: 0
-            val playerTitle = humanPlayer?.baseName ?: "You"
+            val playerTitle = humanPlayer?.baseName ?: "Player"
 
             val isPlayerTurn = (phase == EnginePhase.PLAYER_TURN)
             val inputsEnabled = !gameOver && isPlayerTurn && !humanActionLocked
@@ -1365,6 +1425,29 @@ private fun TrickleApp() {
                 needsSecondTarget = needsSecondTarget,
                 latestLogLine = lastResult?.log?.lastOrNull()?.text
             )
+
+            fun submitPlayerTurn(
+                selectedTargetId: Int?,
+                selectedGuess: Int?,
+                selectedSecondTargetId: Int?
+            ) {
+                humanActionLocked = true
+                val result = engine.submitHumanTurn(
+                    targetId = selectedTargetId,
+                    guess = selectedGuess,
+                    secondTargetId = selectedSecondTargetId
+                )
+                lastResult = result
+                logText = buildLogText(result, difficulty!!)
+
+                if (result.phase == EnginePhase.PLAYER_TURN) {
+                    humanActionLocked = false
+                } else {
+                    pendingHumanAction = PendingHumanAction.NONE
+                    targetId = null
+                    secondTargetId = null
+                }
+            }
             val tableBots = players.filter { it.id != GameEngine.HUMAN_ID }
             val splitIndex = (tableBots.size + 1) / 2
             val rightBots = tableBots.take(splitIndex)
@@ -1471,6 +1554,11 @@ private fun TrickleApp() {
                                 targetId = null
                                 secondTargetId = null
                                 pendingHumanAction = PendingHumanAction.PASS
+                                submitPlayerTurn(
+                                    selectedTargetId = null,
+                                    selectedGuess = null,
+                                    selectedSecondTargetId = null
+                                )
                             },
                             onTargetSelected = {
                                 targetId = null
@@ -1479,28 +1567,62 @@ private fun TrickleApp() {
                             },
                             dropdownOptions = dropdownOptions,
                             selectedTargetId = targetId,
-                            onTargetPicked = {
-                                targetId = it
-                                if (secondTargetId == it) secondTargetId = null
+                            onTargetPicked = { pickedTargetId ->
+                                targetId = pickedTargetId
+                                if (secondTargetId == pickedTargetId) secondTargetId = null
+
+                                if (!needsSecondTarget && forcedGuess != null) {
+                                    guess = forcedGuess
+                                    submitPlayerTurn(
+                                        selectedTargetId = pickedTargetId,
+                                        selectedGuess = forcedGuess,
+                                        selectedSecondTargetId = null
+                                    )
+                                }
                             },
                             needsSecondTarget = needsSecondTarget,
                             secondDropdownOptions = secondDropdownOptions,
                             selectedSecondTargetId = secondTargetId,
-                            onSecondTargetPicked = { secondTargetId = it },
+                            onSecondTargetPicked = { pickedSecondTargetId ->
+                                secondTargetId = pickedSecondTargetId
+
+                                if (forcedGuess != null && targetId != null) {
+                                    guess = forcedGuess
+                                    submitPlayerTurn(
+                                        selectedTargetId = targetId,
+                                        selectedGuess = forcedGuess,
+                                        selectedSecondTargetId = pickedSecondTargetId
+                                    )
+                                }
+                            },
                             guess = guess,
-                            onGuessSelected = { guess = it },
+                            onGuessSelected = { selectedGuess ->
+                                guess = selectedGuess
+                            },
                             zeroGuessUnlocked = zeroGuessUnlocked,
                             forcedGuess = forcedGuess,
+                            showSubmitButton = phase != EnginePhase.PLAYER_TURN || (
+                                    phase == EnginePhase.PLAYER_TURN &&
+                                            pendingHumanAction == PendingHumanAction.TARGET &&
+                                            targetId != null &&
+                                            (!needsSecondTarget || secondTargetId != null)
+                                    ),
                             submitLabel = when (phase) {
                                 EnginePhase.SELECT, EnginePhase.ROUND_END -> "Start Round->"
-                                EnginePhase.PLAYER_TURN -> "Submit Turn->"
+                                EnginePhase.PLAYER_TURN -> "Submit Guess->"
                                 EnginePhase.BOT_TURN -> "Bots Acting..."
                                 EnginePhase.GAME_OVER -> "Game Over!"
                                 EnginePhase.SETUP -> "Setup..."
                             },
                             submitEnabled = when (phase) {
                                 EnginePhase.SELECT, EnginePhase.ROUND_END -> !gameOver && !startLocked
-                                EnginePhase.PLAYER_TURN -> !gameOver && !humanActionLocked
+                                EnginePhase.PLAYER_TURN -> (
+                                        !gameOver &&
+                                                !humanActionLocked &&
+                                                pendingHumanAction == PendingHumanAction.TARGET &&
+                                                targetId != null &&
+                                                (!needsSecondTarget || secondTargetId != null)
+                                        )
                                 else -> false
                             },
                             onSubmit = {
@@ -1516,24 +1638,13 @@ private fun TrickleApp() {
                                         humanActionLocked = false
                                     }
                                     EnginePhase.PLAYER_TURN -> {
-                                        humanActionLocked = true
                                         val frozenTarget = if (pendingHumanAction == PendingHumanAction.TARGET) targetId else null
                                         val frozenGuess = if (frozenTarget == null) null else guess
-
-                                        val result = engine.submitHumanTurn(
-                                            targetId = frozenTarget,
-                                            guess = frozenGuess,
-                                            secondTargetId = if (frozenTarget == null) null else secondTargetId
+                                        submitPlayerTurn(
+                                            selectedTargetId = frozenTarget,
+                                            selectedGuess = frozenGuess,
+                                            selectedSecondTargetId = if (frozenTarget == null) null else secondTargetId
                                         )
-                                        lastResult = result
-                                        logText = buildLogText(result, difficulty!!)
-
-                                        if (result.phase == EnginePhase.PLAYER_TURN) {
-                                            humanActionLocked = false
-                                        } else {
-                                            targetId = null
-                                            secondTargetId = null
-                                        }
                                     }
                                     else -> Unit
                                 }
@@ -1762,7 +1873,7 @@ private fun PlayerStatusStack(
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         TableCup(
-            label = "YOU",
+            label = "Player (You)",
             highlighted = true,
             isCurrentTurn = isCurrentTurn,
             indicator = indicator,
@@ -1777,7 +1888,7 @@ private fun PlayerStatusStack(
             overflow = TextOverflow.Ellipsis
         )
         Text(
-            text = "Score: $playerScore",
+            text = "Score: $playerScore/${GameEngine.WIN_SCORE}",
             color = Color(0xFFFFF59D),
             fontWeight = FontWeight.SemiBold,
             fontSize = 13.sp
@@ -2097,10 +2208,12 @@ private fun MarbleFlightOverlay(
 ) {
     Box(modifier = modifier) {
         flights.forEach { flight ->
-            AnimatedMarbleFlight(
-                flight = flight,
-                onFinished = { onFlightFinished(flight.id) }
-            )
+            key(flight.id) {
+                AnimatedMarbleFlight(
+                    flight = flight,
+                    onFinished = { onFlightFinished(flight.id) }
+                )
+            }
         }
     }
 }
@@ -2188,6 +2301,7 @@ private fun TableActionPanel(
     onGuessSelected: (Int) -> Unit,
     zeroGuessUnlocked: Boolean,
     forcedGuess: Int?,
+    showSubmitButton: Boolean,
     submitLabel: String,
     submitEnabled: Boolean,
     onSubmit: () -> Unit
@@ -2295,16 +2409,18 @@ private fun TableActionPanel(
                 Spacer(Modifier.height(12.dp))
             }
 
-            Button(
-                onClick = onSubmit,
-                enabled = submitEnabled,
-                modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = Color(0xFF263238),
-                    contentColor = Color.White
-                )
-            ) {
-                OneLineButtonText(submitLabel)
+            if (showSubmitButton) {
+                Button(
+                    onClick = onSubmit,
+                    enabled = submitEnabled,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFF263238),
+                        contentColor = Color.White
+                    )
+                ) {
+                    OneLineButtonText(submitLabel)
+                }
             }
         }
     }
@@ -2464,6 +2580,7 @@ private fun engineSnapshot(engine: GameEngine): RoundResult {
     val players = engine.getPlayersSnapshot()
     return RoundResult(
         phase = engine.getPhase(),
+        roundNumber = engine.getRoundNumber(),
         log = emptyList(),
         players = players,
         winnerIds = emptyList(),
@@ -2479,6 +2596,44 @@ private fun engineSnapshot(engine: GameEngine): RoundResult {
         hatHolderId = null,
         marbleTransfers = emptyList()
     )
+}
+
+
+@Composable
+private fun DifficultyEntryTransitionOverlay(
+    zoom: Float,
+    nextImageAlpha: Float,
+    currentImageRes: Int,
+    nextImageRes: Int
+) {
+    val doorTransformOrigin = TransformOrigin(pivotFractionX = 0.52f, pivotFractionY = 0.56f)
+
+    Box(modifier = Modifier.fillMaxSize()) {
+        Image(
+            painter = painterResource(id = currentImageRes),
+            contentDescription = null,
+            contentScale = ContentScale.Crop,
+            modifier = Modifier
+                .fillMaxSize()
+                .graphicsLayer {
+                    transformOrigin = doorTransformOrigin
+                    scaleX = zoom
+                    scaleY = zoom
+                    alpha = 1f - nextImageAlpha
+                }
+        )
+
+        Image(
+            painter = painterResource(id = nextImageRes),
+            contentDescription = null,
+            contentScale = ContentScale.Crop,
+            modifier = Modifier
+                .fillMaxSize()
+                .graphicsLayer {
+                    alpha = nextImageAlpha
+                }
+        )
+    }
 }
 
 private fun buildLogText(result: RoundResult, difficulty: Difficulty): String {

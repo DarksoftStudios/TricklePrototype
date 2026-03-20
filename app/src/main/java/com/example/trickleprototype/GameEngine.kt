@@ -35,6 +35,7 @@ enum class EnginePhase {
 
 data class RoundResult(
     val phase: EnginePhase,
+    val roundNumber: Int,
     val log: List<RoundLogEvent>,
     val players: List<PlayerState>,
     val winnerIds: List<Int>,
@@ -77,14 +78,14 @@ class GameEngine(
     )
 
     private val players: MutableList<PlayerState> = mutableListOf<PlayerState>().apply {
-        add(PlayerState(HUMAN_ID, "You", marbles = 0))
+        add(PlayerState(HUMAN_ID, "Player", marbles = 0))
         for (i in 0 until 12) add(PlayerState(i + 2, botNames[i], marbles = 0))
     }
 
 
 
     fun setHumanName(name: String) {
-        val cleaned = name.trim().ifBlank { "You" }
+        val cleaned = name.trim().ifBlank { "Player" }
         players.firstOrNull { it.id == HUMAN_ID }?.baseName = cleaned
     }
 
@@ -178,6 +179,7 @@ class GameEngine(
     fun isWeatherEnabled(): Boolean = weatherEnabled
     fun getDifficulty(): Difficulty = difficulty
     fun getPhase(): EnginePhase = phase
+    fun getRoundNumber(): Int = roundNumber
 
     fun getPlayersSnapshot(): List<PlayerState> =
         players.map { p -> p.copy(baseName = displayNameFor(p.id)) }
@@ -1781,6 +1783,7 @@ class GameEngine(
 
         return RoundResult(
             phase = phase,
+            roundNumber = roundNumber,
             log = log.toList(),
             players = players.map { it.copy(baseName = displayNameFor(it.id)) },
             winnerIds = winnerIds,
