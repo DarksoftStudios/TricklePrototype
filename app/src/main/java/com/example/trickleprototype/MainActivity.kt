@@ -1,26 +1,20 @@
 package com.example.trickleprototype
 
-import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.foundation.layout.width
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.tween
-import androidx.compose.ui.geometry.Offset
-import kotlin.math.cos
-import androidx.compose.foundation.layout.fillMaxWidth
-import kotlin.math.sin
 import android.media.MediaPlayer
-import androidx.compose.ui.text.style.TextAlign
+import android.net.Uri
 import android.os.Bundle
+import android.widget.VideoView
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
@@ -38,28 +32,30 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.wrapContentSize
-import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.GenericShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -73,19 +69,22 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
-import androidx.compose.animation.core.Animatable
-import androidx.compose.runtime.Immutable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.FilterQuality
@@ -98,20 +97,21 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import kotlin.math.cos
-import kotlin.math.sin
+import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.window.DialogProperties
+import androidx.compose.ui.zIndex
 import androidx.core.view.WindowCompat
 import com.example.trickleprototype.ui.theme.TricklePrototypeTheme
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlin.math.cos
+import kotlin.math.sin
 import kotlin.random.Random
-import androidx.compose.foundation.layout.Box
-import androidx.compose.ui.zIndex
-
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -148,6 +148,11 @@ private enum class AppScreen {
     GAME
 }
 
+private enum class SplashStage {
+    LOGO,
+    VIDEO
+}
+
 private enum class IndicatorTone {
     NEUTRAL,
     GOOD,
@@ -162,13 +167,186 @@ private data class FloatingIndicator(
     val tone: IndicatorTone
 )
 
+private enum class TableSeatSlot {
+    PLAYER_HEAD,
+    LEFT_TOP,
+    LEFT_MID,
+    LEFT_BOTTOM,
+    RIGHT_TOP,
+    RIGHT_MID,
+    RIGHT_BOTTOM
+}
+
+@Immutable
+private data class TableAnchor(
+    val xFraction: Float,
+    val yFraction: Float
+) {
+    fun toOffset(width: Float, height: Float): Offset {
+        return Offset(width * xFraction, height * yFraction)
+    }
+
+    fun toOffset(size: Size): Offset {
+        return toOffset(size.width, size.height)
+    }
+}
+
+@Immutable
+private data class TableLayoutAnchors(
+    val bowlCenter: TableAnchor,
+    val bowlSpawn: TableAnchor,
+    val bowlHatRest: TableAnchor,
+    val seatAnchors: Map<TableSeatSlot, TableAnchor>
+) {
+    fun seatAnchor(slot: TableSeatSlot): TableAnchor {
+        return seatAnchors.getValue(slot)
+    }
+}
+
+private fun defaultTableLayoutAnchors(): TableLayoutAnchors {
+    return TableLayoutAnchors(
+        bowlCenter = TableAnchor(
+            xFraction = 0.50f,
+            yFraction = 0.57f
+        ),
+        bowlSpawn = TableAnchor(
+            xFraction = 0.50f,
+            yFraction = 0.52f
+        ),
+        bowlHatRest = TableAnchor(
+            xFraction = 0.50f,
+            yFraction = 0.46f
+        ),
+        seatAnchors = mapOf(
+            TableSeatSlot.PLAYER_HEAD to TableAnchor(0.50f, 0.16f),
+            TableSeatSlot.LEFT_TOP to TableAnchor(0.16f, 0.27f),
+            TableSeatSlot.LEFT_MID to TableAnchor(0.14f, 0.50f),
+            TableSeatSlot.LEFT_BOTTOM to TableAnchor(0.17f, 0.74f),
+            TableSeatSlot.RIGHT_TOP to TableAnchor(0.84f, 0.27f),
+            TableSeatSlot.RIGHT_MID to TableAnchor(0.86f, 0.50f),
+            TableSeatSlot.RIGHT_BOTTOM to TableAnchor(0.83f, 0.74f)
+        )
+    )
+}
+
+private fun leftSeatSlotForIndex(index: Int): TableSeatSlot {
+    return when (index) {
+        0 -> TableSeatSlot.LEFT_TOP
+        1 -> TableSeatSlot.LEFT_MID
+        else -> TableSeatSlot.LEFT_BOTTOM
+    }
+}
+
+private fun rightSeatSlotForIndex(index: Int): TableSeatSlot {
+    return when (index) {
+        0 -> TableSeatSlot.RIGHT_TOP
+        1 -> TableSeatSlot.RIGHT_MID
+        else -> TableSeatSlot.RIGHT_BOTTOM
+    }
+}
+
+@Immutable
+private data class MarbleFlightVisual(
+    val id: Long,
+    val start: TableAnchor,
+    val end: TableAnchor,
+    val launchDelayMs: Int,
+    val laneOffsetPx: Float
+)
+
+private fun playerCupAnchor(
+    playerId: Int,
+    leftBots: List<PlayerState>,
+    rightBots: List<PlayerState>
+): TableAnchor {
+    if (playerId == GameEngine.HUMAN_ID) {
+        return TableAnchor(0.50f, 0.06f)
+    }
+
+    val leftIndex = leftBots.indexOfFirst { it.id == playerId }
+    if (leftIndex >= 0) {
+        val leftRowAnchors = listOf(0.18f, 0.30f, 0.42f, 0.55f, 0.68f, 0.81f)
+        return TableAnchor(
+            xFraction = 0.085f,
+            yFraction = leftRowAnchors[leftIndex.coerceIn(0, leftRowAnchors.lastIndex)]
+        )
+    }
+
+    val rightIndex = rightBots.indexOfFirst { it.id == playerId }
+    if (rightIndex >= 0) {
+        val rightRowAnchors = listOf(0.18f, 0.30f, 0.42f, 0.55f, 0.68f, 0.81f)
+        return TableAnchor(
+            xFraction = 0.915f,
+            yFraction = rightRowAnchors[rightIndex.coerceIn(0, rightRowAnchors.lastIndex)]
+        )
+    }
+
+    return TableAnchor(0.50f, 0.50f)
+}
+
+private fun marbleTransferAnchor(
+    transferType: MarbleTransferEndpointType,
+    playerId: Int?,
+    layoutAnchors: TableLayoutAnchors,
+    leftBots: List<PlayerState>,
+    rightBots: List<PlayerState>
+): TableAnchor {
+    return when (transferType) {
+        MarbleTransferEndpointType.BOWL -> layoutAnchors.bowlSpawn
+        MarbleTransferEndpointType.PLAYER -> playerCupAnchor(
+            playerId = playerId ?: GameEngine.HUMAN_ID,
+            leftBots = leftBots,
+            rightBots = rightBots
+        )
+    }
+}
+
+private fun buildMarbleFlights(
+    transfers: List<MarbleTransferEvent>,
+    leftBots: List<PlayerState>,
+    rightBots: List<PlayerState>,
+    layoutAnchors: TableLayoutAnchors,
+    nextId: () -> Long
+): List<MarbleFlightVisual> {
+    val flights = mutableListOf<MarbleFlightVisual>()
+
+    transfers.forEach { transfer ->
+        val startAnchor = marbleTransferAnchor(
+            transferType = transfer.fromType,
+            playerId = transfer.fromPlayerId,
+            layoutAnchors = layoutAnchors,
+            leftBots = leftBots,
+            rightBots = rightBots
+        )
+
+        val endAnchor = marbleTransferAnchor(
+            transferType = transfer.toType,
+            playerId = transfer.toPlayerId,
+            layoutAnchors = layoutAnchors,
+            leftBots = leftBots,
+            rightBots = rightBots
+        )
+
+        repeat(transfer.amount) { index ->
+            flights += MarbleFlightVisual(
+                id = nextId(),
+                start = startAnchor,
+                end = endAnchor,
+                launchDelayMs = index * 170,
+                laneOffsetPx = 0f
+            )
+        }
+    }
+
+    return flights
+}
 
 private fun indicatorToneColor(tone: IndicatorTone): Color {
     return when (tone) {
-        IndicatorTone.NEUTRAL -> Color(0xFFE3F2FD)
-        IndicatorTone.GOOD -> Color(0xFFC8E6C9)
-        IndicatorTone.BAD -> Color(0xFFFFCDD2)
-        IndicatorTone.ALERT -> Color(0xFFFFF59D)
+        IndicatorTone.NEUTRAL -> Color(0xFFFFEB3B)
+        IndicatorTone.GOOD -> Color(0xFF2196F3)
+        IndicatorTone.BAD -> Color(0xFFFF0228)
+        IndicatorTone.ALERT -> Color(0xFFFF9800)
     }
 }
 
@@ -279,26 +457,23 @@ private fun extractVisualIndicators(
     return emptyList()
 }
 
-
 private fun parseAchievementPopup(line: String): AchievementPopup? {
     val marker = "Achievement Unlocked:"
     val idx = line.indexOf(marker)
     if (idx == -1) return null
 
-    // Take everything after the marker
     val payload = line.substring(idx + marker.length)
         .trim()
         .trim('*')
         .trim()
 
-    // Split into title + desc
     val parts = payload.split(" - ", limit = 2)
 
     val rawTitle = parts.getOrNull(0) ?: return null
-    val rawDesc  = parts.getOrNull(1) ?: ""
+    val rawDesc = parts.getOrNull(1) ?: ""
 
     val title = rawTitle.trim().trim('*').trim()
-    val desc  = rawDesc.trim().trim('*').trim()
+    val desc = rawDesc.trim().trim('*').trim()
 
     if (title.isBlank()) return null
 
@@ -315,6 +490,7 @@ private fun TrickleApp() {
     val settingsPrefs = remember {
         appContext.getSharedPreferences("trickle_settings", ComponentActivity.MODE_PRIVATE)
     }
+    val scope = rememberCoroutineScope()
 
     var screen by remember { mutableStateOf(AppScreen.SPLASH) }
 
@@ -322,15 +498,12 @@ private fun TrickleApp() {
     var soundEnabled by remember { mutableStateOf(settingsPrefs.getBoolean("sound_enabled", true)) }
     var musicEnabled by remember { mutableStateOf(settingsPrefs.getBoolean("music_enabled", true)) }
 
-    // Player identity
     var playerName by remember { mutableStateOf(statsStore.getPlayerName()) }
 
-    // Keep engine in sync with saved name
     SideEffect {
         engine.setHumanName(playerName)
     }
 
-    //  FIX: attach synchronously (no async race)
     SideEffect {
         engine.attachStatsStore(statsStore)
     }
@@ -352,11 +525,24 @@ private fun TrickleApp() {
     var logText by remember { mutableStateOf("") }
     var floatingIndicators by remember { mutableStateOf<Map<Int, FloatingIndicator>>(emptyMap()) }
     var nextIndicatorToken by remember { mutableStateOf(1L) }
+    var marbleFlights by remember { mutableStateOf<List<MarbleFlightVisual>>(emptyList()) }
+    var nextMarbleFlightId by remember { mutableLongStateOf(1L) }
+    var lastQueuedMarbleTransferSignature by remember { mutableStateOf("") }
 
-    // Achievement popups
     var achievementQueue by remember { mutableStateOf<List<AchievementPopup>>(emptyList()) }
     var activeAchievement by remember { mutableStateOf<AchievementPopup?>(null) }
     var splashSoundPlayer by remember { mutableStateOf<MediaPlayer?>(null) }
+    var introVideoPlayer by remember { mutableStateOf<MediaPlayer?>(null) }
+    var introVideoView by remember { mutableStateOf<VideoView?>(null) }
+    var splashStage by remember { mutableStateOf(SplashStage.LOGO) }
+
+    var splashFadeTarget by remember { mutableStateOf(0f) }
+    var splashTransitionLocked by remember { mutableStateOf(false) }
+    val splashFadeAlpha by animateFloatAsState(
+        targetValue = splashFadeTarget,
+        animationSpec = tween(durationMillis = 260),
+        label = "splashFadeAlpha"
+    )
 
     val bgmPlayer = remember {
         MediaPlayer.create(context, R.raw.mainthemegen)?.apply {
@@ -380,6 +566,11 @@ private fun TrickleApp() {
     DisposableEffect(Unit) {
         onDispose {
             splashSoundPlayer?.release()
+            splashSoundPlayer = null
+            introVideoView?.stopPlayback()
+            introVideoView = null
+            introVideoPlayer?.release()
+            introVideoPlayer = null
             bgmPlayer?.stop()
             bgmPlayer?.release()
         }
@@ -392,6 +583,9 @@ private fun TrickleApp() {
             splashSoundPlayer?.stop()
             splashSoundPlayer?.release()
             splashSoundPlayer = null
+            introVideoPlayer?.setVolume(0f, 0f)
+        } else {
+            introVideoPlayer?.setVolume(1f, 1f)
         }
     }
 
@@ -399,7 +593,6 @@ private fun TrickleApp() {
         settingsPrefs.edit().putBoolean("music_enabled", musicEnabled).apply()
     }
 
-    // must be above LaunchedEffect or it won't exist yet
     val seenAchievements = remember { mutableSetOf<String>() }
 
     LaunchedEffect(lastResult) {
@@ -439,24 +632,20 @@ private fun TrickleApp() {
     var showStats by remember { mutableStateOf(false) }
     var showAchievements by remember { mutableStateOf(false) }
 
-    // locks
     var humanActionLocked by remember { mutableStateOf(false) }
     var startLocked by remember { mutableStateOf(false) }
 
-    // TURBO
     var turbo by remember { mutableStateOf(false) }
 
-    // Picked only when switching ON
-    var turboOnColor by remember { mutableStateOf(Color(0xFFFFFFFF)) } // white
+    var turboOnColor by remember { mutableStateOf(Color(0xFFFFFFFF)) }
     val turboPalette = remember {
         listOf(
-            Color(0xFFC5DAFF), // light blue
-            Color(0xFF159DF8), // blue
-            Color(0xFF0D47A1)  // dark blue
+            Color(0xFFC5DAFF),
+            Color(0xFF159DF8),
+            Color(0xFF0D47A1)
         )
     }
 
-    // increments every time we return to main menu
     var menuVisitKey by remember { mutableIntStateOf(0) }
     LaunchedEffect(difficulty) {
         if (difficulty == null) menuVisitKey += 1
@@ -530,7 +719,55 @@ private fun TrickleApp() {
         }
     }
 
-    // BOT stepping with turbo
+    LaunchedEffect(lastResult) {
+        val result = lastResult ?: return@LaunchedEffect
+        val transfers = result.marbleTransfers
+        if (transfers.isEmpty()) return@LaunchedEffect
+
+        val transferSignature = buildString {
+            append(result.log.size)
+            append("|")
+            append(result.currentActorId ?: -1)
+            append("|")
+            append(result.phase.name)
+            transfers.forEach { transfer ->
+                append("|")
+                append(transfer.fromType.name)
+                append(":")
+                append(transfer.fromPlayerId ?: -1)
+                append("->")
+                append(transfer.toType.name)
+                append(":")
+                append(transfer.toPlayerId ?: -1)
+                append(":")
+                append(transfer.amount)
+            }
+        }
+
+        if (transferSignature == lastQueuedMarbleTransferSignature) {
+            return@LaunchedEffect
+        }
+        lastQueuedMarbleTransferSignature = transferSignature
+
+        val resultPlayers = result.players
+        val tableBots = resultPlayers.filter { it.id != GameEngine.HUMAN_ID }
+        val splitIndex = (tableBots.size + 1) / 2
+        val transferRightBots = tableBots.take(splitIndex)
+        val transferLeftBots = tableBots.drop(splitIndex).reversed()
+
+        marbleFlights = marbleFlights + buildMarbleFlights(
+            transfers = transfers,
+            leftBots = transferLeftBots,
+            rightBots = transferRightBots,
+            layoutAnchors = defaultTableLayoutAnchors(),
+            nextId = {
+                val next = nextMarbleFlightId
+                nextMarbleFlightId += 1L
+                next
+            }
+        )
+    }
+
     LaunchedEffect(phase, turbo) {
         if (phase == EnginePhase.BOT_TURN) {
             while (true) {
@@ -543,8 +780,15 @@ private fun TrickleApp() {
 
                 if (result.phase == EnginePhase.BOT_TURN) {
                     val base = if (result.lastEventKind == LogEventKind.PASS) 300L else 1000L
-                    val ms = if (turbo) (base / 4).coerceAtLeast(35L) else base
-                    delay(ms)
+                    val baseDelayMs = if (turbo) (base / 4).coerceAtLeast(35L) else base
+
+                    val marbleAnimationDelayMs =
+                        result.marbleTransfers.maxOfOrNull { transfer ->
+                            ((transfer.amount - 1).coerceAtLeast(0) * 170L) + 520L
+                        } ?: 0L
+
+                    val totalDelayMs = maxOf(baseDelayMs, marbleAnimationDelayMs + 80L)
+                    delay(totalDelayMs)
                 }
             }
         }
@@ -553,7 +797,6 @@ private fun TrickleApp() {
         if (phase != EnginePhase.SELECT && phase != EnginePhase.ROUND_END) startLocked = false
     }
 
-    // dialogs
     if (showHowToPlay) {
         SimpleDialog(
             title = "HOW TO PLAY",
@@ -594,10 +837,38 @@ private fun TrickleApp() {
         ) { AchievementsText(statsStore.load()) }
     }
 
-    //  FIX 1: Use a full-screen Box so the background can sit behind ALL screens.
-    Box(modifier = Modifier.fillMaxSize()) {
+    fun finishSplashIntro() {
+        if (splashTransitionLocked) return
+        splashTransitionLocked = true
 
-        //  FIX 1 (continued): Draw the background image on every screen EXCEPT the splash.
+        scope.launch {
+            splashSoundPlayer?.stop()
+            splashSoundPlayer?.release()
+            splashSoundPlayer = null
+
+            introVideoPlayer?.setOnCompletionListener(null)
+            introVideoView?.stopPlayback()
+            introVideoView = null
+
+            introVideoPlayer?.release()
+            introVideoPlayer = null
+
+            splashFadeTarget = 1f
+            delay(280)
+
+            splashStage = SplashStage.LOGO
+            screen = AppScreen.MAIN_MENU
+
+            delay(40)
+
+            splashFadeTarget = 0f
+            delay(260)
+
+            splashTransitionLocked = false
+        }
+    }
+
+    Box(modifier = Modifier.fillMaxSize()) {
         if (screen != AppScreen.SPLASH) {
             Image(
                 painter = painterResource(R.drawable.mainmenugen),
@@ -606,7 +877,6 @@ private fun TrickleApp() {
                 modifier = Modifier.fillMaxSize()
             )
 
-            // Optional readability overlay (keeps your UI legible on bright areas)
             Box(
                 modifier = Modifier
                     .fillMaxSize()
@@ -614,7 +884,6 @@ private fun TrickleApp() {
             )
         }
 
-        //  FIX 2: Keep consistent safe padding for status + nav bars so buttons don't cramp.
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -624,10 +893,7 @@ private fun TrickleApp() {
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             if (screen != AppScreen.SPLASH) {
-                // Header: title truly centered, turbo pinned right
                 Box(modifier = Modifier.fillMaxWidth()) {
-
-                    // Main Menu moved here (top-left) to avoid accidental taps near the bottom controls
                     if (difficulty != null) {
                         Button(
                             onClick = {
@@ -678,7 +944,6 @@ private fun TrickleApp() {
                     if (screen == AppScreen.GAME) {
                         Button(
                             onClick = {
-                                // Only re-roll color when turning ON
                                 if (!turbo) {
                                     turboOnColor = turboPalette[Random.nextInt(turboPalette.size)]
                                 }
@@ -707,10 +972,16 @@ private fun TrickleApp() {
 
             Spacer(Modifier.height(10.dp))
 
-            // MENUS
             when (screen) {
                 AppScreen.SPLASH -> {
-                    LaunchedEffect(Unit) {
+                    LaunchedEffect(splashStage) {
+                        if (splashStage != SplashStage.LOGO) return@LaunchedEffect
+
+                        introVideoView?.stopPlayback()
+                        introVideoView = null
+                        introVideoPlayer?.release()
+                        introVideoPlayer = null
+
                         if (soundEnabled) {
                             splashSoundPlayer?.release()
                             splashSoundPlayer = MediaPlayer.create(context, R.raw.darksoftlogo)?.apply {
@@ -725,38 +996,96 @@ private fun TrickleApp() {
                         }
 
                         delay(3000L)
-                        screen = AppScreen.MAIN_MENU
+
+                        splashSoundPlayer?.stop()
+                        splashSoundPlayer?.release()
+                        splashSoundPlayer = null
+
+                        splashStage = SplashStage.VIDEO
                     }
+
                     Box(
                         modifier = Modifier
                             .fillMaxSize()
                             .background(Color.Black)
-                            .clickable { screen = AppScreen.MAIN_MENU },
+                            .clickable(
+                                indication = null,
+                                interactionSource = remember { MutableInteractionSource() }
+                            ) {
+                                finishSplashIntro()
+                            },
                         contentAlignment = Alignment.Center
                     ) {
-                        Column(
-                            modifier = Modifier.wrapContentSize(),
-                            horizontalAlignment = Alignment.CenterHorizontally
-                        ) {
-                            val logoBitmap: ImageBitmap =
-                                ImageBitmap.imageResource(id = R.drawable.darksoft_logo)
+                        if (splashStage == SplashStage.LOGO) {
+                            Column(
+                                modifier = Modifier.wrapContentSize(),
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                val logoBitmap: ImageBitmap =
+                                    ImageBitmap.imageResource(id = R.drawable.darksoft_logo)
 
-                            Image(
-                                painter = BitmapPainter(image = logoBitmap, filterQuality = FilterQuality.None),
-                                contentDescription = "DarkSoft logo",
-                                modifier = Modifier
-                                    .size(140.dp)
-                                    .padding(),
-                                contentScale = ContentScale.Fit
-                            )
+                                Image(
+                                    painter = BitmapPainter(image = logoBitmap, filterQuality = FilterQuality.None),
+                                    contentDescription = "DarkSoft logo",
+                                    modifier = Modifier
+                                        .size(140.dp)
+                                        .padding(),
+                                    contentScale = ContentScale.Fit
+                                )
 
-                            Text(
-                                "Darksoft Game Studios",
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Black,
-                                color = Color.White
+                                Text(
+                                    "Darksoft Game Studios",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Black,
+                                    color = Color.White
+                                )
+                                Spacer(Modifier.height(8.dp))
+                            }
+                        } else {
+                            AndroidView(
+                                factory = { viewContext ->
+                                    VideoView(viewContext).apply {
+                                        introVideoView = this
+
+                                        val videoUri = Uri.parse(
+                                            "android.resource://${viewContext.packageName}/${R.raw.introvidgen}"
+                                        )
+
+                                        setVideoURI(videoUri)
+
+                                        setOnPreparedListener { mediaPlayer ->
+                                            introVideoPlayer?.release()
+                                            introVideoPlayer = mediaPlayer
+
+                                            mediaPlayer.isLooping = false
+                                            if (soundEnabled) {
+                                                mediaPlayer.setVolume(1f, 1f)
+                                            } else {
+                                                mediaPlayer.setVolume(0f, 0f)
+                                            }
+
+                                            start()
+                                        }
+
+                                        setOnCompletionListener {
+                                            finishSplashIntro()
+                                        }
+
+                                        setOnErrorListener { _, _, _ ->
+                                            finishSplashIntro()
+                                            true
+                                        }
+                                    }
+                                },
+                                modifier = Modifier.fillMaxSize(),
+                                update = { videoView ->
+                                    introVideoView = videoView
+
+                                    if (!videoView.isPlaying && !splashTransitionLocked) {
+                                        videoView.start()
+                                    }
+                                }
                             )
-                            Spacer(Modifier.height(8.dp))
                         }
                     }
                     return@Column
@@ -766,7 +1095,7 @@ private fun TrickleApp() {
                     Column(
                         modifier = Modifier
                             .fillMaxSize()
-                            .padding(top = 72.dp),   // increase/decrease to taste
+                            .padding(top = 72.dp),
                         verticalArrangement = Arrangement.spacedBy(35.dp, Alignment.CenterVertically),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
@@ -1000,18 +1329,14 @@ private fun TrickleApp() {
                 }
 
                 AppScreen.GAME -> {
-                    // Fall through to game UI below.
                 }
             }
 
             if (difficulty == null) {
-                // Safety: if we somehow got here without a difficulty, send player back.
                 screen = AppScreen.MAIN_MENU
                 return@Column
             }
 
-
-            // GAME SCREEN
             val humanPlayer = players.firstOrNull { it.id == GameEngine.HUMAN_ID }
             val playerScore = humanPlayer?.marbles ?: 0
             val playerTitle = humanPlayer?.baseName ?: "You"
@@ -1044,6 +1369,7 @@ private fun TrickleApp() {
             val splitIndex = (tableBots.size + 1) / 2
             val rightBots = tableBots.take(splitIndex)
             val leftBots = tableBots.drop(splitIndex).reversed()
+            val tableLayoutAnchors = remember { defaultTableLayoutAnchors() }
 
             Box(
                 modifier = Modifier
@@ -1119,6 +1445,16 @@ private fun TrickleApp() {
                                 .align(Alignment.CenterEnd)
                                 .fillMaxHeight()
                                 .padding(end = 0.dp, top = 8.dp, bottom = 16.dp)
+                        )
+
+                        MarbleFlightOverlay(
+                            flights = marbleFlights,
+                            onFlightFinished = { flightId ->
+                                marbleFlights = marbleFlights.filterNot { it.id == flightId }
+                            },
+                            modifier = Modifier
+                                .matchParentSize()
+                                .zIndex(2f)
                         )
 
                         TableActionPanel(
@@ -1235,7 +1571,15 @@ private fun TrickleApp() {
                 }
             }
         }
+
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.Black.copy(alpha = splashFadeAlpha))
+                .zIndex(100f)
+        )
     }
+
     activeAchievement?.let { popup ->
         AchievementUnlockOverlay(
             popup = popup,
@@ -1243,8 +1587,6 @@ private fun TrickleApp() {
         )
     }
 }
-
-
 
 private enum class PendingHumanAction {
     NONE,
@@ -1590,7 +1932,7 @@ private fun TableCup(
                     .padding(bottom = if (hasHat) 0.dp else 4.dp)
                     .alpha(alpha.value),
                 shape = RoundedCornerShape(10.dp),
-                color = indicatorToneColor(indicator.tone).copy(alpha = 0.92f),
+                color = indicatorToneColor(indicator.tone).copy(alpha = 1f),
                 border = BorderStroke(1.dp, Color.Black.copy(alpha = 0.35f)),
                 shadowElevation = 6.dp
             ) {
@@ -1664,7 +2006,163 @@ private fun GameTableSurface(
                     shape = RoundedCornerShape(28.dp)
                 )
         ) {
-            // Content goes here if needed
+            TableCenterBowl(
+                modifier = Modifier
+                    .align(Alignment.Center)
+                    .fillMaxWidth(0.26f)
+                    .fillMaxHeight(0.15f)
+                    .offset(y = 34.dp)
+            )
+        }
+    }
+}
+
+@Composable
+private fun TableCenterBowl(
+    modifier: Modifier = Modifier
+) {
+    Canvas(modifier = modifier) {
+        val shadowHeight = size.height * 0.22f
+        val bowlWidth = size.width
+        val bowlHeight = size.height * 0.68f
+        val bowlTop = size.height * 0.18f
+
+        drawOval(
+            color = Color(0x3A000000),
+            topLeft = Offset(
+                x = size.width * 0.08f,
+                y = size.height * 0.72f
+            ),
+            size = Size(
+                width = size.width * 0.84f,
+                height = shadowHeight
+            )
+        )
+
+        drawOval(
+            color = Color(0xFF6E6E6E),
+            topLeft = Offset(
+                x = 0f,
+                y = bowlTop
+            ),
+            size = Size(
+                width = bowlWidth,
+                height = bowlHeight
+            )
+        )
+
+        drawOval(
+            color = Color(0xFF4F4F4F),
+            topLeft = Offset(
+                x = size.width * 0.06f,
+                y = bowlTop + size.height * 0.12f
+            ),
+            size = Size(
+                width = size.width * 0.88f,
+                height = bowlHeight * 0.72f
+            )
+        )
+
+        drawOval(
+            color = Color(0xFF9A9A9A),
+            topLeft = Offset(
+                x = size.width * 0.02f,
+                y = bowlTop
+            ),
+            size = Size(
+                width = size.width * 0.96f,
+                height = bowlHeight * 0.34f
+            )
+        )
+
+        drawOval(
+            color = Color(0x55FFFFFF),
+            topLeft = Offset(
+                x = size.width * 0.18f,
+                y = bowlTop + size.height * 0.05f
+            ),
+            size = Size(
+                width = size.width * 0.30f,
+                height = bowlHeight * 0.12f
+            )
+        )
+    }
+}
+
+@Composable
+private fun MarbleFlightOverlay(
+    flights: List<MarbleFlightVisual>,
+    onFlightFinished: (Long) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Box(modifier = modifier) {
+        flights.forEach { flight ->
+            AnimatedMarbleFlight(
+                flight = flight,
+                onFinished = { onFlightFinished(flight.id) }
+            )
+        }
+    }
+}
+
+@Composable
+private fun AnimatedMarbleFlight(
+    flight: MarbleFlightVisual,
+    onFinished: () -> Unit
+) {
+    val progress = remember(flight.id) { Animatable(0f) }
+
+    LaunchedEffect(flight.id) {
+        if (flight.launchDelayMs > 0) {
+            delay(flight.launchDelayMs.toLong())
+        }
+
+        progress.animateTo(
+            targetValue = 1f,
+            animationSpec = tween(
+                durationMillis = 520,
+                easing = FastOutSlowInEasing
+            )
+        )
+
+        onFinished()
+    }
+
+    BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+        val start = flight.start.toOffset(
+            width = constraints.maxWidth.toFloat(),
+            height = constraints.maxHeight.toFloat()
+        )
+        val end = flight.end.toOffset(
+            width = constraints.maxWidth.toFloat(),
+            height = constraints.maxHeight.toFloat()
+        )
+
+        val eased = FastOutSlowInEasing.transform(progress.value)
+        val travelX = start.x + ((end.x - start.x) * eased) + flight.laneOffsetPx
+        val travelY = start.y + ((end.y - start.y) * eased)
+        val arcLift = sin(progress.value * Math.PI).toFloat() * 26f
+        val marbleSizePx = 16f
+
+        val marbleOffset = IntOffset(
+            x = (travelX - marbleSizePx / 2f).toInt(),
+            y = (travelY - arcLift - marbleSizePx / 2f).toInt()
+        )
+
+        Canvas(
+            modifier = Modifier
+                .offset { marbleOffset }
+                .size(16.dp)
+        ) {
+            drawCircle(color = Color(0xFF4FC3F7))
+            drawCircle(
+                color = Color(0x88FFFFFF),
+                radius = size.minDimension * 0.24f,
+                center = Offset(
+                    x = size.width * 0.34f,
+                    y = size.height * 0.30f
+                )
+            )
         }
     }
 }
@@ -1841,68 +2339,57 @@ private fun LogPanel(
     }
 }
 
-/// Single-contour cloud: avoids internal "circle outlines" being stroked over the text.
 private val CloudButtonShape: GenericShape = GenericShape { size, _ ->
     val w = size.width
     val h = size.height
 
-    // Handy percentages
     val left = 0.04f * w
     val right = 0.96f * w
     val top = 0.10f * h
     val bottom = 0.92f * h
 
-    // Cloud "puff line" control heights
     val puffY1 = 0.28f * h
     val puffY2 = 0.08f * h
     val puffY3 = 0.22f * h
 
-    // Start bottom-left-ish
     moveTo(left + 0.08f * w, bottom)
 
-    // Bottom edge (slight curve)
     cubicTo(
         left + 0.30f * w, bottom + 0.02f * h,
         right - 0.30f * w, bottom + 0.02f * h,
         right - 0.08f * w, bottom
     )
 
-    // Right side up into right puff
     cubicTo(
         right + 0.02f * w, 0.78f * h,
         right + 0.01f * w, 0.46f * h,
         right - 0.14f * w, puffY3
     )
 
-    // Big right puff crest
     cubicTo(
         right - 0.06f * w, puffY2,
         right - 0.22f * w, top,
         right - 0.36f * w, puffY1
     )
 
-    // Center puff (highest)
     cubicTo(
         right - 0.44f * w, top - 0.02f * h,
         left + 0.56f * w, top - 0.02f * h,
         left + 0.46f * w, puffY1
     )
 
-    // Left-center puff
     cubicTo(
         left + 0.40f * w, top + 0.06f * h,
         left + 0.24f * w, top + 0.06f * h,
         left + 0.22f * w, puffY1 + 0.02f * h
     )
 
-    // Small left puff down into left side
     cubicTo(
         left + 0.06f * w, puffY3,
         left - 0.02f * w, 0.52f * h,
         left + 0.06f * w, 0.72f * h
     )
 
-    // Back to start along left-bottom curve
     cubicTo(
         left + 0.01f * w, 0.80f * h,
         left + 0.02f * w, bottom,
@@ -1914,13 +2401,11 @@ private val CloudButtonShape: GenericShape = GenericShape { size, _ ->
 
 @Composable
 private fun MenuLinkButton(text: String, enabled: Boolean = true, onClick: () -> Unit) {
-    // Homogenized: one consistent "storm grey" for all menu buttons
     val outlineColor = Color(0xFF9AA3AD)
 
     val interactionSource = remember { MutableInteractionSource() }
     val pressed by interactionSource.collectIsPressedAsState()
 
-    // Cloud fill: light by default, slightly deeper when pressed; keep text readable.
     val baseFill = Color(0xFFF2F7FF)
     val pressedFill = Color(0xFFE4F0FF)
 
@@ -1991,7 +2476,8 @@ private fun engineSnapshot(engine: GameEngine): RoundResult {
         forcedGuessForHuman = null,
         mustTargetForHuman = false,
         requiresSecondTargetForHuman = false,
-        hatHolderId = null
+        hatHolderId = null,
+        marbleTransfers = emptyList()
     )
 }
 
@@ -2002,8 +2488,6 @@ private fun buildLogText(result: RoundResult, difficulty: Difficulty): String {
 
     return visibleEvents.asReversed().joinToString("\n") { it.text }.ifBlank { "" }
 }
-
-// -------------------- Dialog + Text Blocks --------------------
 
 @Composable
 private fun SimpleDialog(
@@ -2178,12 +2662,11 @@ private fun StatsText(stats: PlayerStats) {
                     "Perfect games: ${stats.perfectGames}\n\n" +
                     "Easy games: ${stats.easyGames} (wins ${stats.easyWins})\n" +
                     "Normal games: ${stats.normalGames} (wins ${stats.normalWins})\n" +
-                    "Hard games: ${stats.hardGames} (wins ${stats.hardWins})\n\n"+
+                    "Hard games: ${stats.hardGames} (wins ${stats.hardWins})\n\n" +
                     "(Stats do not track on Easy mode)",
             style = MaterialTheme.typography.bodyMedium
         )
     }
-
 }
 
 @Composable
@@ -2522,9 +3005,6 @@ private fun AchievementSectionHeader(title: String) {
     )
     Spacer(Modifier.height(6.dp))
 }
-
-// -------------------- UI components --------------------
-// -------------------- UI components --------------------
 
 @Composable
 private fun AchievementRow(

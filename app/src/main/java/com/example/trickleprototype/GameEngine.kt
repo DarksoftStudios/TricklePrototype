@@ -13,6 +13,20 @@ enum class Difficulty { EASY, NORMAL, HARD }
 
 data class RoundLogEvent(val text: String)
 
+enum class MarbleTransferEndpointType {
+    BOWL,
+    PLAYER
+}
+
+data class MarbleTransferEvent(
+    val fromType: MarbleTransferEndpointType,
+    val fromPlayerId: Int? = null,
+    val toType: MarbleTransferEndpointType,
+    val toPlayerId: Int? = null,
+    val amount: Int
+)
+
+
 enum class LogEventKind { PASS, OTHER }
 
 enum class EnginePhase {
@@ -33,7 +47,8 @@ data class RoundResult(
     val currentWeatherEffect: String?,
     val forcedGuessForHuman: Int?,
     val mustTargetForHuman: Boolean,
-    val requiresSecondTargetForHuman: Boolean
+    val requiresSecondTargetForHuman: Boolean,
+    val marbleTransfers: List<MarbleTransferEvent>
 )
 
 class GameEngine(
@@ -54,6 +69,7 @@ class GameEngine(
     private var targetingActionsTakenThisRound: Int = 0
     private val playersWithPositiveScoringEventThisRound = mutableSetOf<Int>()
     private val roundStartMarbles = mutableMapOf<Int, Int>()
+    private val latestMarbleTransfers = mutableListOf<MarbleTransferEvent>()
 
     private val botNames = listOf(
         "Al", "Barbara", "Clark", "David", "Erika", "Fred",
@@ -167,6 +183,7 @@ class GameEngine(
         players.map { p -> p.copy(baseName = displayNameFor(p.id)) }
 
     fun reset() {
+        clearLatestMarbleTransfers()
         players.forEach { it.marbles = 0; it.revealedChoice = null }
         roundNumber = 1
         starterIndex = rng.nextInt(players.size)
@@ -356,6 +373,43 @@ class GameEngine(
         weatherHas(WeatherEffectTag.ONE_POSITIVE_SCORING_EVENT_PER_PLAYER) &&
                 actorId in playersWithPositiveScoringEventThisRound
 
+
+    private fun clearLatestMarbleTransfers() {
+        latestMarbleTransfers.clear()
+    }
+
+    private fun recordMarbleTransfer(
+        fromType: MarbleTransferEndpointType,
+        fromPlayerId: Int? = null,
+        toType: MarbleTransferEndpointType,
+        toPlayerId: Int? = null,
+        amount: Int
+    ) {
+        if (amount <= 0) return
+        latestMarbleTransfers += MarbleTransferEvent(
+            fromType = fromType,
+            fromPlayerId = fromPlayerId,
+            toType = toType,
+            toPlayerId = toPlayerId,
+            amount = amount
+        )
+    }
+
+    private fun removeMarblesToBowl(player: PlayerState, amount: Int): Int {
+        if (amount <= 0) return 0
+        if (noMarblesMoveThisRound()) return 0
+        val moved = minOf(amount, player.marbles)
+        if (moved <= 0) return 0
+        player.marbles -= moved
+        recordMarbleTransfer(
+            fromType = MarbleTransferEndpointType.PLAYER,
+            fromPlayerId = player.id,
+            toType = MarbleTransferEndpointType.BOWL,
+            amount = moved
+        )
+        return moved
+    }
+
     private fun applyPositiveGain(player: PlayerState, amount: Int): Int {
         if (amount <= 0) return 0
         if (noMarblesMoveThisRound()) return 0
@@ -365,6 +419,12 @@ class GameEngine(
         }
 
         player.marbles += amount
+        recordMarbleTransfer(
+            fromType = MarbleTransferEndpointType.BOWL,
+            toType = MarbleTransferEndpointType.PLAYER,
+            toPlayerId = player.id,
+            amount = amount
+        )
         if (weatherHas(WeatherEffectTag.ONE_POSITIVE_SCORING_EVENT_PER_PLAYER)) {
             playersWithPositiveScoringEventThisRound += player.id
         }
@@ -377,6 +437,13 @@ class GameEngine(
         if (moved <= 0) return 0
         from.marbles -= moved
         to.marbles += moved
+        recordMarbleTransfer(
+            fromType = MarbleTransferEndpointType.PLAYER,
+            fromPlayerId = from.id,
+            toType = MarbleTransferEndpointType.PLAYER,
+            toPlayerId = to.id,
+            amount = moved
+        )
         return moved
     }
 
@@ -500,6 +567,7 @@ class GameEngine(
     }
 
     fun startRound(humanChoice: Int): RoundResult {
+        clearLatestMarbleTransfers()
         if (phase == EnginePhase.GAME_OVER) return snapshot()
         if (phase != EnginePhase.SELECT && phase != EnginePhase.ROUND_END) return snapshot()
 
@@ -591,11 +659,13 @@ class GameEngine(
     }
 
     fun step(): RoundResult {
+        clearLatestMarbleTransfers()
         if (phase != EnginePhase.BOT_TURN) return snapshot()
         return stepInternalOrSnapshot()
     }
 
     fun submitHumanTurn(targetId: Int?, guess: Int?, secondTargetId: Int? = null): RoundResult {
+        clearLatestMarbleTransfers()
         if (phase != EnginePhase.PLAYER_TURN) return snapshot()
         val actorId = turnOrder.getOrNull(turnCursor) ?: return snapshot()
         if (actorId != HUMAN_ID) return snapshot()
@@ -979,12 +1049,12 @@ class GameEngine(
                         }
                         log += RoundLogEvent("${displayNameFor(actorId)} was wrong on a 0 and gives $moved to ${displayNameFor(targetId)} (HAT moves to ${displayNameFor(actorId)}).")
                     } else {
-                        actor.marbles = maxOf(0, actor.marbles + penalty)
+                        val lost = removeMarblesToBowl(actor, -penalty)
                         hatHolderId = actorId
                         if (actorId == HUMAN_ID && currentWeatherId() == "drought") {
                             unlockWeatherAchievement("drought_dry_spell")
                         }
-                        log += RoundLogEvent("${displayNameFor(actorId)} was wrong on a 0, loses ${-penalty} (HAT moves to ${displayNameFor(actorId)}).")
+                        log += RoundLogEvent("${displayNameFor(actorId)} was wrong on a 0, loses $lost (HAT moves to ${displayNameFor(actorId)}).")
                     }
                 }
 
@@ -1404,14 +1474,14 @@ class GameEngine(
 
                 activeIds.forEach { pid ->
                     val player = players.first { it.id == pid }
-                    player.marbles -= positiveGains[pid] ?: 0
+                    removeMarblesToBowl(player, positiveGains[pid] ?: 0)
                 }
 
                 val eachShare = pool / activeIds.size
                 if (eachShare > 0) {
                     activeIds.forEach { pid ->
                         val player = players.first { it.id == pid }
-                        player.marbles += eachShare
+                        applyPositiveGain(player, eachShare)
                     }
                 }
 
@@ -1430,7 +1500,7 @@ class GameEngine(
                 activeIds.forEach { pid ->
                     if (pid !in keepers) {
                         val player = players.first { it.id == pid }
-                        player.marbles -= positiveGains[pid] ?: 0
+                        removeMarblesToBowl(player, positiveGains[pid] ?: 0)
                     }
                 }
 
@@ -1447,7 +1517,7 @@ class GameEngine(
                 activeIds.forEach { pid ->
                     if (pid !in keepers) {
                         val player = players.first { it.id == pid }
-                        player.marbles -= positiveGains[pid] ?: 0
+                        removeMarblesToBowl(player, positiveGains[pid] ?: 0)
                     }
                 }
 
@@ -1723,7 +1793,8 @@ class GameEngine(
             currentWeatherEffect = currentWeatherCard?.effectText,
             forcedGuessForHuman = lockedGuessForRound(),
             mustTargetForHuman = phase == EnginePhase.PLAYER_TURN && actorMustTarget(HUMAN_ID),
-            requiresSecondTargetForHuman = phase == EnginePhase.PLAYER_TURN && actorNeedsTwoTargetsIfTargeting()
+            requiresSecondTargetForHuman = phase == EnginePhase.PLAYER_TURN && actorNeedsTwoTargetsIfTargeting(),
+            marbleTransfers = latestMarbleTransfers.toList()
         )
     }
 }
