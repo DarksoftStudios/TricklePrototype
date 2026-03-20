@@ -133,7 +133,7 @@ class StatsStore(context: Context) {
 
     fun getPlayerName(): String {
         val raw = prefs.getString(KEY_PLAYER_NAME, null)?.trim().orEmpty()
-        return if (raw.isBlank()) "You" else raw
+        return if (raw.isBlank()) "Player" else raw
     }
 
     fun setPlayerName(name: String) {

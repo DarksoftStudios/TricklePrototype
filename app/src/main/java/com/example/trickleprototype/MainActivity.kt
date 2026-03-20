@@ -76,6 +76,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -86,6 +87,7 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.FilterQuality
@@ -94,6 +96,8 @@ import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.painter.BitmapPainter
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.imageResource
 import androidx.compose.ui.res.painterResource
@@ -195,6 +199,33 @@ private data class TableAnchor(
 }
 
 @Immutable
+private data class TablePoint(
+    val x: Float,
+    val y: Float
+)
+
+private fun Rect.centerPoint(): TablePoint {
+    return TablePoint(
+        x = left + (width / 2f),
+        y = top + (height / 2f)
+    )
+}
+
+private fun Rect.cupLandingPoint(): TablePoint {
+    return TablePoint(
+        x = left + (width / 2f),
+        y = top + (height * 0.34f)
+    )
+}
+
+private fun Rect.bowlSpawnPoint(): TablePoint {
+    return TablePoint(
+        x = left + (width / 2f),
+        y = top + (height * 0.38f)
+    )
+}
+
+@Immutable
 private data class TableLayoutAnchors(
     val bowlCenter: TableAnchor,
     val bowlSpawn: TableAnchor,
@@ -251,90 +282,54 @@ private fun rightSeatSlotForIndex(index: Int): TableSeatSlot {
 @Immutable
 private data class MarbleFlightVisual(
     val id: Long,
-    val start: TableAnchor,
-    val end: TableAnchor,
+    val start: TablePoint,
+    val end: TablePoint,
     val launchDelayMs: Int,
     val laneOffsetPx: Float
 )
 
-private fun playerCupAnchor(
-    playerId: Int,
-    leftBots: List<PlayerState>,
-    rightBots: List<PlayerState>
-): TableAnchor {
-    if (playerId == GameEngine.HUMAN_ID) {
-        return TableAnchor(0.50f, 0.06f)
-    }
-
-    val leftIndex = leftBots.indexOfFirst { it.id == playerId }
-    if (leftIndex >= 0) {
-        val leftRowAnchors = listOf(0.18f, 0.30f, 0.42f, 0.55f, 0.68f, 0.81f)
-        return TableAnchor(
-            xFraction = 0.085f,
-            yFraction = leftRowAnchors[leftIndex.coerceIn(0, leftRowAnchors.lastIndex)]
-        )
-    }
-
-    val rightIndex = rightBots.indexOfFirst { it.id == playerId }
-    if (rightIndex >= 0) {
-        val rightRowAnchors = listOf(0.18f, 0.30f, 0.42f, 0.55f, 0.68f, 0.81f)
-        return TableAnchor(
-            xFraction = 0.915f,
-            yFraction = rightRowAnchors[rightIndex.coerceIn(0, rightRowAnchors.lastIndex)]
-        )
-    }
-
-    return TableAnchor(0.50f, 0.50f)
-}
-
-private fun marbleTransferAnchor(
+private fun marbleTransferPoint(
     transferType: MarbleTransferEndpointType,
     playerId: Int?,
-    layoutAnchors: TableLayoutAnchors,
-    leftBots: List<PlayerState>,
-    rightBots: List<PlayerState>
-): TableAnchor {
+    bowlSpawnPoint: TablePoint?,
+    cupCenters: Map<Int, TablePoint>
+): TablePoint? {
     return when (transferType) {
-        MarbleTransferEndpointType.BOWL -> layoutAnchors.bowlSpawn
-        MarbleTransferEndpointType.PLAYER -> playerCupAnchor(
-            playerId = playerId ?: GameEngine.HUMAN_ID,
-            leftBots = leftBots,
-            rightBots = rightBots
-        )
+        MarbleTransferEndpointType.BOWL -> bowlSpawnPoint
+        MarbleTransferEndpointType.PLAYER -> cupCenters[playerId ?: GameEngine.HUMAN_ID]
     }
 }
 
 private fun buildMarbleFlights(
     transfers: List<MarbleTransferEvent>,
-    leftBots: List<PlayerState>,
-    rightBots: List<PlayerState>,
-    layoutAnchors: TableLayoutAnchors,
+    bowlSpawnPoint: TablePoint?,
+    cupCenters: Map<Int, TablePoint>,
     nextId: () -> Long
 ): List<MarbleFlightVisual> {
+    if (bowlSpawnPoint == null) return emptyList()
+
     val flights = mutableListOf<MarbleFlightVisual>()
 
     transfers.forEach { transfer ->
-        val startAnchor = marbleTransferAnchor(
+        val startPoint = marbleTransferPoint(
             transferType = transfer.fromType,
             playerId = transfer.fromPlayerId,
-            layoutAnchors = layoutAnchors,
-            leftBots = leftBots,
-            rightBots = rightBots
-        )
+            bowlSpawnPoint = bowlSpawnPoint,
+            cupCenters = cupCenters
+        ) ?: return@forEach
 
-        val endAnchor = marbleTransferAnchor(
+        val endPoint = marbleTransferPoint(
             transferType = transfer.toType,
             playerId = transfer.toPlayerId,
-            layoutAnchors = layoutAnchors,
-            leftBots = leftBots,
-            rightBots = rightBots
-        )
+            bowlSpawnPoint = bowlSpawnPoint,
+            cupCenters = cupCenters
+        ) ?: return@forEach
 
         repeat(transfer.amount) { index ->
             flights += MarbleFlightVisual(
                 id = nextId(),
-                start = startAnchor,
-                end = endAnchor,
+                start = startPoint,
+                end = endPoint,
                 launchDelayMs = index * 170,
                 laneOffsetPx = 0f
             )
@@ -534,6 +529,8 @@ private fun TrickleApp() {
     var nextIndicatorToken by remember { mutableStateOf(1L) }
     var marbleFlights by remember { mutableStateOf<List<MarbleFlightVisual>>(emptyList()) }
     var nextMarbleFlightId by remember { mutableLongStateOf(1L) }
+    var bowlSpawnPoint by remember { mutableStateOf<TablePoint?>(null) }
+    val cupCenters = remember { mutableStateMapOf<Int, TablePoint>() }
     var lastQueuedMarbleTransferSignature by remember { mutableStateOf("") }
 
     var achievementQueue by remember { mutableStateOf<List<AchievementPopup>>(emptyList()) }
@@ -736,7 +733,7 @@ private fun TrickleApp() {
         }
     }
 
-    LaunchedEffect(lastResult) {
+    LaunchedEffect(lastResult, bowlSpawnPoint, cupCenters.size) {
         val result = lastResult ?: return@LaunchedEffect
         val transfers = result.marbleTransfers
         if (transfers.isEmpty()) return@LaunchedEffect
@@ -764,25 +761,24 @@ private fun TrickleApp() {
         if (transferSignature == lastQueuedMarbleTransferSignature) {
             return@LaunchedEffect
         }
-        lastQueuedMarbleTransferSignature = transferSignature
 
-        val resultPlayers = result.players
-        val tableBots = resultPlayers.filter { it.id != GameEngine.HUMAN_ID }
-        val splitIndex = (tableBots.size + 1) / 2
-        val transferRightBots = tableBots.take(splitIndex)
-        val transferLeftBots = tableBots.drop(splitIndex).reversed()
-
-        marbleFlights = marbleFlights + buildMarbleFlights(
+        val newFlights = buildMarbleFlights(
             transfers = transfers,
-            leftBots = transferLeftBots,
-            rightBots = transferRightBots,
-            layoutAnchors = defaultTableLayoutAnchors(),
+            bowlSpawnPoint = bowlSpawnPoint,
+            cupCenters = cupCenters,
             nextId = {
                 val next = nextMarbleFlightId
                 nextMarbleFlightId += 1L
                 next
             }
         )
+
+        if (newFlights.isEmpty()) {
+            return@LaunchedEffect
+        }
+
+        lastQueuedMarbleTransferSignature = transferSignature
+        marbleFlights = marbleFlights + newFlights
     }
 
     LaunchedEffect(phase, turbo) {
@@ -1452,7 +1448,6 @@ private fun TrickleApp() {
             val splitIndex = (tableBots.size + 1) / 2
             val rightBots = tableBots.take(splitIndex)
             val leftBots = tableBots.drop(splitIndex).reversed()
-            val tableLayoutAnchors = remember { defaultTableLayoutAnchors() }
 
             Box(
                 modifier = Modifier
@@ -1485,6 +1480,9 @@ private fun TrickleApp() {
                             isCurrentTurn = currentActorId == GameEngine.HUMAN_ID,
                             indicator = floatingIndicators[GameEngine.HUMAN_ID],
                             hasHat = lastResult?.hatHolderId == GameEngine.HUMAN_ID,
+                            onCupAnchorMeasured = { playerId, anchor ->
+                                cupCenters[playerId] = anchor
+                            },
                             modifier = Modifier.weight(0.95f)
                         )
 
@@ -1502,6 +1500,9 @@ private fun TrickleApp() {
                             .weight(1f)
                     ) {
                         GameTableSurface(
+                            onBowlSpawnMeasured = { measuredAnchor ->
+                                bowlSpawnPoint = measuredAnchor
+                            },
                             modifier = Modifier
                                 .align(Alignment.Center)
                                 .fillMaxWidth(0.64f)
@@ -1513,6 +1514,9 @@ private fun TrickleApp() {
                             currentActorId = currentActorId,
                             hatHolderId = lastResult?.hatHolderId,
                             indicators = floatingIndicators,
+                            onCupAnchorMeasured = { playerId, anchor ->
+                                cupCenters[playerId] = anchor
+                            },
                             modifier = Modifier
                                 .align(Alignment.CenterStart)
                                 .fillMaxHeight()
@@ -1524,20 +1528,13 @@ private fun TrickleApp() {
                             currentActorId = currentActorId,
                             hatHolderId = lastResult?.hatHolderId,
                             indicators = floatingIndicators,
+                            onCupAnchorMeasured = { playerId, anchor ->
+                                cupCenters[playerId] = anchor
+                            },
                             modifier = Modifier
                                 .align(Alignment.CenterEnd)
                                 .fillMaxHeight()
                                 .padding(end = 0.dp, top = 8.dp, bottom = 16.dp)
-                        )
-
-                        MarbleFlightOverlay(
-                            flights = marbleFlights,
-                            onFlightFinished = { flightId ->
-                                marbleFlights = marbleFlights.filterNot { it.id == flightId }
-                            },
-                            modifier = Modifier
-                                .matchParentSize()
-                                .zIndex(2f)
                         )
 
                         TableActionPanel(
@@ -1680,6 +1677,16 @@ private fun TrickleApp() {
                         }
                     }
                 }
+
+                MarbleFlightOverlay(
+                    flights = marbleFlights,
+                    onFlightFinished = { flightId ->
+                        marbleFlights = marbleFlights.filterNot { it.id == flightId }
+                    },
+                    modifier = Modifier
+                        .matchParentSize()
+                        .zIndex(6f)
+                )
             }
         }
 
@@ -1866,6 +1873,7 @@ private fun PlayerStatusStack(
     isCurrentTurn: Boolean,
     indicator: FloatingIndicator?,
     hasHat: Boolean,
+    onCupAnchorMeasured: (Int, TablePoint) -> Unit,
     modifier: Modifier = Modifier
 ) {
     Column(
@@ -1877,7 +1885,10 @@ private fun PlayerStatusStack(
             highlighted = true,
             isCurrentTurn = isCurrentTurn,
             indicator = indicator,
-            hasHat = hasHat
+            hasHat = hasHat,
+            onCupAnchorMeasured = { measuredAnchor ->
+                onCupAnchorMeasured(GameEngine.HUMAN_ID, measuredAnchor)
+            }
         )
         Spacer(Modifier.height(3.dp))
         Text(
@@ -1902,6 +1913,7 @@ private fun BotCupColumn(
     currentActorId: Int?,
     hatHolderId: Int?,
     indicators: Map<Int, FloatingIndicator>,
+    onCupAnchorMeasured: (Int, TablePoint) -> Unit,
     modifier: Modifier = Modifier
 ) {
     Column(
@@ -1918,7 +1930,10 @@ private fun BotCupColumn(
                     highlighted = false,
                     isCurrentTurn = currentActorId == bot.id,
                     indicator = indicators[bot.id],
-                    hasHat = hatHolderId == bot.id
+                    hasHat = hatHolderId == bot.id,
+                    onCupAnchorMeasured = { measuredAnchor ->
+                        onCupAnchorMeasured(bot.id, measuredAnchor)
+                    }
                 )
 
                 Text(
@@ -1942,7 +1957,8 @@ private fun TableCup(
     highlighted: Boolean,
     isCurrentTurn: Boolean = false,
     indicator: FloatingIndicator? = null,
-    hasHat: Boolean = false
+    hasHat: Boolean = false,
+    onCupAnchorMeasured: ((TablePoint) -> Unit)? = null
 ) {
     val bucketFill = if (highlighted) Color(0xFFFF5252) else Color(0xFFD32F2F)
     val bucketBorder = if (highlighted) Color(0xFFFFCDD2) else Color(0xFF7F0000)
@@ -1959,7 +1975,11 @@ private fun TableCup(
     }
 
     Box(
-        modifier = Modifier.size(width = 56.dp, height = 72.dp),
+        modifier = Modifier
+            .size(width = 56.dp, height = 72.dp)
+            .onGloballyPositioned { coordinates ->
+                onCupAnchorMeasured?.invoke(coordinates.boundsInRoot().cupLandingPoint())
+            },
         contentAlignment = Alignment.BottomCenter
     ) {
         if (hasHat) {
@@ -2093,6 +2113,7 @@ private fun JesterHatBadge(
 
 @Composable
 private fun GameTableSurface(
+    onBowlSpawnMeasured: (TablePoint) -> Unit,
     modifier: Modifier = Modifier
 ) {
     Surface(
@@ -2118,6 +2139,7 @@ private fun GameTableSurface(
                 )
         ) {
             TableCenterBowl(
+                onBowlSpawnMeasured = onBowlSpawnMeasured,
                 modifier = Modifier
                     .align(Alignment.Center)
                     .fillMaxWidth(0.26f)
@@ -2130,9 +2152,14 @@ private fun GameTableSurface(
 
 @Composable
 private fun TableCenterBowl(
+    onBowlSpawnMeasured: (TablePoint) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Canvas(modifier = modifier) {
+    Canvas(
+        modifier = modifier.onGloballyPositioned { coordinates ->
+            onBowlSpawnMeasured(coordinates.boundsInRoot().bowlSpawnPoint())
+        }
+    ) {
         val shadowHeight = size.height * 0.22f
         val bowlWidth = size.width
         val bowlHeight = size.height * 0.68f
@@ -2206,11 +2233,20 @@ private fun MarbleFlightOverlay(
     onFlightFinished: (Long) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Box(modifier = modifier) {
+    var overlayBounds by remember { mutableStateOf<Rect?>(null) }
+
+    Box(
+        modifier = modifier.onGloballyPositioned { coordinates ->
+            overlayBounds = coordinates.boundsInRoot()
+        }
+    ) {
+        val currentBounds = overlayBounds ?: return@Box
+
         flights.forEach { flight ->
             key(flight.id) {
                 AnimatedMarbleFlight(
                     flight = flight,
+                    overlayBounds = currentBounds,
                     onFinished = { onFlightFinished(flight.id) }
                 )
             }
@@ -2221,6 +2257,7 @@ private fun MarbleFlightOverlay(
 @Composable
 private fun AnimatedMarbleFlight(
     flight: MarbleFlightVisual,
+    overlayBounds: Rect,
     onFinished: () -> Unit
 ) {
     val progress = remember(flight.id) { Animatable(0f) }
@@ -2241,47 +2278,46 @@ private fun AnimatedMarbleFlight(
         onFinished()
     }
 
-    BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
-        val start = flight.start.toOffset(
-            width = constraints.maxWidth.toFloat(),
-            height = constraints.maxHeight.toFloat()
-        )
-        val end = flight.end.toOffset(
-            width = constraints.maxWidth.toFloat(),
-            height = constraints.maxHeight.toFloat()
-        )
+    val start = Offset(
+        x = flight.start.x - overlayBounds.left,
+        y = flight.start.y - overlayBounds.top
+    )
+    val end = Offset(
+        x = flight.end.x - overlayBounds.left,
+        y = flight.end.y - overlayBounds.top
+    )
 
-        val eased = FastOutSlowInEasing.transform(progress.value)
-        val travelX = start.x + ((end.x - start.x) * eased) + flight.laneOffsetPx
-        val travelY = start.y + ((end.y - start.y) * eased)
-        val arcLift = sin(progress.value * Math.PI).toFloat() * 26f
-        val marbleSizePx = 16f
+    val eased = FastOutSlowInEasing.transform(progress.value)
+    val travelX = start.x + ((end.x - start.x) * eased) + flight.laneOffsetPx
+    val travelY = start.y + ((end.y - start.y) * eased)
+    val arcLift = sin(progress.value * Math.PI).toFloat() * 26f
+    val marbleSizePx = 16f
 
-        val marbleOffset = IntOffset(
-            x = (travelX - marbleSizePx / 2f).toInt(),
-            y = (travelY - arcLift - marbleSizePx / 2f).toInt()
-        )
+    val marbleOffset = IntOffset(
+        x = (travelX - marbleSizePx / 2f).toInt(),
+        y = (travelY - arcLift - marbleSizePx / 2f).toInt()
+    )
 
-        Canvas(
-            modifier = Modifier
-                .offset { marbleOffset }
-                .size(16.dp)
-        ) {
-            drawCircle(color = Color(0xFF4FC3F7))
-            drawCircle(
-                color = Color(0x88FFFFFF),
-                radius = size.minDimension * 0.24f,
-                center = Offset(
-                    x = size.width * 0.34f,
-                    y = size.height * 0.30f
-                )
+    Canvas(
+        modifier = Modifier
+            .offset { marbleOffset }
+            .size(16.dp)
+    ) {
+        drawCircle(color = Color(0xFF4FC3F7))
+        drawCircle(
+            color = Color(0x88FFFFFF),
+            radius = size.minDimension * 0.24f,
+            center = Offset(
+                x = size.width * 0.34f,
+                y = size.height * 0.30f
             )
-        }
+        )
     }
 }
 
 @Composable
 private fun TableActionPanel(
+
     modifier: Modifier = Modifier,
     choice: Int,
     onChoiceSelected: (Int) -> Unit,
