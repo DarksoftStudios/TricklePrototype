@@ -557,10 +557,25 @@ class GameEngine(
                     for (pid in activeIds) {
                         if (selectionsThisRound[pid] == revealValue) {
                             revealedThisRound[pid] = revealValue
-                            if (pid == HUMAN_ID && currentWeatherId() == "fog" && revealValue == 1) {
-                                unlockWeatherAchievement("fog_hidden_in_plain_sight")
+
+                            val player = players.firstOrNull { it.id == pid }
+                            if (player != null) {
+                                val awarded = applyPositiveGain(player, revealValue)
+
+                                if (pid == HUMAN_ID) {
+                                    markHumanScoredFromOwnSelection(
+                                        actualSelection = revealValue,
+                                        moved = awarded,
+                                        obscured = false
+                                    )
+                                }
+
+                                if (pid == HUMAN_ID && currentWeatherId() == "fog" && revealValue == 1) {
+                                    unlockWeatherAchievement("fog_hidden_in_plain_sight")
+                                }
+
+                                log += RoundLogEvent("${displayNameFor(pid)} is revealed early by weather: $revealValue and gains $awarded.")
                             }
-                            log += RoundLogEvent("${displayNameFor(pid)} is revealed early by weather: $revealValue")
                         }
                     }
                 }

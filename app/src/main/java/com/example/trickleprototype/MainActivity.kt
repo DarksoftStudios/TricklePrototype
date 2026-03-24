@@ -1210,12 +1210,12 @@ private fun TrickleApp() {
                         MenuLinkButton(text = "EASY") { startGame(Difficulty.EASY) }
                         Spacer(Modifier.height(10.dp))
                         MenuLinkButton(
-                            text = if (normalUnlocked) "NORMAL" else "NORMAL (LOCKED)",
+                            text = if (normalUnlocked) "NORMAL" else "NORMAL (LOCKED - Play EASY first)",
                             enabled = normalUnlocked
                         ) { startGame(Difficulty.NORMAL) }
                         Spacer(Modifier.height(10.dp))
                         MenuLinkButton(
-                            text = if (hardUnlocked) "HARD" else "HARD (LOCKED)",
+                            text = if (hardUnlocked) "HARD" else "HARD (LOCKED - Beat NORMAL first)",
                             enabled = hardUnlocked
                         ) { startGame(Difficulty.HARD) }
 
