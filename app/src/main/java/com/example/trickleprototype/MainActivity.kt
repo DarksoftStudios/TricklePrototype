@@ -49,6 +49,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.GenericShape
@@ -499,6 +500,7 @@ private fun TrickleApp() {
     var showResetStatsConfirm by remember { mutableStateOf(false) }
     var soundEnabled by remember { mutableStateOf(settingsPrefs.getBoolean("sound_enabled", true)) }
     var musicEnabled by remember { mutableStateOf(settingsPrefs.getBoolean("music_enabled", true)) }
+    var passTargetConfirmEnabled by remember { mutableStateOf(settingsPrefs.getBoolean("pass_target_confirm_enabled", false)) }
 
     var playerName by remember { mutableStateOf(statsStore.getPlayerName()) }
 
@@ -595,6 +597,10 @@ private fun TrickleApp() {
 
     LaunchedEffect(musicEnabled) {
         settingsPrefs.edit().putBoolean("music_enabled", musicEnabled).apply()
+    }
+
+    LaunchedEffect(passTargetConfirmEnabled) {
+        settingsPrefs.edit().putBoolean("pass_target_confirm_enabled", passTargetConfirmEnabled).apply()
     }
 
     val seenAchievements = remember { mutableSetOf<String>() }
@@ -1372,6 +1378,12 @@ private fun TrickleApp() {
                             }
                         }
                         Spacer(Modifier.height(10.dp))
+                        MenuLinkButton(
+                            text = if (passTargetConfirmEnabled) "CHOICE CONFIRM: ON" else "CHOICE CONFIRM: OFF"
+                        ) {
+                            passTargetConfirmEnabled = !passTargetConfirmEnabled
+                        }
+                        Spacer(Modifier.height(10.dp))
                         MenuLinkButton(text = "RESET STATS") {
                             showResetStatsConfirm = true
                         }
@@ -1419,7 +1431,8 @@ private fun TrickleApp() {
                 targetId = targetId,
                 secondTargetId = secondTargetId,
                 needsSecondTarget = needsSecondTarget,
-                latestLogLine = lastResult?.log?.lastOrNull()?.text
+                latestLogLine = lastResult?.log?.lastOrNull()?.text,
+                passTargetConfirmEnabled = passTargetConfirmEnabled
             )
 
             fun submitPlayerTurn(
@@ -1458,12 +1471,13 @@ private fun TrickleApp() {
                     modifier = Modifier.fillMaxSize(),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    Row(
+                    Column(
                         modifier = Modifier
                             .fillMaxWidth(0.90f)
-                            .padding(horizontal = 0.dp, vertical = 8.dp),
-                        horizontalArrangement = Arrangement.spacedBy(0.dp, Alignment.CenterHorizontally),
-                        verticalAlignment = Alignment.CenterVertically
+                            .wrapContentHeight()
+                            .padding(horizontal = 0.dp, vertical = 2.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
                     ) {
                         WeatherInfoBadge(
                             weatherName = currentWeatherName,
@@ -1471,7 +1485,16 @@ private fun TrickleApp() {
                             forcedGuess = forcedGuess,
                             mustTarget = mustTarget,
                             needsSecondTarget = needsSecondTarget,
-                            modifier = Modifier.weight(1.77f)
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .wrapContentHeight()
+                        )
+
+                        PhaseBadge(
+                            text = playerPhaseBadge,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .wrapContentHeight()
                         )
 
                         PlayerStatusStack(
@@ -1483,16 +1506,11 @@ private fun TrickleApp() {
                             onCupAnchorMeasured = { playerId, anchor ->
                                 cupCenters[playerId] = anchor
                             },
-                            modifier = Modifier.weight(0.95f)
-                        )
-
-                        PhaseBadge(
-                            text = playerPhaseBadge,
-                            modifier = Modifier.weight(1.35f)
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .wrapContentHeight()
                         )
                     }
-
-                    Spacer(Modifier.height(8.dp))
 
                     Box(
                         modifier = Modifier
@@ -1550,6 +1568,25 @@ private fun TrickleApp() {
                             onPassSelected = {
                                 targetId = null
                                 secondTargetId = null
+                                if (passTargetConfirmEnabled) {
+                                    pendingHumanAction = PendingHumanAction.PASS
+                                } else {
+                                    pendingHumanAction = PendingHumanAction.PASS
+                                    submitPlayerTurn(
+                                        selectedTargetId = null,
+                                        selectedGuess = null,
+                                        selectedSecondTargetId = null
+                                    )
+                                }
+                            },
+                            onTargetSelected = {
+                                targetId = null
+                                secondTargetId = null
+                                pendingHumanAction = PendingHumanAction.TARGET
+                            },
+                            onConfirmPass = {
+                                targetId = null
+                                secondTargetId = null
                                 pendingHumanAction = PendingHumanAction.PASS
                                 submitPlayerTurn(
                                     selectedTargetId = null,
@@ -1557,10 +1594,15 @@ private fun TrickleApp() {
                                     selectedSecondTargetId = null
                                 )
                             },
-                            onTargetSelected = {
+                            onTargetInstead = {
                                 targetId = null
                                 secondTargetId = null
                                 pendingHumanAction = PendingHumanAction.TARGET
+                            },
+                            onPassInstead = {
+                                targetId = null
+                                secondTargetId = null
+                                pendingHumanAction = PendingHumanAction.PASS
                             },
                             dropdownOptions = dropdownOptions,
                             selectedTargetId = targetId,
@@ -1720,7 +1762,8 @@ private fun phaseBadgeText(
     targetId: Int?,
     secondTargetId: Int?,
     needsSecondTarget: Boolean,
-    latestLogLine: String?
+    latestLogLine: String?,
+    passTargetConfirmEnabled: Boolean
 ): String {
     val isTrickling = enginePhase == EnginePhase.BOT_TURN && (
             latestLogLine?.startsWith("TRICKLE") == true ||
@@ -1742,7 +1785,7 @@ private fun phaseBadgeText(
         EnginePhase.PLAYER_TURN -> {
             when (pendingHumanAction) {
                 PendingHumanAction.NONE -> "Pass or target"
-                PendingHumanAction.PASS -> "Wait for next round"
+                PendingHumanAction.PASS -> if (passTargetConfirmEnabled) "Confirm pass or target instead" else "Wait for next round"
                 PendingHumanAction.TARGET -> {
                     val targetReady = targetId != null && (!needsSecondTarget || secondTargetId != null)
                     if (targetReady) "Choose their number" else "Choose your target"
@@ -1781,7 +1824,7 @@ private fun WeatherInfoBadge(
     Surface(
         modifier = modifier
             .fillMaxWidth()
-            .heightIn(min = 108.dp)
+            .heightIn(min = 90.dp)
             .animateContentSize(),
         shape = RoundedCornerShape(18.dp),
         color = Color(0xAA1E1E1E),
@@ -1790,8 +1833,8 @@ private fun WeatherInfoBadge(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 14.dp, vertical = 12.dp),
-            verticalArrangement = Arrangement.spacedBy(6.dp)
+                .padding(horizontal = 12.dp, vertical = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(3.dp)
         ) {
             Text(
                 text = if (weatherName.isNullOrBlank()) "Weather: Clear" else "Weather: $weatherName",
@@ -1844,14 +1887,14 @@ private fun PhaseBadge(
 ) {
     Surface(
         modifier = modifier
-            .heightIn(min = 108.dp),
+            .heightIn(min = 56.dp),
         shape = RoundedCornerShape(18.dp),
         color = Color(0xAA1F2A44)
     ) {
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 12.dp),
+                .padding(horizontal = 12.dp, vertical = 8.dp),
             contentAlignment = Alignment.Center
         ) {
             Text(
@@ -1876,10 +1919,21 @@ private fun PlayerStatusStack(
     onCupAnchorMeasured: (Int, TablePoint) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Column(
-        modifier = modifier,
-        horizontalAlignment = Alignment.CenterHorizontally
+    Row(
+        modifier = modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.Center,
+        verticalAlignment = Alignment.CenterVertically
     ) {
+        Text(
+            text = playerTitle,
+            color = Color.White,
+            fontWeight = FontWeight.Bold,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+
+        Spacer(Modifier.width(10.dp))
+
         TableCup(
             label = "Player (You)",
             highlighted = true,
@@ -1890,19 +1944,15 @@ private fun PlayerStatusStack(
                 onCupAnchorMeasured(GameEngine.HUMAN_ID, measuredAnchor)
             }
         )
-        Spacer(Modifier.height(3.dp))
-        Text(
-            text = playerTitle,
-            color = Color.White,
-            fontWeight = FontWeight.Bold,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis
-        )
+
+        Spacer(Modifier.width(10.dp))
+
         Text(
             text = "Score: $playerScore/${GameEngine.WIN_SCORE}",
             color = Color(0xFFFFF59D),
             fontWeight = FontWeight.SemiBold,
-            fontSize = 13.sp
+            fontSize = 13.sp,
+            maxLines = 1
         )
     }
 }
@@ -1973,10 +2023,11 @@ private fun TableCup(
         lineTo(bottomInset, size.height)
         close()
     }
+    val cupContainerHeight = if (hasHat) 72.dp else 58.dp
 
     Box(
         modifier = Modifier
-            .size(width = 56.dp, height = 72.dp)
+            .size(width = 56.dp, height = cupContainerHeight)
             .onGloballyPositioned { coordinates ->
                 onCupAnchorMeasured?.invoke(coordinates.boundsInRoot().cupLandingPoint())
             },
@@ -2326,6 +2377,9 @@ private fun TableActionPanel(
     pendingHumanAction: PendingHumanAction,
     onPassSelected: () -> Unit,
     onTargetSelected: () -> Unit,
+    onConfirmPass: () -> Unit,
+    onTargetInstead: () -> Unit,
+    onPassInstead: () -> Unit,
     dropdownOptions: List<PlayerState>,
     selectedTargetId: Int?,
     onTargetPicked: (Int) -> Unit,
@@ -2344,6 +2398,7 @@ private fun TableActionPanel(
 ) {
     val showChoiceButtons = choiceEnabled
     val showActionButtons = inputsEnabled && pendingHumanAction == PendingHumanAction.NONE
+    val showPassConfirmButtons = inputsEnabled && pendingHumanAction == PendingHumanAction.PASS
     val showTargeting = inputsEnabled && pendingHumanAction == PendingHumanAction.TARGET
     val targetsReady = selectedTargetId != null && (!needsSecondTarget || selectedSecondTargetId != null)
     val showGuessButtons = showTargeting && targetsReady
@@ -2397,7 +2452,47 @@ private fun TableActionPanel(
                 Spacer(Modifier.height(12.dp))
             }
 
+            if (showPassConfirmButtons) {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Button(
+                        onClick = onConfirmPass,
+                        enabled = inputsEnabled,
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFF546E7A),
+                            contentColor = Color.White
+                        )
+                    ) { OneLineButtonText("Confirm Pass") }
+
+                    Button(
+                        onClick = onTargetInstead,
+                        enabled = inputsEnabled && dropdownOptions.isNotEmpty(),
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFF8D6E63),
+                            contentColor = Color.White
+                        )
+                    ) { OneLineButtonText("Target Instead") }
+                }
+                Spacer(Modifier.height(12.dp))
+            }
+
             if (showTargeting) {
+                Button(
+                    onClick = onPassInstead,
+                    enabled = inputsEnabled,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFF546E7A),
+                        contentColor = Color.White
+                    )
+                ) { OneLineButtonText("Pass Instead") }
+
+                Spacer(Modifier.height(8.dp))
+
                 TargetDropdown(
                     options = dropdownOptions,
                     selectedTargetId = selectedTargetId,
