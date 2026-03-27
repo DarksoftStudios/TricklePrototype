@@ -32,7 +32,6 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -87,8 +86,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.FilterQuality
@@ -395,62 +394,44 @@ private fun extractVisualIndicators(
 
     Regex("^(.+?) was correct and takes (\\d+) from (.+?)\\.$").matchEntire(line)?.let { match ->
         return listOfNotNull(
-            pairFor(match.groupValues[1], "RIGHT", IndicatorTone.GOOD),
-            pairFor(match.groupValues[3], "WRONG", IndicatorTone.BAD),
-            pairFor(match.groupValues[1], "+${match.groupValues[2]}", IndicatorTone.GOOD),
-            pairFor(match.groupValues[3], "-${match.groupValues[2]}", IndicatorTone.BAD)
+            pairFor(match.groupValues[1], "CORRECT", IndicatorTone.GOOD)
         )
     }
 
     Regex("^(.+?) was correct and gains (\\d+)\\.$").matchEntire(line)?.let { match ->
         return listOfNotNull(
-            pairFor(match.groupValues[1], "RIGHT", IndicatorTone.GOOD),
-            pairFor(match.groupValues[1], "+${match.groupValues[2]}", IndicatorTone.GOOD)
+            pairFor(match.groupValues[1], "CORRECT", IndicatorTone.GOOD)
         )
     }
 
     Regex("^(.+?) was wrong on a 0 and gives (\\d+) to (.+?) \\(HAT moves to .+?\\)\\.$").matchEntire(line)?.let { match ->
         return listOfNotNull(
-            pairFor(match.groupValues[1], "WRONG", IndicatorTone.BAD),
-            pairFor(match.groupValues[3], "RIGHT", IndicatorTone.GOOD),
-            pairFor(match.groupValues[1], "-${match.groupValues[2]}", IndicatorTone.BAD),
-            pairFor(match.groupValues[3], "+${match.groupValues[2]}", IndicatorTone.GOOD)
+            pairFor(match.groupValues[1], "WRONG", IndicatorTone.BAD)
         )
     }
 
     Regex("^(.+?) was wrong on a 0, loses (\\d+) \\(HAT moves to .+?\\)\\.$").matchEntire(line)?.let { match ->
         return listOfNotNull(
-            pairFor(match.groupValues[1], "WRONG", IndicatorTone.BAD),
-            pairFor(match.groupValues[1], "-${match.groupValues[2]}", IndicatorTone.BAD)
+            pairFor(match.groupValues[1], "WRONG", IndicatorTone.BAD)
         )
     }
 
     Regex("^(.+?) was wrong on a 0, gains (\\d+) \\(HAT moves to .+?\\)\\.$").matchEntire(line)?.let { match ->
         return listOfNotNull(
-            pairFor(match.groupValues[1], "WRONG", IndicatorTone.BAD),
-            pairFor(match.groupValues[1], "+${match.groupValues[2]}", IndicatorTone.GOOD)
+            pairFor(match.groupValues[1], "WRONG", IndicatorTone.BAD)
         )
     }
 
     Regex("^(.+?) was wrong, (.+?) takes (\\d+) from them\\.$").matchEntire(line)?.let { match ->
         return listOfNotNull(
-            pairFor(match.groupValues[1], "WRONG", IndicatorTone.BAD),
-            pairFor(match.groupValues[2], "RIGHT", IndicatorTone.GOOD),
-            pairFor(match.groupValues[1], "-${match.groupValues[3]}", IndicatorTone.BAD),
-            pairFor(match.groupValues[2], "+${match.groupValues[3]}", IndicatorTone.GOOD)
+            pairFor(match.groupValues[1], "WRONG", IndicatorTone.BAD)
         )
     }
 
     Regex("^(.+?) was wrong, (.+?) gains (\\d+)\\.$").matchEntire(line)?.let { match ->
         return listOfNotNull(
-            pairFor(match.groupValues[1], "WRONG", IndicatorTone.BAD),
-            pairFor(match.groupValues[2], "RIGHT", IndicatorTone.GOOD),
-            pairFor(match.groupValues[2], "+${match.groupValues[3]}", IndicatorTone.GOOD)
+            pairFor(match.groupValues[1], "WRONG", IndicatorTone.BAD)
         )
-    }
-
-    Regex("^(.+?) wasn't targeted, trickles (\\d+)\\.$").matchEntire(line)?.let { match ->
-        return listOfNotNull(pairFor(match.groupValues[1], "+${match.groupValues[2]}", IndicatorTone.GOOD))
     }
 
     return emptyList()
@@ -1423,6 +1404,8 @@ private fun TrickleApp() {
 
             val zeroGuessUnlocked = statsStore.load().zeroHeroUnlocked
 
+            val winnerBadgeLabel = buildWinnerBadgeLabel(lastResult)
+
             val playerPhaseBadge = phaseBadgeText(
                 roundNumber = displayedRound,
                 enginePhase = phase,
@@ -1432,9 +1415,9 @@ private fun TrickleApp() {
                 secondTargetId = secondTargetId,
                 needsSecondTarget = needsSecondTarget,
                 latestLogLine = lastResult?.log?.lastOrNull()?.text,
-                passTargetConfirmEnabled = passTargetConfirmEnabled
+                passTargetConfirmEnabled = passTargetConfirmEnabled,
+                roundResult = lastResult
             )
-
             fun submitPlayerTurn(
                 selectedTargetId: Int?,
                 selectedGuess: Int?,
@@ -1532,6 +1515,7 @@ private fun TrickleApp() {
                             currentActorId = currentActorId,
                             hatHolderId = lastResult?.hatHolderId,
                             indicators = floatingIndicators,
+                            showMarbleCounts = difficulty == Difficulty.EASY,
                             onCupAnchorMeasured = { playerId, anchor ->
                                 cupCenters[playerId] = anchor
                             },
@@ -1546,6 +1530,7 @@ private fun TrickleApp() {
                             currentActorId = currentActorId,
                             hatHolderId = lastResult?.hatHolderId,
                             indicators = floatingIndicators,
+                            showMarbleCounts = difficulty == Difficulty.EASY,
                             onCupAnchorMeasured = { playerId, anchor ->
                                 cupCenters[playerId] = anchor
                             },
@@ -1609,30 +1594,12 @@ private fun TrickleApp() {
                             onTargetPicked = { pickedTargetId ->
                                 targetId = pickedTargetId
                                 if (secondTargetId == pickedTargetId) secondTargetId = null
-
-                                if (!needsSecondTarget && forcedGuess != null) {
-                                    guess = forcedGuess
-                                    submitPlayerTurn(
-                                        selectedTargetId = pickedTargetId,
-                                        selectedGuess = forcedGuess,
-                                        selectedSecondTargetId = null
-                                    )
-                                }
                             },
                             needsSecondTarget = needsSecondTarget,
                             secondDropdownOptions = secondDropdownOptions,
                             selectedSecondTargetId = secondTargetId,
                             onSecondTargetPicked = { pickedSecondTargetId ->
                                 secondTargetId = pickedSecondTargetId
-
-                                if (forcedGuess != null && targetId != null) {
-                                    guess = forcedGuess
-                                    submitPlayerTurn(
-                                        selectedTargetId = targetId,
-                                        selectedGuess = forcedGuess,
-                                        selectedSecondTargetId = pickedSecondTargetId
-                                    )
-                                }
                             },
                             guess = guess,
                             onGuessSelected = { selectedGuess ->
@@ -1674,23 +1641,22 @@ private fun TrickleApp() {
                                         logText = buildLogText(result, difficulty!!)
                                         targetId = null
                                         secondTargetId = null
-                                        humanActionLocked = false
                                     }
+
                                     EnginePhase.PLAYER_TURN -> {
-                                        val frozenTarget = if (pendingHumanAction == PendingHumanAction.TARGET) targetId else null
-                                        val frozenGuess = if (frozenTarget == null) null else guess
                                         submitPlayerTurn(
-                                            selectedTargetId = frozenTarget,
-                                            selectedGuess = frozenGuess,
-                                            selectedSecondTargetId = if (frozenTarget == null) null else secondTargetId
+                                            selectedTargetId = targetId,
+                                            selectedGuess = guess,
+                                            selectedSecondTargetId = secondTargetId
                                         )
                                     }
+
                                     else -> Unit
                                 }
                             }
                         )
 
-                        if (showLogOverlay) {
+                        if (difficulty != Difficulty.HARD && showLogOverlay) {
                             Box(
                                 modifier = Modifier
                                     .align(Alignment.BottomCenter)
@@ -1704,18 +1670,20 @@ private fun TrickleApp() {
                             }
                         }
 
-                        Button(
-                            onClick = { showLogOverlay = !showLogOverlay },
-                            modifier = Modifier
-                                .align(Alignment.BottomCenter)
-                                .padding(bottom = 6.dp),
-                            shape = RoundedCornerShape(12.dp),
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = Color(0xFF4E342E),
-                                contentColor = Color.White
-                            )
-                        ) {
-                            Text(if (showLogOverlay) "Hide Log" else "Log")
+                        if (difficulty != Difficulty.HARD) {
+                            Button(
+                                onClick = { showLogOverlay = !showLogOverlay },
+                                modifier = Modifier
+                                    .align(Alignment.BottomCenter)
+                                    .padding(bottom = 6.dp),
+                                shape = RoundedCornerShape(12.dp),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = Color(0xFF4E342E),
+                                    contentColor = Color.White
+                                )
+                            ) {
+                                Text(if (showLogOverlay) "Hide Log" else "Log")
+                            }
                         }
                     }
                 }
@@ -1763,13 +1731,23 @@ private fun phaseBadgeText(
     secondTargetId: Int?,
     needsSecondTarget: Boolean,
     latestLogLine: String?,
-    passTargetConfirmEnabled: Boolean
+    passTargetConfirmEnabled: Boolean,
+    roundResult: RoundResult?
 ): String {
     val isTrickling = enginePhase == EnginePhase.BOT_TURN && (
             latestLogLine?.startsWith("TRICKLE") == true ||
                     latestLogLine?.contains("trickles", ignoreCase = true) == true ||
                     latestLogLine?.contains("Trickle obscured", ignoreCase = true) == true
             )
+
+    if (enginePhase == EnginePhase.GAME_OVER) {
+        val winnerLabel = buildWinnerBadgeLabel(roundResult)
+        return if (!winnerLabel.isNullOrBlank()) {
+            "Game Over, $winnerLabel wins!"
+        } else {
+            "Game Over"
+        }
+    }
 
     val instruction = when (enginePhase) {
         EnginePhase.SELECT, EnginePhase.ROUND_END -> "Choose your number"
@@ -1785,15 +1763,21 @@ private fun phaseBadgeText(
         EnginePhase.PLAYER_TURN -> {
             when (pendingHumanAction) {
                 PendingHumanAction.NONE -> "Pass or target"
-                PendingHumanAction.PASS -> if (passTargetConfirmEnabled) "Confirm pass or target instead" else "Wait for next round"
+                PendingHumanAction.PASS -> {
+                    if (passTargetConfirmEnabled) {
+                        "Confirm pass or target instead"
+                    } else {
+                        "Wait for next round"
+                    }
+                }
                 PendingHumanAction.TARGET -> {
                     val targetReady = targetId != null && (!needsSecondTarget || secondTargetId != null)
                     if (targetReady) "Choose their number" else "Choose your target"
                 }
             }
         }
-        EnginePhase.GAME_OVER -> "Game over"
         EnginePhase.SETUP -> "Choose your number"
+        EnginePhase.GAME_OVER -> "Game Over"
     }
 
     val phaseNumber = when (enginePhase) {
@@ -1801,7 +1785,9 @@ private fun phaseBadgeText(
         EnginePhase.BOT_TURN -> {
             when {
                 isTrickling -> 3
-                humanActionLocked || pendingHumanAction == PendingHumanAction.PASS || pendingHumanAction == PendingHumanAction.TARGET -> 2
+                humanActionLocked ||
+                        pendingHumanAction == PendingHumanAction.PASS ||
+                        pendingHumanAction == PendingHumanAction.TARGET -> 2
                 else -> 1
             }
         }
@@ -1809,7 +1795,21 @@ private fun phaseBadgeText(
         EnginePhase.GAME_OVER -> 3
     }
 
-    return "Round $roundNumber, Phase $phaseNumber: $instruction"
+    return "Round $roundNumber | Phase $phaseNumber: $instruction"
+}
+
+private fun buildWinnerBadgeLabel(result: RoundResult?): String? {
+    if (result == null) return null
+    if (result.phase != EnginePhase.GAME_OVER) return null
+    if (result.winnerIds.isEmpty()) return null
+
+    val winnerNames = result.winnerIds.mapNotNull { winnerId ->
+        result.players.firstOrNull { it.id == winnerId }?.baseName
+    }
+
+    if (winnerNames.isEmpty()) return null
+
+    return winnerNames.joinToString(", ")
 }
 
 @Composable
@@ -1895,15 +1895,16 @@ private fun PhaseBadge(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 12.dp, vertical = 8.dp),
-            contentAlignment = Alignment.Center
+            contentAlignment = Alignment.CenterStart
         ) {
             Text(
                 text = text,
                 color = Color.White,
-                textAlign = TextAlign.Center,
+                textAlign = TextAlign.Start,
                 fontWeight = FontWeight.Bold,
                 fontSize = 16.sp,
-                lineHeight = 20.sp
+                lineHeight = 20.sp,
+                modifier = Modifier.fillMaxWidth()
             )
         }
     }
@@ -1963,6 +1964,7 @@ private fun BotCupColumn(
     currentActorId: Int?,
     hatHolderId: Int?,
     indicators: Map<Int, FloatingIndicator>,
+    showMarbleCounts: Boolean,
     onCupAnchorMeasured: (Int, TablePoint) -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -1981,6 +1983,7 @@ private fun BotCupColumn(
                     isCurrentTurn = currentActorId == bot.id,
                     indicator = indicators[bot.id],
                     hasHat = hatHolderId == bot.id,
+                    marbleCountText = if (showMarbleCounts) bot.marbles.toString() else null,
                     onCupAnchorMeasured = { measuredAnchor ->
                         onCupAnchorMeasured(bot.id, measuredAnchor)
                     }
@@ -2008,6 +2011,7 @@ private fun TableCup(
     isCurrentTurn: Boolean = false,
     indicator: FloatingIndicator? = null,
     hasHat: Boolean = false,
+    marbleCountText: String? = null,
     onCupAnchorMeasured: ((TablePoint) -> Unit)? = null
 ) {
     val bucketFill = if (highlighted) Color(0xFFFF5252) else Color(0xFFD32F2F)
@@ -2093,6 +2097,20 @@ private fun TableCup(
                         },
                         color = Color.Black.copy(alpha = 0.10f)
                     ) {}
+
+                    if (marbleCountText != null) {
+                        Text(
+                            text = marbleCountText,
+                            color = Color.White,
+                            fontWeight = FontWeight.ExtraBold,
+                            fontSize = 14.sp,
+                            maxLines = 1,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier
+                                .align(Alignment.Center)
+                                .fillMaxWidth()
+                        )
+                    }
                 }
             }
         }
@@ -2523,7 +2541,7 @@ private fun TableActionPanel(
                         SmallChoiceButton(
                             "0",
                             selected = guess == 0,
-                            enabled = forcedGuess == null
+                            enabled = true
                         ) { onGuessSelected(0) }
                     }
                     SmallChoiceButton(
@@ -2768,11 +2786,9 @@ private fun DifficultyEntryTransitionOverlay(
 }
 
 private fun buildLogText(result: RoundResult, difficulty: Difficulty): String {
-    val visibleEvents =
-        if (difficulty == Difficulty.HARD) result.log.takeLast(6)
-        else result.log
+    if (difficulty == Difficulty.HARD) return ""
 
-    return visibleEvents.asReversed().joinToString("\n") { it.text }.ifBlank { "" }
+    return result.log.asReversed().joinToString("\n") { it.text }.ifBlank { "" }
 }
 
 @Composable
@@ -2855,7 +2871,7 @@ private fun AdvancedTipsText() {
                 "- Each game, bots are randomly assigned an Archetype.\n" +
                 "- On Easy mode, bots have their names replaced with their Archetype (and you can see their score totals).\n" +
                 "- On Normal mode, bots have their names and scores hidden.\n" +
-                "- On Hard mode, bots will also gang up on you as the finish line approaches.\n\n" +
+                "- On Hard mode, there is no Log and bots will also gang up on you as the finish line approaches.\n\n" +
                 "JESTER'S HAT RULE:\n" +
                 "- If you guess 1 or 3 on someone who actually chose 0, you lose 1 marble and take the Jester's Hat.\n" +
                 "- If you guess 0 someone who actually chose 0, you lose 0 marbles and take the Jester's Hat.\n" +
@@ -3160,7 +3176,6 @@ private fun AchievementsText(stats: PlayerStats) {
         Spacer(Modifier.height(10.dp))
 
         AchievementSectionHeader("Core")
-        AchievementRow(stats.firstGameCompleted, "Get Your Feet Wet", "Complete a game")
         AchievementRow(stats.firstPerfectWin, "Perfect Puddler", "Win with 0 wrong guesses")
         AchievementRow(stats.reachedRound6, "Idle Hands", "Reach round 6")
         AchievementRow(stats.wonWith18Marbles, "Is That Legal?", "Win with 18+ marbles")
@@ -3433,7 +3448,7 @@ private fun DifficultyDropdownNullable(
     val label = when (selected) {
         Difficulty.EASY -> "Easy (show archetypes and scores)"
         Difficulty.NORMAL -> "Normal (hides archetypes and scores)"
-        Difficulty.HARD -> "Hard (bots block your win)"
+        Difficulty.HARD -> "Hard (bots block your win, no Log)"
         null -> "Select difficulty..."
     }
 
@@ -3464,7 +3479,7 @@ private fun DifficultyDropdownNullable(
                 onClick = { onSelect(Difficulty.NORMAL); expanded = false }
             )
             DropdownMenuItem(
-                text = { Text("Hard (bots block your win)") },
+                text = { Text("Hard (bots block your win, no Log)") },
                 enabled = hardUnlocked,
                 onClick = { onSelect(Difficulty.HARD); expanded = false }
             )
