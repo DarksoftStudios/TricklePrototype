@@ -1400,6 +1400,8 @@ private fun TrickleApp() {
                 emptyList()
             }
 
+            val hasValidTargets = dropdownOptions.isNotEmpty()
+            val canPassThisTurn = !mustTarget || !hasValidTargets
             val secondDropdownOptions = dropdownOptions.filter { it.id != targetId }
 
             val zeroGuessUnlocked = statsStore.load().zeroHeroUnlocked
@@ -1416,6 +1418,8 @@ private fun TrickleApp() {
                 needsSecondTarget = needsSecondTarget,
                 latestLogLine = lastResult?.log?.lastOrNull()?.text,
                 passTargetConfirmEnabled = passTargetConfirmEnabled,
+                canPass = canPassThisTurn,
+                hasTargets = hasValidTargets,
                 roundResult = lastResult
             )
             fun submitPlayerTurn(
@@ -1434,6 +1438,20 @@ private fun TrickleApp() {
 
                 if (result.phase == EnginePhase.PLAYER_TURN) {
                     humanActionLocked = false
+
+                    val stillHasValidTargets = result.targetableIdsForHuman
+                        .orEmpty()
+                        .any { it != GameEngine.HUMAN_ID }
+                    val stillCanPass = result.mustTargetForHuman != true || !stillHasValidTargets
+
+                    if (!passTargetConfirmEnabled || !stillCanPass) {
+                        pendingHumanAction = PendingHumanAction.NONE
+                    }
+
+                    if (pendingHumanAction != PendingHumanAction.TARGET) {
+                        targetId = null
+                        secondTargetId = null
+                    }
                 } else {
                     pendingHumanAction = PendingHumanAction.NONE
                     targetId = null
@@ -1550,18 +1568,25 @@ private fun TrickleApp() {
                             choiceEnabled = !gameOver && !startLocked && (phase == EnginePhase.SELECT || phase == EnginePhase.ROUND_END),
                             inputsEnabled = inputsEnabled,
                             pendingHumanAction = pendingHumanAction,
+                            canPass = canPassThisTurn,
                             onPassSelected = {
-                                targetId = null
-                                secondTargetId = null
-                                if (passTargetConfirmEnabled) {
-                                    pendingHumanAction = PendingHumanAction.PASS
+                                if (!canPassThisTurn) {
+                                    pendingHumanAction = PendingHumanAction.NONE
+                                    targetId = null
+                                    secondTargetId = null
                                 } else {
-                                    pendingHumanAction = PendingHumanAction.PASS
-                                    submitPlayerTurn(
-                                        selectedTargetId = null,
-                                        selectedGuess = null,
-                                        selectedSecondTargetId = null
-                                    )
+                                    targetId = null
+                                    secondTargetId = null
+                                    if (passTargetConfirmEnabled) {
+                                        pendingHumanAction = PendingHumanAction.PASS
+                                    } else {
+                                        pendingHumanAction = PendingHumanAction.NONE
+                                        submitPlayerTurn(
+                                            selectedTargetId = null,
+                                            selectedGuess = null,
+                                            selectedSecondTargetId = null
+                                        )
+                                    }
                                 }
                             },
                             onTargetSelected = {
@@ -1570,14 +1595,20 @@ private fun TrickleApp() {
                                 pendingHumanAction = PendingHumanAction.TARGET
                             },
                             onConfirmPass = {
-                                targetId = null
-                                secondTargetId = null
-                                pendingHumanAction = PendingHumanAction.PASS
-                                submitPlayerTurn(
-                                    selectedTargetId = null,
-                                    selectedGuess = null,
-                                    selectedSecondTargetId = null
-                                )
+                                if (!canPassThisTurn) {
+                                    pendingHumanAction = PendingHumanAction.NONE
+                                    targetId = null
+                                    secondTargetId = null
+                                } else {
+                                    targetId = null
+                                    secondTargetId = null
+                                    pendingHumanAction = PendingHumanAction.PASS
+                                    submitPlayerTurn(
+                                        selectedTargetId = null,
+                                        selectedGuess = null,
+                                        selectedSecondTargetId = null
+                                    )
+                                }
                             },
                             onTargetInstead = {
                                 targetId = null
@@ -1585,9 +1616,13 @@ private fun TrickleApp() {
                                 pendingHumanAction = PendingHumanAction.TARGET
                             },
                             onPassInstead = {
-                                targetId = null
-                                secondTargetId = null
-                                pendingHumanAction = PendingHumanAction.PASS
+                                if (mustTarget) {
+                                    pendingHumanAction = PendingHumanAction.TARGET
+                                } else {
+                                    targetId = null
+                                    secondTargetId = null
+                                    pendingHumanAction = PendingHumanAction.PASS
+                                }
                             },
                             dropdownOptions = dropdownOptions,
                             selectedTargetId = targetId,
@@ -1732,6 +1767,8 @@ private fun phaseBadgeText(
     needsSecondTarget: Boolean,
     latestLogLine: String?,
     passTargetConfirmEnabled: Boolean,
+    canPass: Boolean,
+    hasTargets: Boolean,
     roundResult: RoundResult?
 ): String {
     val isTrickling = enginePhase == EnginePhase.BOT_TURN && (
@@ -1762,10 +1799,18 @@ private fun phaseBadgeText(
         }
         EnginePhase.PLAYER_TURN -> {
             when (pendingHumanAction) {
-                PendingHumanAction.NONE -> "Pass or target"
+                PendingHumanAction.NONE -> {
+                    when {
+                        !hasTargets && canPass -> "Pass"
+                        canPass -> "Pass or target"
+                        else -> "Choose your target"
+                    }
+                }
                 PendingHumanAction.PASS -> {
-                    if (passTargetConfirmEnabled) {
-                        "Confirm pass or target instead"
+                    if (!canPass) {
+                        "Choose your target"
+                    } else if (passTargetConfirmEnabled) {
+                        if (hasTargets) "Confirm pass or target instead" else "Confirm pass"
                     } else {
                         "Wait for next round"
                     }
@@ -2393,6 +2438,7 @@ private fun TableActionPanel(
     choiceEnabled: Boolean,
     inputsEnabled: Boolean,
     pendingHumanAction: PendingHumanAction,
+    canPass: Boolean,
     onPassSelected: () -> Unit,
     onTargetSelected: () -> Unit,
     onConfirmPass: () -> Unit,
@@ -2416,7 +2462,7 @@ private fun TableActionPanel(
 ) {
     val showChoiceButtons = choiceEnabled
     val showActionButtons = inputsEnabled && pendingHumanAction == PendingHumanAction.NONE
-    val showPassConfirmButtons = inputsEnabled && pendingHumanAction == PendingHumanAction.PASS
+    val showPassConfirmButtons = inputsEnabled && canPass && pendingHumanAction == PendingHumanAction.PASS
     val showTargeting = inputsEnabled && pendingHumanAction == PendingHumanAction.TARGET
     val targetsReady = selectedTargetId != null && (!needsSecondTarget || selectedSecondTargetId != null)
     val showGuessButtons = showTargeting && targetsReady
@@ -2447,25 +2493,53 @@ private fun TableActionPanel(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Button(
-                        onClick = onPassSelected,
-                        enabled = inputsEnabled,
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = Color(0xFF546E7A),
-                            contentColor = Color.White
-                        )
-                    ) { OneLineButtonText("Pass") }
+                    when {
+                        canPass && dropdownOptions.isNotEmpty() -> {
+                            Button(
+                                onClick = onPassSelected,
+                                enabled = inputsEnabled,
+                                modifier = Modifier.fillMaxWidth(),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = Color(0xFF546E7A),
+                                    contentColor = Color.White
+                                )
+                            ) { OneLineButtonText("Pass") }
 
-                    Button(
-                        onClick = onTargetSelected,
-                        enabled = inputsEnabled && dropdownOptions.isNotEmpty(),
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = Color(0xFF8D6E63),
-                            contentColor = Color.White
-                        )
-                    ) { OneLineButtonText("Target") }
+                            Button(
+                                onClick = onTargetSelected,
+                                enabled = inputsEnabled,
+                                modifier = Modifier.fillMaxWidth(),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = Color(0xFF8D6E63),
+                                    contentColor = Color.White
+                                )
+                            ) { OneLineButtonText("Target") }
+                        }
+
+                        canPass -> {
+                            Button(
+                                onClick = onPassSelected,
+                                enabled = inputsEnabled,
+                                modifier = Modifier.fillMaxWidth(),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = Color(0xFF546E7A),
+                                    contentColor = Color.White
+                                )
+                            ) { OneLineButtonText("Pass") }
+                        }
+
+                        dropdownOptions.isNotEmpty() -> {
+                            Button(
+                                onClick = onTargetSelected,
+                                enabled = inputsEnabled,
+                                modifier = Modifier.fillMaxWidth(),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = Color(0xFF8D6E63),
+                                    contentColor = Color.White
+                                )
+                            ) { OneLineButtonText("Target") }
+                        }
+                    }
                 }
                 Spacer(Modifier.height(12.dp))
             }
@@ -2499,17 +2573,19 @@ private fun TableActionPanel(
             }
 
             if (showTargeting) {
-                Button(
-                    onClick = onPassInstead,
-                    enabled = inputsEnabled,
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = Color(0xFF546E7A),
-                        contentColor = Color.White
-                    )
-                ) { OneLineButtonText("Pass Instead") }
+                if (canPass) {
+                    Button(
+                        onClick = onPassInstead,
+                        enabled = inputsEnabled,
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFF546E7A),
+                            contentColor = Color.White
+                        )
+                    ) { OneLineButtonText("Pass Instead") }
 
-                Spacer(Modifier.height(8.dp))
+                    Spacer(Modifier.height(8.dp))
+                }
 
                 TargetDropdown(
                     options = dropdownOptions,
@@ -3346,17 +3422,6 @@ private fun AchievementRow(
 }
 
 @Composable
-private fun MarblesBox(players: List<PlayerState>, modifier: Modifier = Modifier) {
-    Column(modifier = modifier) {
-        Text("Marbles:", style = MaterialTheme.typography.bodyMedium)
-        Spacer(Modifier.height(6.dp))
-        players.forEach { p ->
-            Text("${p.baseName}: ${p.marbles}", style = MaterialTheme.typography.bodySmall)
-        }
-    }
-}
-
-@Composable
 private fun SmallChoiceButton(
     label: String,
     selected: Boolean,
@@ -3431,58 +3496,6 @@ private fun TargetDropdown(
                     }
                 )
             }
-        }
-    }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun DifficultyDropdownNullable(
-    selected: Difficulty?,
-    normalUnlocked: Boolean,
-    hardUnlocked: Boolean,
-    onSelect: (Difficulty) -> Unit
-) {
-    var expanded by remember { mutableStateOf(false) }
-
-    val label = when (selected) {
-        Difficulty.EASY -> "Easy (show archetypes and scores)"
-        Difficulty.NORMAL -> "Normal (hides archetypes and scores)"
-        Difficulty.HARD -> "Hard (bots block your win, no Log)"
-        null -> "Select difficulty..."
-    }
-
-    ExposedDropdownMenuBox(
-        expanded = expanded,
-        onExpandedChange = { expanded = !expanded }
-    ) {
-        OutlinedTextField(
-            value = label,
-            onValueChange = {},
-            readOnly = true,
-            label = { Text("Difficulty") },
-            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
-            modifier = Modifier.menuAnchor()
-        )
-
-        ExposedDropdownMenu(
-            expanded = expanded,
-            onDismissRequest = { expanded = false }
-        ) {
-            DropdownMenuItem(
-                text = { Text("Easy (show archetypes and scores)") },
-                onClick = { onSelect(Difficulty.EASY); expanded = false }
-            )
-            DropdownMenuItem(
-                text = { Text("Normal (hide archetypes and scores)") },
-                enabled = normalUnlocked,
-                onClick = { onSelect(Difficulty.NORMAL); expanded = false }
-            )
-            DropdownMenuItem(
-                text = { Text("Hard (bots block your win, no Log)") },
-                enabled = hardUnlocked,
-                onClick = { onSelect(Difficulty.HARD); expanded = false }
-            )
         }
     }
 }
