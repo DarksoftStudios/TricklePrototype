@@ -1,5 +1,6 @@
 package com.example.trickleprototype
 
+import android.app.Activity
 import android.media.MediaPlayer
 import android.net.Uri
 import android.os.Bundle
@@ -37,6 +38,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -466,6 +468,7 @@ private fun TrickleApp() {
     val engine = remember { GameEngine() }
 
     val context = LocalContext.current
+    val activity = context as? Activity
     val appContext = context.applicationContext
     val statsStore = remember { StatsStore(appContext) }
     val settingsPrefs = remember {
@@ -480,6 +483,7 @@ private fun TrickleApp() {
     val uiContentFade = remember { Animatable(1f) }
 
     var showResetStatsConfirm by remember { mutableStateOf(false) }
+    var showQuitConfirm by remember { mutableStateOf(false) }
     var soundEnabled by remember { mutableStateOf(settingsPrefs.getBoolean("sound_enabled", true)) }
     var musicEnabled by remember { mutableStateOf(settingsPrefs.getBoolean("music_enabled", true)) }
     var passTargetConfirmEnabled by remember { mutableStateOf(settingsPrefs.getBoolean("pass_target_confirm_enabled", false)) }
@@ -677,6 +681,94 @@ private fun TrickleApp() {
 
     LaunchedEffect(displayedRoundFromEngine) {
         displayedRound = displayedRoundFromEngine
+    }
+
+
+    fun resetRunUiState(clearDifficulty: Boolean) {
+        if (clearDifficulty) {
+            difficulty = null
+        }
+
+        lastResult = null
+        logText = ""
+        floatingIndicators = emptyMap()
+        marbleFlights = emptyList()
+        lastQueuedMarbleTransferSignature = ""
+        achievementQueue = emptyList()
+        activeAchievement = null
+
+        choice = 1
+        targetId = null
+        secondTargetId = null
+        guess = 3
+        displayedRound = 1
+        pendingHumanAction = PendingHumanAction.NONE
+        showLogOverlay = false
+        showQuitConfirm = false
+
+        humanActionLocked = false
+        startLocked = false
+    }
+
+    fun startGameSession(picked: Difficulty, animateEntry: Boolean) {
+        engine.reset()
+        engine.attachStatsStore(statsStore)
+        difficulty = picked
+        engine.setDifficulty(picked)
+        engine.setWeatherEnabled(weatherEnabled)
+
+        val snap = engineSnapshot(engine)
+        lastResult = snap
+        logText = buildLogText(snap, picked)
+
+        floatingIndicators = emptyMap()
+        marbleFlights = emptyList()
+        lastQueuedMarbleTransferSignature = ""
+        achievementQueue = emptyList()
+        activeAchievement = null
+
+        choice = 1
+        targetId = null
+        secondTargetId = null
+        guess = 3
+        displayedRound = 1
+        pendingHumanAction = PendingHumanAction.NONE
+        showLogOverlay = false
+        showQuitConfirm = false
+
+        humanActionLocked = false
+        startLocked = false
+        screen = AppScreen.GAME
+
+        if (!animateEntry) {
+            difficultyEntryTransitionActive = false
+            return
+        }
+
+        scope.launch {
+            difficultyEntryTransitionActive = true
+            difficultyEntryZoom.snapTo(1f)
+            difficultyEntryFade.snapTo(0f)
+
+            launch {
+                difficultyEntryZoom.animateTo(
+                    targetValue = 1.42f,
+                    animationSpec = tween(durationMillis = 1250, easing = FastOutSlowInEasing)
+                )
+            }
+
+            delay(300L)
+
+            difficultyEntryFade.animateTo(
+                targetValue = 1f,
+                animationSpec = tween(durationMillis = 820, easing = LinearEasing)
+            )
+
+            delay(140L)
+            difficultyEntryTransitionActive = false
+            difficultyEntryZoom.snapTo(1f)
+            difficultyEntryFade.snapTo(0f)
+        }
     }
 
     LaunchedEffect(lastResult?.log?.size, players) {
@@ -917,24 +1009,14 @@ private fun TrickleApp() {
                     if (difficulty != null) {
                         Button(
                             onClick = {
-                                engine.reset()
-                                engine.attachStatsStore(statsStore)
-
-                                difficulty = null
-                                screen = AppScreen.MAIN_MENU
-                                lastResult = null
-                                logText = ""
-
-                                choice = 1
-                                targetId = null
-                                secondTargetId = null
-                                guess = 3
-                                displayedRound = 1
-                                pendingHumanAction = PendingHumanAction.NONE
-                                showLogOverlay = false
-
-                                humanActionLocked = false
-                                startLocked = false
+                                if (gameOver) {
+                                    engine.reset()
+                                    engine.attachStatsStore(statsStore)
+                                    resetRunUiState(clearDifficulty = true)
+                                    screen = AppScreen.MAIN_MENU
+                                } else {
+                                    showQuitConfirm = true
+                                }
                             },
                             modifier = Modifier.align(Alignment.CenterStart),
                             shape = RoundedCornerShape(8.dp),
@@ -944,7 +1026,7 @@ private fun TrickleApp() {
                             ),
                             contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
                         ) {
-                            Text(text = if (gameOver) "New Game" else "Main Menu", maxLines = 1)
+                            Text(text = if (gameOver) "Main Menu" else "Quit", maxLines = 1)
                         }
                     }
 
@@ -1126,6 +1208,8 @@ private fun TrickleApp() {
                         MenuLinkButton(text = "PROFILE") { screen = AppScreen.PROFILE }
                         Spacer(Modifier.height(10.dp))
                         MenuLinkButton(text = "SETTINGS") { screen = AppScreen.SETTINGS }
+                        Spacer(Modifier.height(10.dp))
+                        MenuLinkButton(text = "QUIT") { activity?.finish() }
 
                         Spacer(Modifier.height(24.dp))
                     }
@@ -1138,86 +1222,54 @@ private fun TrickleApp() {
                     val hardUnlocked = stats.normalWins > 0
 
                     fun startGame(picked: Difficulty) {
-                        difficulty = picked
-                        engine.setDifficulty(picked)
-                        engine.setWeatherEnabled(weatherEnabled)
-
-                        val snap = engineSnapshot(engine)
-                        lastResult = snap
-                        logText = buildLogText(snap, difficulty!!)
-
-                        humanActionLocked = false
-                        startLocked = false
-
-                        choice = 1
-                        targetId = null
-                        secondTargetId = null
-                        guess = 3
-                        displayedRound = 1
-                        pendingHumanAction = PendingHumanAction.NONE
-                        showLogOverlay = false
-
-                        screen = AppScreen.GAME
-
-                        scope.launch {
-                            difficultyEntryTransitionActive = true
-                            difficultyEntryZoom.snapTo(1f)
-                            difficultyEntryFade.snapTo(0f)
-
-                            launch {
-                                difficultyEntryZoom.animateTo(
-                                    targetValue = 1.42f,
-                                    animationSpec = tween(durationMillis = 1250, easing = FastOutSlowInEasing)
-                                )
-                            }
-
-                            delay(300L)
-
-                            difficultyEntryFade.animateTo(
-                                targetValue = 1f,
-                                animationSpec = tween(durationMillis = 820, easing = LinearEasing)
-                            )
-
-                            difficultyEntryTransitionActive = false
-                            difficultyEntryZoom.snapTo(1f)
-                            difficultyEntryFade.snapTo(0f)
-                        }
+                        startGameSession(picked = picked, animateEntry = true)
                     }
 
-                    Column(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(top = 52.dp, bottom = 24.dp),
-                        verticalArrangement = Arrangement.spacedBy(28.dp, Alignment.CenterVertically),
-                        horizontalAlignment = Alignment.CenterHorizontally
+                    Box(
+                        modifier = Modifier.fillMaxSize()
                     ) {
-                        MenuLinkButton(
-                            text = if (weatherEnabled) "WEATHER: ON" else "WEATHER: OFF"
-                        ) { weatherEnabled = !weatherEnabled }
-
-                        MenuLinkButton(text = "EASY") { startGame(Difficulty.EASY) }
-
-                        MenuLinkButton(
-                            text = if (normalUnlocked) "NORMAL" else "NORMAL (LOCKED)"
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .verticalScroll(rememberScrollState())
+                                .padding(top = 72.dp, bottom = 24.dp),
+                            verticalArrangement = Arrangement.spacedBy(35.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
                         ) {
-                            if (normalUnlocked) {
-                                startGame(Difficulty.NORMAL)
-                            } else {
-                                Toast.makeText(context, "Play a game on EASY to unlock NORMAL", Toast.LENGTH_SHORT).show()
-                            }
-                        }
+                            MenuLinkButton(
+                                text = if (weatherEnabled) "WEATHER: ON" else "WEATHER: OFF"
+                            ) { weatherEnabled = !weatherEnabled }
 
-                        MenuLinkButton(
-                            text = if (hardUnlocked) "HARD" else "HARD (LOCKED)"
-                        ) {
-                            if (hardUnlocked) {
-                                startGame(Difficulty.HARD)
-                            } else {
-                                Toast.makeText(context, "Beat a game on NORMAL to unlock HARD", Toast.LENGTH_SHORT).show()
-                            }
-                        }
+                            Spacer(Modifier.height(10.dp))
+                            MenuLinkButton(text = "EASY") { startGame(Difficulty.EASY) }
 
-                        MenuLinkButton(text = "BACK") { screen = AppScreen.MAIN_MENU }
+                            Spacer(Modifier.height(10.dp))
+                            MenuLinkButton(
+                                text = if (normalUnlocked) "NORMAL" else "NORMAL (LOCKED)"
+                            ) {
+                                if (normalUnlocked) {
+                                    startGame(Difficulty.NORMAL)
+                                } else {
+                                    Toast.makeText(context, "Play a game on EASY to unlock NORMAL", Toast.LENGTH_SHORT).show()
+                                }
+                            }
+
+                            Spacer(Modifier.height(10.dp))
+                            MenuLinkButton(
+                                text = if (hardUnlocked) "HARD" else "HARD (LOCKED)"
+                            ) {
+                                if (hardUnlocked) {
+                                    startGame(Difficulty.HARD)
+                                } else {
+                                    Toast.makeText(context, "Beat a game on NORMAL to unlock HARD", Toast.LENGTH_SHORT).show()
+                                }
+                            }
+
+                            Spacer(Modifier.height(10.dp))
+                            MenuLinkButton(text = "BACK") { screen = AppScreen.MAIN_MENU }
+
+                            Spacer(Modifier.height(24.dp))
+                        }
                     }
                     return@Column
                 }
@@ -1660,7 +1712,7 @@ private fun TrickleApp() {
                                 EnginePhase.SELECT, EnginePhase.ROUND_END -> "Start Round->"
                                 EnginePhase.PLAYER_TURN -> "Submit Guess->"
                                 EnginePhase.BOT_TURN -> "Bots Acting..."
-                                EnginePhase.GAME_OVER -> "Game Over!"
+                                EnginePhase.GAME_OVER -> "Play Again"
                                 EnginePhase.SETUP -> "Setup..."
                             },
                             submitEnabled = when (phase) {
@@ -1672,6 +1724,7 @@ private fun TrickleApp() {
                                                 targetId != null &&
                                                 (!needsSecondTarget || secondTargetId != null)
                                         )
+                                EnginePhase.GAME_OVER -> difficulty != null
                                 else -> false
                             },
                             onSubmit = {
@@ -1692,6 +1745,12 @@ private fun TrickleApp() {
                                             selectedGuess = guess,
                                             selectedSecondTargetId = secondTargetId
                                         )
+                                    }
+
+                                    EnginePhase.GAME_OVER -> {
+                                        difficulty?.let { picked ->
+                                            startGameSession(picked = picked, animateEntry = false)
+                                        }
                                     }
 
                                     else -> Unit
@@ -1748,6 +1807,38 @@ private fun TrickleApp() {
                 .fillMaxSize()
                 .background(Color.Black.copy(alpha = splashFadeAlpha))
                 .zIndex(100f)
+        )
+    }
+
+    if (showQuitConfirm) {
+        AlertDialog(
+            onDismissRequest = { showQuitConfirm = false },
+            title = {
+                Text("Are you sure?")
+            },
+            text = {
+                Text("You will lose all marbles and progress towards achievements.")
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        engine.reset()
+                        engine.attachStatsStore(statsStore)
+                        resetRunUiState(clearDifficulty = true)
+                        screen = AppScreen.MAIN_MENU
+                    }
+                ) {
+                    Text("Confirm")
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = { showQuitConfirm = false }
+                ) {
+                    Text("Cancel")
+                }
+            },
+            properties = DialogProperties(dismissOnClickOutside = true, dismissOnBackPress = true)
         )
     }
 
@@ -2772,9 +2863,8 @@ private fun MenuLinkButton(text: String, enabled: Boolean = true, onClick: () ->
         enabled = enabled,
         interactionSource = interactionSource,
         modifier = Modifier
-            .fillMaxWidth()
-            .widthIn(max = 360.dp)
-            .heightIn(min = 74.dp)
+            .fillMaxWidth(0.82f)
+            .height(86.dp)
             .shadow(elevation = 10.dp, shape = CloudButtonShape, clip = false),
         shape = CloudButtonShape,
         border = BorderStroke(3.dp, borderColor),

@@ -231,7 +231,7 @@ object Weather {
             ruleText = "On a players Step 2 turn, if there is at least one legal untargeted player they are allowed to target, they may not pass. They must make a targeting action. Only players with no legal target may pass.",
             category = WeatherCategory.TARGETING,
             complexity = WeatherComplexity.MEDIUM,
-            copies = 333,
+            copies = 1,
             enabled = true,
             effectTags = setOf(WeatherEffectTag.MUST_TARGET_IF_LEGAL)
         ),
