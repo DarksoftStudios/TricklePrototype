@@ -499,7 +499,7 @@ private fun TrickleApp() {
     }
 
     var difficulty by remember { mutableStateOf<Difficulty?>(null) }
-    var weatherEnabled by remember { mutableStateOf(true) }
+    var weatherEnabled by remember { mutableStateOf(false) }
 
     var choice by remember { mutableIntStateOf(1) }
     var targetId by remember { mutableStateOf<Int?>(null) }
@@ -1220,6 +1220,7 @@ private fun TrickleApp() {
                     val stats = statsStore.load()
                     val normalUnlocked = stats.easyGames > 0
                     val hardUnlocked = stats.normalWins > 0
+                    val weatherUnlocked = stats.wonHard
 
                     fun startGame(picked: Difficulty) {
                         startGameSession(picked = picked, animateEntry = true)
@@ -1237,8 +1238,18 @@ private fun TrickleApp() {
                             horizontalAlignment = Alignment.CenterHorizontally
                         ) {
                             MenuLinkButton(
-                                text = if (weatherEnabled) "WEATHER: ON" else "WEATHER: OFF"
-                            ) { weatherEnabled = !weatherEnabled }
+                                text = when {
+                                    !weatherUnlocked -> "WEATHER (LOCKED)"
+                                    weatherEnabled -> "WEATHER: ON"
+                                    else -> "WEATHER: OFF"
+                                }
+                            ) {
+                                if (weatherUnlocked) {
+                                    weatherEnabled = !weatherEnabled
+                                } else {
+                                    Toast.makeText(context, "Win on HARD to unlock WEATHER", Toast.LENGTH_SHORT).show()
+                                }
+                            }
 
                             Spacer(Modifier.height(10.dp))
                             MenuLinkButton(text = "EASY") { startGame(Difficulty.EASY) }
@@ -3358,7 +3369,7 @@ private fun AchievementsText(stats: PlayerStats) {
         AchievementSectionHeader("Difficulty")
         AchievementRow(stats.wonEasy, "Comp Stomp", "Win on Easy")
         AchievementRow(stats.wonNormal, "Pattern Finder", "Win on Normal")
-        AchievementRow(stats.wonHard, "TR1CKL3!", "Win on Hard")
+        AchievementRow(stats.wonHard, "TR1CKL3!", "Win on Hard to unlock Weather")
         AchievementRow(
             unlocked = stats.playedAllDifficulties,
             title = "Tourist",

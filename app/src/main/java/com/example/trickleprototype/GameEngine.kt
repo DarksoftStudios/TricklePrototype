@@ -61,7 +61,7 @@ class GameEngine(
     }
 
     private var difficulty: Difficulty = Difficulty.NORMAL
-    private var weatherEnabled: Boolean = true
+    private var weatherEnabled: Boolean = false
 
     private var currentWeatherCard: WeatherCard? = null
     private var firstNonZeroGuessThisRound: Int? = null
@@ -1435,7 +1435,7 @@ class GameEngine(
                                 Difficulty.HARD -> {
                                     if (!s.wonHard) {
                                         s.wonHard = true
-                                        log += RoundLogEvent("*** Achievement Unlocked: TR1CKL3! - Won on Hard! ***")
+                                        log += RoundLogEvent("*** Achievement Unlocked: TR1CKL3! - Won on Hard and unlocked Weather! ***")
                                     }
                                     s.hardWins += 1
                                 }
