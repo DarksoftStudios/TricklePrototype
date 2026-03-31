@@ -144,6 +144,8 @@ class GameEngine(
 
     private var lastRoundChoices: Map<Int, Int> = emptyMap()
     private var lastRoundAttacks: Map<Int, Int> = emptyMap()
+    private var lastRoundCorrectlyGuessedTargetIds: Set<Int> = emptySet()
+    private val currentRoundCorrectlyGuessedTargetIds = mutableSetOf<Int>()
     private val passStreaks = mutableMapOf<Int, Int>()
 
     private val archetypeById: MutableMap<Int, Archetype> = mutableMapOf()
@@ -215,6 +217,8 @@ class GameEngine(
 
         lastRoundChoices = emptyMap()
         lastRoundAttacks = emptyMap()
+        lastRoundCorrectlyGuessedTargetIds = emptySet()
+        currentRoundCorrectlyGuessedTargetIds.clear()
         passStreaks.clear()
 
         log.clear()
@@ -415,8 +419,16 @@ class GameEngine(
     }
 
     private fun applyPositiveGain(player: PlayerState, amount: Int): Int {
+        return applyPositiveGainInternal(player = player, amount = amount, allowDuringDrought = false)
+    }
+
+    private fun applyTrickleGain(player: PlayerState, amount: Int): Int {
+        return applyPositiveGainInternal(player = player, amount = amount, allowDuringDrought = true)
+    }
+
+    private fun applyPositiveGainInternal(player: PlayerState, amount: Int, allowDuringDrought: Boolean): Int {
         if (amount <= 0) return 0
-        if (noMarblesMoveThisRound()) return 0
+        if (noMarblesMoveThisRound() && !(allowDuringDrought && currentWeatherId() == "drought")) return 0
         if (weatherHas(WeatherEffectTag.ONE_POSITIVE_SCORING_EVENT_PER_PLAYER) &&
             player.id in playersWithPositiveScoringEventThisRound) {
             return 0
@@ -453,7 +465,18 @@ class GameEngine(
 
     private fun roundScoreForSelection(value: Int): Int {
         if (noMarblesMoveThisRound()) return 0
+        return baseScoreForSelection(value)
+    }
 
+    private fun trickleScoreForSelection(value: Int): Int {
+        return if (currentWeatherId() == "drought") {
+            baseScoreForSelection(value)
+        } else {
+            roundScoreForSelection(value)
+        }
+    }
+
+    private fun baseScoreForSelection(value: Int): Int {
         var result = when {
             value == 1 && weatherHas(WeatherEffectTag.SCORE_ONES_AS_TWO) -> 2
             value == 3 && weatherHas(WeatherEffectTag.SCORE_THREES_AS_FOUR) -> 4
@@ -613,6 +636,7 @@ class GameEngine(
         winnerIds = emptyList()
         pending.clear()
         lastEventKind = null
+        currentRoundCorrectlyGuessedTargetIds.clear()
         firstNonZeroGuessThisRound = null
         firstTargetingActorId = null
         firstWrongZeroResolvedThisRound = false
@@ -792,6 +816,22 @@ class GameEngine(
         val playerMarbles = if (difficulty == Difficulty.HARD) players.first { it.id == HUMAN_ID }.marbles else null
         val legalTargets = legalTargetIdsForActor(actorId)
         val humanTargetable = HUMAN_ID in legalTargets
+
+        if (currentWeatherId() == "drought") {
+            if (arch !is HatFarmer) {
+                queuePass(actorId)
+                return
+            }
+
+            val droughtTargets = legalTargets.filter { it in lastRoundCorrectlyGuessedTargetIds }
+            if (droughtTargets.isNotEmpty()) {
+                queueGuessAction(actorId = actorId, targetIds = listOf(droughtTargets.random(rng)), guess = 3)
+                passStreaks[actorId] = 0
+            } else {
+                queuePass(actorId)
+            }
+            return
+        }
 
         if (actorMustPassBecauseAlreadyScored(actorId) || hasReachedStormfrontTargetingLimit()) {
             queuePass(actorId)
@@ -1014,6 +1054,7 @@ class GameEngine(
         }
 
         if (guess == actual) {
+            currentRoundCorrectlyGuessedTargetIds += targetId
             if (guess == 0) {
                 hatHolderId = actorId
                 if (actorId == HUMAN_ID && currentWeatherId() == "drought") {
@@ -1182,9 +1223,9 @@ class GameEngine(
             if (!revealedThisRound.containsKey(p.id)) {
                 enqueueOther {
                     val c = selectionsThisRound[p.id]!!
-                    val trickle = roundScoreForSelection(c)
+                    val trickle = trickleScoreForSelection(c)
                     revealedThisRound[p.id] = c
-                    val awarded = applyPositiveGain(p, trickle)
+                    val awarded = applyTrickleGain(p, trickle)
 
                     if (p.id == HUMAN_ID) {
                         markHumanScoredFromOwnSelection(
@@ -1220,6 +1261,7 @@ class GameEngine(
 
             lastRoundChoices = selectionsThisRound.toMap()
             lastRoundAttacks = attacksThisRound.toMap()
+            lastRoundCorrectlyGuessedTargetIds = currentRoundCorrectlyGuessedTargetIds.toSet()
 
             winnerIds = resolveWinnersAfterRound()
 
@@ -1437,6 +1479,7 @@ class GameEngine(
             revealedThisRound.clear()
             targetedThisRound.clear()
             attacksThisRound.clear()
+            currentRoundCorrectlyGuessedTargetIds.clear()
             turnOrder = emptyList()
             turnCursor = 0
             hatStartOfRoundHolderId = null

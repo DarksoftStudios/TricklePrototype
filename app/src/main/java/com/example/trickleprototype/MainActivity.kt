@@ -3,6 +3,7 @@ package com.example.trickleprototype
 import android.media.MediaPlayer
 import android.net.Uri
 import android.os.Bundle
+import android.widget.Toast
 import android.widget.VideoView
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -1186,30 +1187,37 @@ private fun TrickleApp() {
                     Column(
                         modifier = Modifier
                             .fillMaxSize()
-                            .padding(top = 72.dp),
-                        verticalArrangement = Arrangement.spacedBy(35.dp, Alignment.CenterVertically),
+                            .padding(top = 52.dp, bottom = 24.dp),
+                        verticalArrangement = Arrangement.spacedBy(28.dp, Alignment.CenterVertically),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
                         MenuLinkButton(
                             text = if (weatherEnabled) "WEATHER: ON" else "WEATHER: OFF"
                         ) { weatherEnabled = !weatherEnabled }
-                        Spacer(Modifier.height(10.dp))
+
                         MenuLinkButton(text = "EASY") { startGame(Difficulty.EASY) }
-                        Spacer(Modifier.height(10.dp))
-                        MenuLinkButton(
-                            text = if (normalUnlocked) "NORMAL" else "NORMAL (LOCKED - Play EASY first)",
-                            enabled = normalUnlocked
-                        ) { startGame(Difficulty.NORMAL) }
-                        Spacer(Modifier.height(10.dp))
-                        MenuLinkButton(
-                            text = if (hardUnlocked) "HARD" else "HARD (LOCKED - Beat NORMAL first)",
-                            enabled = hardUnlocked
-                        ) { startGame(Difficulty.HARD) }
 
-                        Spacer(Modifier.height(16.dp))
+                        MenuLinkButton(
+                            text = if (normalUnlocked) "NORMAL" else "NORMAL (LOCKED)"
+                        ) {
+                            if (normalUnlocked) {
+                                startGame(Difficulty.NORMAL)
+                            } else {
+                                Toast.makeText(context, "Play a game on EASY to unlock NORMAL", Toast.LENGTH_SHORT).show()
+                            }
+                        }
+
+                        MenuLinkButton(
+                            text = if (hardUnlocked) "HARD" else "HARD (LOCKED)"
+                        ) {
+                            if (hardUnlocked) {
+                                startGame(Difficulty.HARD)
+                            } else {
+                                Toast.makeText(context, "Beat a game on NORMAL to unlock HARD", Toast.LENGTH_SHORT).show()
+                            }
+                        }
+
                         MenuLinkButton(text = "BACK") { screen = AppScreen.MAIN_MENU }
-
-                        Spacer(Modifier.height(24.dp))
                     }
                     return@Column
                 }
@@ -2947,7 +2955,7 @@ private fun AdvancedTipsText() {
                 "- Each game, bots are randomly assigned an Archetype.\n" +
                 "- On Easy mode, bots have their names replaced with their Archetype (and you can see their score totals).\n" +
                 "- On Normal mode, bots have their names and scores hidden.\n" +
-                "- On Hard mode, there is no Log and bots will also gang up on you as the finish line approaches.\n\n" +
+                "- On Hard mode, there is no Log to review, you must rely on your memory.\n\n" +
                 "JESTER'S HAT RULE:\n" +
                 "- If you guess 1 or 3 on someone who actually chose 0, you lose 1 marble and take the Jester's Hat.\n" +
                 "- If you guess 0 someone who actually chose 0, you lose 0 marbles and take the Jester's Hat.\n" +

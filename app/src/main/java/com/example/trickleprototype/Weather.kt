@@ -203,8 +203,8 @@ object Weather {
         WeatherCard(
             id = "drought",
             displayName = "Drought",
-            effectText = "No marbles move, but the Hat can still move",
-            ruleText = "Correct guesses award 0. Wrong guesses on 1 or 3 award 0 to the target. Trickling awards 0 to untargeted players. If a guess is wrong on a 0, the usual Hat movement still happens, but no marble loss occurs because no marbles move this round.",
+            effectText = "Guesses move no marbles, but trickling and the Hat still work",
+            ruleText = "Correct guesses award 0. Wrong guesses on 1 or 3 award 0 to the target. Untargeted players still gain their normal trickle. If a guess is wrong on a 0, the usual Hat movement still happens, but no marble loss occurs because guesses do not move marbles this round.",
             category = WeatherCategory.ECONOMY,
             complexity = WeatherComplexity.MEDIUM,
             copies = 1,

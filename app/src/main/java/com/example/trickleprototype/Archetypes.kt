@@ -99,11 +99,58 @@ private fun pickAnyTarget(public: PublicRoundInfo, forbid: Set<Int> = emptySet()
 }
 
 private fun guessFromLastChoice(public: PublicRoundInfo, targetId: Int, defaultGuess: DieChoice): DieChoice {
-    return when (public.lastRoundChoices[targetId]) {
+    val preferred = when (public.lastRoundChoices[targetId]) {
         3 -> DieChoice.THREE
         1 -> DieChoice.ONE
         else -> defaultGuess
     }
+    return weatherAdjustedGuess(public, preferred)
+        ?: weatherAdjustedGuess(public, defaultGuess)
+        ?: preferred
+}
+
+private fun hasKnownReveal(public: PublicRoundInfo, value: DieChoice): Boolean {
+    return public.revealedThisRound.values.any { it == value.v }
+}
+
+private fun revealedTargetForGuess(
+    public: PublicRoundInfo,
+    guess: DieChoice,
+    forbid: Set<Int> = emptySet()
+): Int? {
+    return candidateTargets(public, forbid).firstOrNull { public.revealedThisRound[it] == guess.v }
+}
+
+private fun weatherAdjustedGuess(
+    public: PublicRoundInfo,
+    preferred: DieChoice,
+    fallback: DieChoice? = null
+): DieChoice? {
+    if (preferred == DieChoice.ZERO) return DieChoice.ZERO
+
+    if (revealedTargetForGuess(public, preferred) != null) return preferred
+    if (!hasKnownReveal(public, preferred)) return preferred
+
+    if (fallback != null) {
+        if (revealedTargetForGuess(public, fallback) != null) return fallback
+        if (!hasKnownReveal(public, fallback)) return fallback
+    }
+
+    return null
+}
+
+private fun bestTargetForGuess(
+    public: PublicRoundInfo,
+    guess: DieChoice,
+    forbid: Set<Int> = emptySet()
+): Int? {
+    val revealed = revealedTargetForGuess(public, guess, forbid)
+    if (revealed != null) return revealed
+
+    return when (guess) {
+        DieChoice.ONE, DieChoice.THREE -> pickTargetWhoChose(public, guess.v, forbid)
+        DieChoice.ZERO -> null
+    } ?: pickAnyTarget(public, forbid)
 }
 
 // A lightweight "baseline" chooser (for Romeo/Juliet), matching the bravery ramp you specified.
@@ -163,11 +210,10 @@ class Teacher : Archetype {
 
         if (public.roundIndex <= 3) return TurnDecision.Pass
 
-        val targets = candidateTargets(public)
-        if (targets.isEmpty()) return TurnDecision.Pass
-
-        val t = targets.firstOrNull { public.lastRoundChoices[it] == 3 } ?: return TurnDecision.Pass
-        return TurnDecision.Guess(t, DieChoice.THREE)
+        val guess = weatherAdjustedGuess(public, DieChoice.THREE, fallback = DieChoice.ONE)
+            ?: return TurnDecision.Pass
+        val t = bestTargetForGuess(public, guess) ?: return TurnDecision.Pass
+        return TurnDecision.Guess(t, guess)
     }
 }
 
@@ -202,13 +248,11 @@ class Strobe : Archetype {
         if (public.roundIndex == 1) return TurnDecision.Pass
         if (public.roundIndex % 2 == 1) return TurnDecision.Pass // odd rounds pass (3,5,7,...)
 
-        val targets = candidateTargets(public)
-        if (targets.isEmpty()) return TurnDecision.Pass
-
-        // Even rounds alternate desired guess: 2->3, 4->1, 6->3...
         val desired = if (((public.roundIndex / 2) % 2) == 1) DieChoice.THREE else DieChoice.ONE
-        val t = targets.firstOrNull { public.lastRoundChoices[it] == desired.v } ?: return TurnDecision.Pass
-        return TurnDecision.Guess(t, desired)
+        val fallback = if (desired == DieChoice.THREE) DieChoice.ONE else DieChoice.THREE
+        val guess = weatherAdjustedGuess(public, desired, fallback = fallback) ?: return TurnDecision.Pass
+        val t = bestTargetForGuess(public, guess) ?: return TurnDecision.Pass
+        return TurnDecision.Guess(t, guess)
     }
 }
 
@@ -245,9 +289,11 @@ class ChaosGrandma : Archetype {
         // 50/50 pass vs target
         if (public.rng.nextBoolean()) return TurnDecision.Pass
 
-        val t = targets.random(public.rng)
-        val g = if (public.rng.nextBoolean()) DieChoice.ONE else DieChoice.THREE
-        return TurnDecision.Guess(t, g)
+        val desired = if (public.rng.nextBoolean()) DieChoice.ONE else DieChoice.THREE
+        val fallback = if (desired == DieChoice.THREE) DieChoice.ONE else DieChoice.THREE
+        val guess = weatherAdjustedGuess(public, desired, fallback = fallback) ?: return TurnDecision.Pass
+        val t = bestTargetForGuess(public, guess) ?: return TurnDecision.Pass
+        return TurnDecision.Guess(t, guess)
     }
 }
 
@@ -273,11 +319,10 @@ class ThreePusher : Archetype {
 
         if (public.roundIndex == 1) return TurnDecision.Pass
 
-        val targets = candidateTargets(public)
-        if (targets.isEmpty()) return TurnDecision.Pass
-
-        val t = targets.firstOrNull { public.lastRoundChoices[it] == 3 } ?: targets.random(public.rng)
-        return TurnDecision.Guess(t, DieChoice.THREE)
+        val guess = weatherAdjustedGuess(public, DieChoice.THREE, fallback = DieChoice.ONE)
+            ?: return TurnDecision.Pass
+        val t = bestTargetForGuess(public, guess) ?: return TurnDecision.Pass
+        return TurnDecision.Guess(t, guess)
     }
 }
 
@@ -311,9 +356,16 @@ class Opportunist : Archetype {
         val twoAgo = mem.twoRoundsAgoChoicesSeen
 
         val streak3 = targets.filter { (last[it] == 3) && (twoAgo[it] == 3) }
-        if (streak3.isEmpty()) return TurnDecision.Pass
+        val guess = weatherAdjustedGuess(public, DieChoice.THREE, fallback = DieChoice.ONE)
+            ?: return TurnDecision.Pass
 
-        return TurnDecision.Guess(streak3.random(public.rng), DieChoice.THREE)
+        val t = when (guess) {
+            DieChoice.THREE -> streak3.randomOrNull()
+            DieChoice.ONE -> bestTargetForGuess(public, DieChoice.ONE)
+            DieChoice.ZERO -> null
+        } ?: return TurnDecision.Pass
+
+        return TurnDecision.Guess(t, guess)
     }
 }
 
@@ -404,7 +456,10 @@ class SpitePlayer : Archetype {
             return TurnDecision.Pass
         }
 
-        return TurnDecision.Guess(grudge, DieChoice.THREE)
+        val guess = weatherAdjustedGuess(public, DieChoice.THREE, fallback = DieChoice.ONE)
+            ?: return TurnDecision.Pass
+
+        return TurnDecision.Guess(grudge, guess)
     }
 }
 
@@ -431,11 +486,10 @@ class Accretion : Archetype {
 
         if (public.roundIndex <= 4) return TurnDecision.Pass
 
-        val targets = candidateTargets(public)
-        if (targets.isEmpty()) return TurnDecision.Pass
-
-        val t = targets.firstOrNull { public.lastRoundChoices[it] == 3 } ?: return TurnDecision.Pass
-        return TurnDecision.Guess(t, DieChoice.THREE)
+        val guess = weatherAdjustedGuess(public, DieChoice.THREE, fallback = DieChoice.ONE)
+            ?: return TurnDecision.Pass
+        val t = bestTargetForGuess(public, guess) ?: return TurnDecision.Pass
+        return TurnDecision.Guess(t, guess)
     }
 }
 
@@ -469,7 +523,12 @@ class Auditor : Archetype {
         val suspicious = targets.filter { (public.passStreaks[it] ?: 0) >= 2 }
         if (suspicious.isEmpty()) return TurnDecision.Pass
 
-        return TurnDecision.Guess(suspicious.random(public.rng), DieChoice.THREE)
+        val guess = weatherAdjustedGuess(public, DieChoice.THREE, fallback = DieChoice.ONE)
+            ?: return TurnDecision.Pass
+        val t = if (guess == DieChoice.THREE) suspicious.random(public.rng) else bestTargetForGuess(public, guess)
+            ?: return TurnDecision.Pass
+
+        return TurnDecision.Guess(t, guess)
     }
 }
 
@@ -497,24 +556,31 @@ class Colluder(
     override fun takeTurn(public: PublicRoundInfo, mem: BotMemory): TurnDecision {
         rememberLastRoundChoices(public, mem)
 
-        val targets = candidateTargets(public, forbidIds = setOf(partnerId))
+        val forbid = setOf(partnerId)
+        val targets = candidateTargets(public, forbidIds = forbid)
         if (targets.isEmpty()) return TurnDecision.Pass
 
         // Round 1: 75% target, 25% pass (simple approximation here)
         if (public.roundIndex == 1) {
             if (public.rng.nextInt(100) < 25) return TurnDecision.Pass
-            val t = targets.random(public.rng)
-            val g = if (public.rng.nextBoolean()) DieChoice.ONE else DieChoice.THREE
-            return TurnDecision.Guess(t, g)
+            val desired = if (public.rng.nextBoolean()) DieChoice.ONE else DieChoice.THREE
+            val fallback = if (desired == DieChoice.THREE) DieChoice.ONE else DieChoice.THREE
+            val guess = weatherAdjustedGuess(public, desired, fallback = fallback) ?: return TurnDecision.Pass
+            val t = bestTargetForGuess(public, guess, forbid) ?: return TurnDecision.Pass
+            return TurnDecision.Guess(t, guess)
         }
 
-        // Prefer someone who chose 3 last round (greedy), else pass sometimes
-        val t3 = targets.firstOrNull { public.lastRoundChoices[it] == 3 }
-        if (t3 != null) return TurnDecision.Guess(t3, DieChoice.THREE)
+        val greedyGuess = weatherAdjustedGuess(public, DieChoice.THREE, fallback = DieChoice.ONE)
+            ?: return TurnDecision.Pass
+        val greedyTarget = bestTargetForGuess(public, greedyGuess, forbid)
+        if (greedyTarget != null) return TurnDecision.Guess(greedyTarget, greedyGuess)
 
         if (public.rng.nextInt(100) < 60) return TurnDecision.Pass
-        val t = targets.random(public.rng)
-        return TurnDecision.Guess(t, DieChoice.ONE)
+
+        val safeOne = weatherAdjustedGuess(public, DieChoice.ONE, fallback = DieChoice.THREE)
+            ?: return TurnDecision.Pass
+        val t = bestTargetForGuess(public, safeOne, forbid) ?: return TurnDecision.Pass
+        return TurnDecision.Guess(t, safeOne)
     }
 }
 
@@ -617,21 +683,22 @@ class Scout : Archetype {
         if (targets.isEmpty()) return TurnDecision.Pass
 
         if (public.roundIndex == 1) {
-            val t = targets.random(public.rng)
-            val g = if (public.rng.nextBoolean()) DieChoice.ONE else DieChoice.THREE
-            return TurnDecision.Guess(t, g)
+            val desired = if (public.rng.nextBoolean()) DieChoice.ONE else DieChoice.THREE
+            val fallback = if (desired == DieChoice.THREE) DieChoice.ONE else DieChoice.THREE
+            val guess = weatherAdjustedGuess(public, desired, fallback = fallback) ?: return TurnDecision.Pass
+            val t = bestTargetForGuess(public, guess) ?: return TurnDecision.Pass
+            return TurnDecision.Guess(t, guess)
         }
 
-        val t3 = targets.firstOrNull { public.lastRoundChoices[it] == 3 }
-        if (t3 != null) return TurnDecision.Guess(t3, DieChoice.THREE)
+        val greedyThree = weatherAdjustedGuess(public, DieChoice.THREE, fallback = DieChoice.ONE)
+            ?: return TurnDecision.Pass
+        val t3 = bestTargetForGuess(public, greedyThree)
+        if (t3 != null) return TurnDecision.Guess(t3, greedyThree)
 
-        val t1 = targets.firstOrNull { public.lastRoundChoices[it] == 1 }
-        if (t1 != null) return TurnDecision.Guess(t1, DieChoice.ONE)
-
-        // Fallback: still guesses
-        val t = targets.random(public.rng)
-        val g = if (public.rng.nextBoolean()) DieChoice.ONE else DieChoice.THREE
-        return TurnDecision.Guess(t, g)
+        val safeOne = weatherAdjustedGuess(public, DieChoice.ONE, fallback = DieChoice.THREE)
+            ?: return TurnDecision.Pass
+        val t1 = bestTargetForGuess(public, safeOne) ?: return TurnDecision.Pass
+        return TurnDecision.Guess(t1, safeOne)
     }
 }
 
@@ -674,7 +741,10 @@ class HatFarmer : Archetype {
             return TurnDecision.Pass
         }
 
-        return TurnDecision.Guess(t, DieChoice.THREE)
+        val guess = weatherAdjustedGuess(public, DieChoice.THREE, fallback = DieChoice.ONE)
+            ?: return TurnDecision.Pass
+
+        return TurnDecision.Guess(t, guess)
     }
 }
 
