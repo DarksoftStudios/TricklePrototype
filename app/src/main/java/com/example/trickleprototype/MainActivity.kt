@@ -93,12 +93,17 @@ import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.painter.BitmapPainter
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
@@ -536,6 +541,12 @@ private fun TrickleApp() {
         label = "splashFadeAlpha"
     )
 
+    var weatherBadgeCenter by remember { mutableStateOf<TablePoint?>(null) }
+    var gameAreaCenter by remember { mutableStateOf<TablePoint?>(null) }
+    var activeWeatherOverlayId by remember { mutableStateOf<String?>(null) }
+    var activeWeatherOverlayToken by remember { mutableLongStateOf(0L) }
+    var lastAnimatedWeatherName by remember { mutableStateOf<String?>(null) }
+
     val bgmPlayer = remember {
         MediaPlayer.create(context, R.raw.mainthemegen)?.apply {
             isLooping = true
@@ -672,6 +683,7 @@ private fun TrickleApp() {
     val gameOver = (phase == EnginePhase.GAME_OVER)
     val currentWeatherName = lastResult?.currentWeatherName
     val currentWeatherEffect = lastResult?.currentWeatherEffect
+    val currentWeatherId = weatherIdForName(currentWeatherName)
     val forcedGuess = lastResult?.forcedGuessForHuman
     val mustTarget = lastResult?.mustTargetForHuman == true
     val needsSecondTarget = lastResult?.requiresSecondTargetForHuman == true
@@ -679,8 +691,26 @@ private fun TrickleApp() {
     val scrollState = rememberScrollState()
     LaunchedEffect(logText) { scrollState.scrollTo(0) }
 
-    LaunchedEffect(displayedRoundFromEngine) {
-        displayedRound = displayedRoundFromEngine
+    LaunchedEffect(currentWeatherName, displayedRoundFromEngine, screen) {
+        if (screen != AppScreen.GAME) return@LaunchedEffect
+
+        if (currentWeatherName.isNullOrBlank()) {
+            lastAnimatedWeatherName = null
+            activeWeatherOverlayId = null
+            return@LaunchedEffect
+        }
+
+        if (displayedRoundFromEngine <= 1) {
+            lastAnimatedWeatherName = currentWeatherName
+            activeWeatherOverlayId = null
+            return@LaunchedEffect
+        }
+
+        if (currentWeatherName != lastAnimatedWeatherName) {
+            activeWeatherOverlayId = weatherIdForName(currentWeatherName)
+            activeWeatherOverlayToken += 1L
+            lastAnimatedWeatherName = currentWeatherName
+        }
     }
 
 
@@ -696,6 +726,11 @@ private fun TrickleApp() {
         lastQueuedMarbleTransferSignature = ""
         achievementQueue = emptyList()
         activeAchievement = null
+        weatherBadgeCenter = null
+        gameAreaCenter = null
+        activeWeatherOverlayId = null
+        activeWeatherOverlayToken = 0L
+        lastAnimatedWeatherName = null
 
         choice = 1
         targetId = null
@@ -1538,6 +1573,9 @@ private fun TrickleApp() {
                 modifier = Modifier
                     .fillMaxWidth()
                     .weight(1f)
+                    .onGloballyPositioned { coordinates ->
+                        gameAreaCenter = coordinates.boundsInRoot().centerPoint()
+                    }
             ) {
                 Column(
                     modifier = Modifier.fillMaxSize(),
@@ -1554,9 +1592,13 @@ private fun TrickleApp() {
                         WeatherInfoBadge(
                             weatherName = currentWeatherName,
                             weatherEffect = currentWeatherEffect,
+                            weatherId = currentWeatherId,
                             forcedGuess = forcedGuess,
                             mustTarget = mustTarget,
                             needsSecondTarget = needsSecondTarget,
+                            onBadgeAnchorMeasured = { anchor ->
+                                weatherBadgeCenter = anchor
+                            },
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .wrapContentHeight()
@@ -1804,6 +1846,16 @@ private fun TrickleApp() {
                     }
                 }
 
+                WeatherTransitionOverlay(
+                    weatherId = activeWeatherOverlayId,
+                    animationToken = activeWeatherOverlayToken,
+                    fromAnchor = gameAreaCenter,
+                    toAnchor = weatherBadgeCenter,
+                    modifier = Modifier
+                        .matchParentSize()
+                        .zIndex(5f)
+                )
+
                 MarbleFlightOverlay(
                     flights = marbleFlights,
                     onFlightFinished = { flightId ->
@@ -1974,72 +2026,539 @@ private fun buildWinnerBadgeLabel(result: RoundResult?): String? {
 private fun WeatherInfoBadge(
     weatherName: String?,
     weatherEffect: String?,
+    weatherId: String?,
     forcedGuess: Int?,
     mustTarget: Boolean,
     needsSecondTarget: Boolean,
+    onBadgeAnchorMeasured: (TablePoint) -> Unit,
     modifier: Modifier = Modifier
 ) {
     Surface(
         modifier = modifier
             .fillMaxWidth()
             .heightIn(min = 90.dp)
+            .onGloballyPositioned { coordinates ->
+                onBadgeAnchorMeasured(coordinates.boundsInRoot().centerPoint())
+            }
             .animateContentSize(),
         shape = RoundedCornerShape(18.dp),
         color = Color(0xAA1E1E1E),
         tonalElevation = 2.dp
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 12.dp, vertical = 8.dp),
-            verticalArrangement = Arrangement.spacedBy(3.dp)
+        Box(
+            modifier = Modifier.fillMaxWidth()
         ) {
-            Text(
-                text = if (weatherName.isNullOrBlank()) "Weather: Clear" else "Weather: $weatherName",
-                color = Color.White,
-                fontWeight = FontWeight.Bold,
-                fontSize = 16.sp,
-                lineHeight = 20.sp
+            if (!weatherId.isNullOrBlank()) {
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.CenterEnd)
+                        .padding(end = 10.dp)
+                        .size(72.dp)
+                        .alpha(0.16f)
+                ) {
+                    WeatherIconCanvas(
+                        weatherId = weatherId,
+                        tint = Color.White,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                }
+            }
+
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(3.dp)
+            ) {
+                Text(
+                    text = if (weatherName.isNullOrBlank()) "Weather: Clear" else "Weather: $weatherName",
+                    color = Color.White,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 16.sp,
+                    lineHeight = 20.sp
+                )
+
+                if (!weatherEffect.isNullOrBlank()) {
+                    Text(
+                        text = weatherEffect,
+                        color = Color(0xFFD7E3FC),
+                        fontSize = 13.sp,
+                        lineHeight = 16.sp
+                    )
+                }
+
+                if (forcedGuess != null) {
+                    Text(
+                        text = "Locked guess: $forcedGuess",
+                        color = Color(0xFFFFF59D),
+                        fontSize = 13.sp
+                    )
+                }
+
+                if (mustTarget) {
+                    Text(
+                        text = "Must target if able.",
+                        color = Color(0xFFFFCCBC),
+                        fontSize = 13.sp
+                    )
+                }
+
+                if (needsSecondTarget) {
+                    Text(
+                        text = "Targeting needs two picks.",
+                        color = Color(0xFFFFCCBC),
+                        fontSize = 13.sp
+                    )
+                }
+            }
+        }
+    }
+}
+
+private fun weatherIdForName(weatherName: String?): String? {
+    if (weatherName.isNullOrBlank()) return null
+    return Weather.allCards.firstOrNull { it.displayName == weatherName }?.id
+}
+
+@Composable
+private fun WeatherTransitionOverlay(
+    weatherId: String?,
+    animationToken: Long,
+    fromAnchor: TablePoint?,
+    toAnchor: TablePoint?,
+    modifier: Modifier = Modifier
+) {
+    if (weatherId.isNullOrBlank() || animationToken <= 0L) return
+
+    val progress = remember(animationToken) { Animatable(0f) }
+    val overlayAlphaAnim = remember(animationToken) { Animatable(0f) }
+
+    LaunchedEffect(animationToken, weatherId, fromAnchor, toAnchor) {
+        progress.snapTo(0f)
+        overlayAlphaAnim.snapTo(0f)
+        overlayAlphaAnim.animateTo(
+            targetValue = 0.82f,
+            animationSpec = tween(durationMillis = 180, easing = LinearEasing)
+        )
+        progress.animateTo(
+            targetValue = 1f,
+            animationSpec = tween(durationMillis = 900, easing = FastOutSlowInEasing)
+        )
+        overlayAlphaAnim.animateTo(
+            targetValue = 0f,
+            animationSpec = tween(durationMillis = 220, easing = LinearEasing)
+        )
+    }
+
+    val overlayTranslationX = if (fromAnchor != null && toAnchor != null) {
+        (toAnchor.x - fromAnchor.x) * progress.value
+    } else {
+        0f
+    }
+    val overlayTranslationY = if (fromAnchor != null && toAnchor != null) {
+        (toAnchor.y - fromAnchor.y) * progress.value
+    } else {
+        (-220f) * progress.value
+    }
+    val overlayScale = 1.50f - (1.18f * progress.value)
+    val overlayAlpha = overlayAlphaAnim.value * (1f - (0.35f * progress.value))
+
+    if (overlayAlpha <= 0.01f) return
+
+    Box(
+        modifier = modifier,
+        contentAlignment = Alignment.Center
+    ) {
+        Box(
+            modifier = Modifier
+                .size(220.dp)
+                .graphicsLayer {
+                    translationX = overlayTranslationX
+                    translationY = overlayTranslationY
+                    scaleX = overlayScale
+                    scaleY = overlayScale
+                    alpha = overlayAlpha
+                }
+        ) {
+            WeatherIconCanvas(
+                weatherId = weatherId,
+                tint = Color.White.copy(alpha = 0.88f),
+                modifier = Modifier.fillMaxSize()
             )
+        }
+    }
+}
 
-            if (!weatherEffect.isNullOrBlank()) {
-                Text(
-                    text = weatherEffect,
-                    color = Color(0xFFD7E3FC),
-                    fontSize = 13.sp,
-                    lineHeight = 16.sp
+@Composable
+private fun WeatherIconCanvas(
+    weatherId: String,
+    tint: Color,
+    modifier: Modifier = Modifier
+) {
+    Canvas(modifier = modifier) {
+        drawWeatherIcon(weatherId = weatherId, tint = tint)
+    }
+}
+
+private fun DrawScope.drawWeatherIcon(
+    weatherId: String,
+    tint: Color
+) {
+    val unit = size.minDimension
+    val stroke = unit * 0.072f
+    val cloudTop = size.height * 0.34f
+    val cloudRect = Rect(
+        left = size.width * 0.20f,
+        top = cloudTop,
+        right = size.width * 0.80f,
+        bottom = size.height * 0.62f
+    )
+
+    fun line(startX: Float, startY: Float, endX: Float, endY: Float, width: Float = stroke) {
+        drawLine(
+            color = tint,
+            start = Offset(startX, startY),
+            end = Offset(endX, endY),
+            strokeWidth = width,
+            cap = StrokeCap.Round
+        )
+    }
+
+    fun circle(cx: Float, cy: Float, radius: Float) {
+        drawCircle(
+            color = tint,
+            radius = radius,
+            center = Offset(cx, cy)
+        )
+    }
+
+    fun ring(cx: Float, cy: Float, radius: Float, width: Float = stroke) {
+        drawCircle(
+            color = tint,
+            radius = radius,
+            center = Offset(cx, cy),
+            style = Stroke(width = width)
+        )
+    }
+
+    fun drop(cx: Float, cy: Float, scale: Float = 1f) {
+        val width = unit * 0.09f * scale
+        val height = unit * 0.17f * scale
+        val path = Path().apply {
+            moveTo(cx, cy - height * 0.62f)
+            quadraticBezierTo(cx + width * 0.66f, cy - height * 0.10f, cx, cy + height * 0.56f)
+            quadraticBezierTo(cx - width * 0.66f, cy - height * 0.10f, cx, cy - height * 0.62f)
+            close()
+        }
+        drawPath(path = path, color = tint)
+    }
+
+    fun hailStone(cx: Float, cy: Float, scale: Float = 1f) {
+        drawCircle(
+            color = tint,
+            radius = unit * 0.045f * scale,
+            center = Offset(cx, cy)
+        )
+    }
+
+    fun snowFlake(cx: Float, cy: Float, scale: Float = 1f) {
+        val length = unit * 0.12f * scale
+        for (angle in listOf(0f, 60f, 120f)) {
+            rotate(angle, Offset(cx, cy)) {
+                line(cx - length, cy, cx + length, cy, width = stroke * 0.52f)
+                line(cx + length * 0.30f, cy, cx + length * 0.54f, cy - length * 0.18f, width = stroke * 0.38f)
+                line(cx + length * 0.30f, cy, cx + length * 0.54f, cy + length * 0.18f, width = stroke * 0.38f)
+                line(cx - length * 0.30f, cy, cx - length * 0.54f, cy - length * 0.18f, width = stroke * 0.38f)
+                line(cx - length * 0.30f, cy, cx - length * 0.54f, cy + length * 0.18f, width = stroke * 0.38f)
+            }
+        }
+    }
+
+    fun bolt(centerX: Float, topY: Float, scale: Float = 1f) {
+        val path = Path().apply {
+            moveTo(centerX - unit * 0.05f * scale, topY)
+            lineTo(centerX + unit * 0.02f * scale, topY)
+            lineTo(centerX - unit * 0.03f * scale, topY + unit * 0.16f * scale)
+            lineTo(centerX + unit * 0.10f * scale, topY + unit * 0.16f * scale)
+            lineTo(centerX - unit * 0.08f * scale, topY + unit * 0.40f * scale)
+            lineTo(centerX - unit * 0.01f * scale, topY + unit * 0.22f * scale)
+            lineTo(centerX - unit * 0.14f * scale, topY + unit * 0.22f * scale)
+            close()
+        }
+        drawPath(path = path, color = tint)
+    }
+
+    fun cloud(scale: Float = 1f, offsetY: Float = 0f) {
+        val left = size.width * 0.22f
+        val top = size.height * 0.32f + offsetY
+        drawCircle(tint, radius = unit * 0.12f * scale, center = Offset(left + unit * 0.14f, top + unit * 0.10f))
+        drawCircle(tint, radius = unit * 0.15f * scale, center = Offset(left + unit * 0.30f, top + unit * 0.04f))
+        drawCircle(tint, radius = unit * 0.12f * scale, center = Offset(left + unit * 0.47f, top + unit * 0.10f))
+        drawRoundRect(
+            color = tint,
+            topLeft = Offset(left + unit * 0.08f, top + unit * 0.10f),
+            size = Size(unit * 0.48f, unit * 0.15f),
+            cornerRadius = androidx.compose.ui.geometry.CornerRadius(unit * 0.08f, unit * 0.08f)
+        )
+    }
+
+    fun sun(rayCount: Int = 8, rayLength: Float = unit * 0.13f, ringOnly: Boolean = false) {
+        val center = Offset(size.width * 0.50f, size.height * 0.38f)
+        if (ringOnly) ring(center.x, center.y, unit * 0.13f, width = stroke * 0.74f)
+        else circle(center.x, center.y, unit * 0.12f)
+        repeat(rayCount) { index ->
+            val angle = (360f / rayCount) * index
+            rotate(angle, center) {
+                line(center.x, center.y - unit * 0.22f, center.x, center.y - unit * 0.34f, width = stroke * 0.72f)
+            }
+        }
+    }
+
+    fun windBand(y: Float, startX: Float = size.width * 0.18f, endX: Float = size.width * 0.82f, curve: Float = unit * 0.05f) {
+        val path = Path().apply {
+            moveTo(startX, y)
+            cubicTo(
+                startX + unit * 0.14f, y - curve,
+                endX - unit * 0.18f, y + curve,
+                endX, y
+            )
+        }
+        drawPath(
+            path = path,
+            color = tint,
+            style = Stroke(width = stroke * 0.62f, cap = StrokeCap.Round)
+        )
+    }
+
+    fun pressureSpiral(turns: Int = 2, inward: Boolean = true) {
+        val center = Offset(size.width * 0.50f, size.height * 0.46f)
+        val path = Path()
+        val maxRadius = unit * 0.24f
+        val minRadius = unit * 0.05f
+        val steps = 42
+        for (step in 0..steps) {
+            val fraction = step / steps.toFloat()
+            val radius = if (inward) {
+                maxRadius - ((maxRadius - minRadius) * fraction)
+            } else {
+                minRadius + ((maxRadius - minRadius) * fraction)
+            }
+            val angle = fraction * turns * 360f
+            val radians = Math.toRadians(angle.toDouble())
+            val x = center.x + (kotlin.math.cos(radians).toFloat() * radius)
+            val y = center.y + (kotlin.math.sin(radians).toFloat() * radius)
+            if (step == 0) path.moveTo(x, y) else path.lineTo(x, y)
+        }
+        drawPath(
+            path = path,
+            color = tint,
+            style = Stroke(width = stroke * 0.70f, cap = StrokeCap.Round)
+        )
+        if (inward) {
+            line(center.x + unit * 0.19f, center.y - unit * 0.02f, center.x + unit * 0.27f, center.y - unit * 0.09f, width = stroke * 0.60f)
+            line(center.x + unit * 0.19f, center.y - unit * 0.02f, center.x + unit * 0.28f, center.y + unit * 0.02f, width = stroke * 0.60f)
+        } else {
+            line(center.x + unit * 0.18f, center.y + unit * 0.09f, center.x + unit * 0.30f, center.y + unit * 0.09f, width = stroke * 0.60f)
+            line(center.x + unit * 0.30f, center.y + unit * 0.09f, center.x + unit * 0.24f, center.y + unit * 0.03f, width = stroke * 0.60f)
+            line(center.x + unit * 0.30f, center.y + unit * 0.09f, center.x + unit * 0.24f, center.y + unit * 0.15f, width = stroke * 0.60f)
+        }
+    }
+
+    when (weatherId) {
+        "drizzle" -> {
+            cloud()
+            drop(size.width * 0.38f, size.height * 0.72f, 0.92f)
+            drop(size.width * 0.50f, size.height * 0.76f, 0.92f)
+            drop(size.width * 0.62f, size.height * 0.72f, 0.92f)
+        }
+
+        "downpour" -> {
+            cloud()
+            repeat(5) { index ->
+                drop(size.width * (0.28f + (index * 0.11f)), size.height * 0.74f, 1f)
+            }
+        }
+
+        "fog" -> {
+            windBand(size.height * 0.34f, curve = unit * 0.02f)
+            windBand(size.height * 0.48f, curve = unit * 0.02f)
+            windBand(size.height * 0.62f, curve = unit * 0.02f)
+            drawOval(
+                color = tint.copy(alpha = 0.72f),
+                topLeft = Offset(size.width * 0.22f, size.height * 0.28f),
+                size = Size(size.width * 0.56f, size.height * 0.18f)
+            )
+        }
+
+        "sunny_day" -> {
+            sun()
+        }
+
+        "low_pressure" -> {
+            pressureSpiral(inward = true)
+        }
+
+        "windshear" -> {
+            windBand(size.height * 0.34f, startX = size.width * 0.12f, endX = size.width * 0.88f, curve = unit * 0.08f)
+            windBand(size.height * 0.50f, startX = size.width * 0.18f, endX = size.width * 0.86f, curve = unit * 0.10f)
+            line(size.width * 0.60f, size.height * 0.26f, size.width * 0.78f, size.height * 0.18f, width = stroke * 0.58f)
+            line(size.width * 0.56f, size.height * 0.64f, size.width * 0.78f, size.height * 0.78f, width = stroke * 0.58f)
+        }
+
+        "static_charge" -> {
+            ring(size.width * 0.50f, size.height * 0.46f, unit * 0.18f, width = stroke * 0.54f)
+            bolt(size.width * 0.50f, size.height * 0.24f, 1f)
+            circle(size.width * 0.26f, size.height * 0.48f, unit * 0.03f)
+            circle(size.width * 0.74f, size.height * 0.44f, unit * 0.03f)
+            circle(size.width * 0.36f, size.height * 0.72f, unit * 0.03f)
+            circle(size.width * 0.66f, size.height * 0.70f, unit * 0.03f)
+        }
+
+        "crosswinds" -> {
+            windBand(size.height * 0.34f, curve = unit * 0.07f)
+            windBand(size.height * 0.58f, curve = unit * 0.07f)
+            line(size.width * 0.26f, size.height * 0.22f, size.width * 0.74f, size.height * 0.78f, width = stroke * 0.60f)
+            line(size.width * 0.74f, size.height * 0.22f, size.width * 0.26f, size.height * 0.78f, width = stroke * 0.60f)
+        }
+
+        "sleet" -> {
+            cloud()
+            drop(size.width * 0.38f, size.height * 0.72f, 0.88f)
+            snowFlake(size.width * 0.62f, size.height * 0.73f, 0.52f)
+            line(size.width * 0.50f, size.height * 0.64f, size.width * 0.54f, size.height * 0.80f, width = stroke * 0.48f)
+        }
+
+        "thunderstorm" -> {
+            cloud()
+            bolt(size.width * 0.50f, size.height * 0.50f, 0.92f)
+        }
+
+        "drought" -> {
+            sun(rayCount = 10, rayLength = unit * 0.10f)
+            line(size.width * 0.26f, size.height * 0.74f, size.width * 0.74f, size.height * 0.74f, width = stroke * 0.54f)
+            line(size.width * 0.38f, size.height * 0.74f, size.width * 0.32f, size.height * 0.84f, width = stroke * 0.44f)
+            line(size.width * 0.46f, size.height * 0.74f, size.width * 0.52f, size.height * 0.86f, width = stroke * 0.44f)
+            line(size.width * 0.60f, size.height * 0.74f, size.width * 0.66f, size.height * 0.82f, width = stroke * 0.44f)
+        }
+
+        "lightning_storm" -> {
+            cloud()
+            bolt(size.width * 0.44f, size.height * 0.48f, 0.88f)
+            bolt(size.width * 0.60f, size.height * 0.52f, 0.72f)
+        }
+
+        "tornado" -> {
+            val path = Path().apply {
+                moveTo(size.width * 0.26f, size.height * 0.28f)
+                cubicTo(size.width * 0.66f, size.height * 0.28f, size.width * 0.72f, size.height * 0.40f, size.width * 0.44f, size.height * 0.52f)
+                cubicTo(size.width * 0.52f, size.height * 0.60f, size.width * 0.48f, size.height * 0.72f, size.width * 0.54f, size.height * 0.84f)
+                lineTo(size.width * 0.42f, size.height * 0.84f)
+                cubicTo(size.width * 0.50f, size.height * 0.70f, size.width * 0.44f, size.height * 0.60f, size.width * 0.34f, size.height * 0.50f)
+                cubicTo(size.width * 0.20f, size.height * 0.40f, size.width * 0.18f, size.height * 0.30f, size.width * 0.26f, size.height * 0.28f)
+                close()
+            }
+            drawPath(path = path, color = tint)
+        }
+
+        "hail" -> {
+            cloud()
+            repeat(4) { index ->
+                hailStone(size.width * (0.30f + (index * 0.13f)), size.height * 0.74f)
+            }
+        }
+
+        "hurricane" -> {
+            pressureSpiral(turns = 3, inward = true)
+            ring(size.width * 0.50f, size.height * 0.46f, unit * 0.05f, width = stroke * 0.50f)
+        }
+
+        "rainbow" -> {
+            repeat(4) { index ->
+                drawArc(
+                    color = tint.copy(alpha = 0.40f + (index * 0.15f)),
+                    startAngle = 180f,
+                    sweepAngle = 180f,
+                    useCenter = false,
+                    topLeft = Offset(size.width * (0.16f + (index * 0.04f)), size.height * (0.24f + (index * 0.04f))),
+                    size = Size(size.width * (0.68f - (index * 0.08f)), size.height * (0.46f - (index * 0.08f))),
+                    style = Stroke(width = stroke * 0.50f)
                 )
             }
+        }
 
-            if (forcedGuess != null) {
-                Text(
-                    text = "Locked guess: $forcedGuess",
-                    color = Color(0xFFFFF59D),
-                    fontSize = 13.sp
-                )
-            }
+        "perfect_storm" -> {
+            cloud()
+            bolt(size.width * 0.48f, size.height * 0.50f, 0.84f)
+            drop(size.width * 0.64f, size.height * 0.72f, 0.92f)
+            hailStone(size.width * 0.34f, size.height * 0.74f)
+            windBand(size.height * 0.86f, startX = size.width * 0.24f, endX = size.width * 0.76f, curve = unit * 0.03f)
+        }
 
-            if (mustTarget) {
-                Text(
-                    text = "Must target if able.",
-                    color = Color(0xFFFFCCBC),
-                    fontSize = 13.sp
-                )
-            }
+        "heat_mirage" -> {
+            sun(rayCount = 6, ringOnly = true)
+            windBand(size.height * 0.62f, curve = unit * 0.08f)
+            windBand(size.height * 0.74f, curve = unit * 0.08f)
+            windBand(size.height * 0.86f, curve = unit * 0.08f)
+        }
 
-            if (needsSecondTarget) {
-                Text(
-                    text = "Targeting needs two picks.",
-                    color = Color(0xFFFFCCBC),
-                    fontSize = 13.sp
-                )
-            }
+        "high_pressure" -> {
+            pressureSpiral(inward = false)
+        }
+
+        "stormfront" -> {
+            drawRoundRect(
+                color = tint,
+                topLeft = Offset(size.width * 0.18f, size.height * 0.36f),
+                size = Size(size.width * 0.18f, size.height * 0.30f),
+                cornerRadius = androidx.compose.ui.geometry.CornerRadius(unit * 0.06f, unit * 0.06f)
+            )
+            cloud(offsetY = unit * 0.04f)
+            line(size.width * 0.36f, size.height * 0.36f, size.width * 0.36f, size.height * 0.74f, width = stroke * 0.52f)
+        }
+
+        "cold_rain" -> {
+            cloud()
+            drop(size.width * 0.38f, size.height * 0.72f, 0.92f)
+            drop(size.width * 0.52f, size.height * 0.76f, 0.92f)
+            snowFlake(size.width * 0.68f, size.height * 0.76f, 0.42f)
+        }
+
+        "thunderhead" -> {
+            cloud(scale = 1.12f, offsetY = unit * 0.02f)
+            drawOval(
+                color = tint.copy(alpha = 0.20f),
+                topLeft = Offset(size.width * 0.22f, size.height * 0.56f),
+                size = Size(size.width * 0.56f, size.height * 0.16f)
+            )
+        }
+
+        "cool_breeze" -> {
+            windBand(size.height * 0.34f, curve = unit * 0.04f)
+            windBand(size.height * 0.52f, curve = unit * 0.04f)
+            windBand(size.height * 0.70f, curve = unit * 0.04f)
+            snowFlake(size.width * 0.72f, size.height * 0.28f, 0.32f)
+        }
+
+        "smog" -> {
+            cloud(offsetY = unit * 0.08f)
+            windBand(size.height * 0.62f, curve = unit * 0.01f)
+            windBand(size.height * 0.74f, curve = unit * 0.01f)
+            drawOval(
+                color = tint.copy(alpha = 0.18f),
+                topLeft = Offset(size.width * 0.18f, size.height * 0.52f),
+                size = Size(size.width * 0.64f, size.height * 0.22f)
+            )
+        }
+
+        else -> {
+            cloud()
         }
     }
 }
 
 @Composable
 private fun PhaseBadge(
+
     text: String,
     modifier: Modifier = Modifier
 ) {
