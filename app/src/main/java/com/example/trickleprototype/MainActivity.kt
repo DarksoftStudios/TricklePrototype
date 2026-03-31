@@ -1431,7 +1431,7 @@ private fun TrickleApp() {
                         }
                         Spacer(Modifier.height(10.dp))
                         MenuLinkButton(
-                            text = if (passTargetConfirmEnabled) "CHOICE CONFIRM: ON" else "CHOICE CONFIRM: OFF"
+                            text = if (passTargetConfirmEnabled) "PASS CONFIRM: ON" else "PASS CONFIRM: OFF"
                         ) {
                             passTargetConfirmEnabled = !passTargetConfirmEnabled
                         }
@@ -1575,6 +1575,7 @@ private fun TrickleApp() {
                             isCurrentTurn = currentActorId == GameEngine.HUMAN_ID,
                             indicator = floatingIndicators[GameEngine.HUMAN_ID],
                             hasHat = lastResult?.hatHolderId == GameEngine.HUMAN_ID,
+                            isStarter = lastResult?.currentStarterId == GameEngine.HUMAN_ID,
                             onCupAnchorMeasured = { playerId, anchor ->
                                 cupCenters[playerId] = anchor
                             },
@@ -1603,6 +1604,7 @@ private fun TrickleApp() {
                             bots = leftBots,
                             currentActorId = currentActorId,
                             hatHolderId = lastResult?.hatHolderId,
+                            starterId = lastResult?.currentStarterId,
                             indicators = floatingIndicators,
                             showMarbleCounts = difficulty == Difficulty.EASY,
                             onCupAnchorMeasured = { playerId, anchor ->
@@ -1618,6 +1620,7 @@ private fun TrickleApp() {
                             bots = rightBots,
                             currentActorId = currentActorId,
                             hatHolderId = lastResult?.hatHolderId,
+                            starterId = lastResult?.currentStarterId,
                             indicators = floatingIndicators,
                             showMarbleCounts = difficulty == Difficulty.EASY,
                             onCupAnchorMeasured = { playerId, anchor ->
@@ -2072,6 +2075,7 @@ private fun PlayerStatusStack(
     isCurrentTurn: Boolean,
     indicator: FloatingIndicator?,
     hasHat: Boolean,
+    isStarter: Boolean,
     onCupAnchorMeasured: (Int, TablePoint) -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -2096,6 +2100,7 @@ private fun PlayerStatusStack(
             isCurrentTurn = isCurrentTurn,
             indicator = indicator,
             hasHat = hasHat,
+            isStarter = isStarter,
             onCupAnchorMeasured = { measuredAnchor ->
                 onCupAnchorMeasured(GameEngine.HUMAN_ID, measuredAnchor)
             }
@@ -2118,6 +2123,7 @@ private fun BotCupColumn(
     bots: List<PlayerState>,
     currentActorId: Int?,
     hatHolderId: Int?,
+    starterId: Int?,
     indicators: Map<Int, FloatingIndicator>,
     showMarbleCounts: Boolean,
     onCupAnchorMeasured: (Int, TablePoint) -> Unit,
@@ -2138,6 +2144,7 @@ private fun BotCupColumn(
                     isCurrentTurn = currentActorId == bot.id,
                     indicator = indicators[bot.id],
                     hasHat = hatHolderId == bot.id,
+                    isStarter = starterId == bot.id,
                     marbleCountText = if (showMarbleCounts) bot.marbles.toString() else null,
                     onCupAnchorMeasured = { measuredAnchor ->
                         onCupAnchorMeasured(bot.id, measuredAnchor)
@@ -2166,6 +2173,7 @@ private fun TableCup(
     isCurrentTurn: Boolean = false,
     indicator: FloatingIndicator? = null,
     hasHat: Boolean = false,
+    isStarter: Boolean = false,
     marbleCountText: String? = null,
     onCupAnchorMeasured: ((TablePoint) -> Unit)? = null
 ) {
@@ -2182,7 +2190,11 @@ private fun TableCup(
         lineTo(bottomInset, size.height)
         close()
     }
-    val cupContainerHeight = if (hasHat) 72.dp else 58.dp
+    val cupContainerHeight = when {
+        hasHat && isStarter -> 88.dp
+        hasHat || isStarter -> 72.dp
+        else -> 58.dp
+    }
 
     Box(
         modifier = Modifier
@@ -2192,12 +2204,19 @@ private fun TableCup(
             },
         contentAlignment = Alignment.BottomCenter
     ) {
-        if (hasHat) {
-            JesterHatBadge(
-                modifier = Modifier
-                    .align(Alignment.TopCenter)
-                    .padding(top = 0.dp)
-            )
+        Column(
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .padding(top = 0.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(1.dp)
+        ) {
+            if (isStarter) {
+                StarterBadge()
+            }
+            if (hasHat) {
+                JesterHatBadge()
+            }
         }
 
         Box(
@@ -2300,6 +2319,28 @@ private fun TableCup(
                 )
             }
         }
+    }
+}
+
+
+@Composable
+private fun StarterBadge(
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        modifier = modifier,
+        shape = RoundedCornerShape(6.dp),
+        color = Color(0xFF90CAF9),
+        border = BorderStroke(1.dp, Color.Black.copy(alpha = 0.35f)),
+        shadowElevation = 4.dp
+    ) {
+        Text(
+            text = "STARTER",
+            color = Color.Black,
+            fontWeight = FontWeight.Bold,
+            fontSize = 8.sp,
+            modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp)
+        )
     }
 }
 
@@ -2921,6 +2962,7 @@ private fun engineSnapshot(engine: GameEngine): RoundResult {
         bannerText = null,
         targetableIdsForHuman = emptyList(),
         currentActorId = null,
+        currentStarterId = null,
         lastEventKind = null,
         currentWeatherName = null,
         currentWeatherEffect = null,
