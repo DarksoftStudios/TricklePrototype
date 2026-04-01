@@ -226,7 +226,7 @@ private fun Rect.centerPoint(): TablePoint {
 private fun Rect.cupLandingPoint(): TablePoint {
     return TablePoint(
         x = left + (width / 2f),
-        y = top + (height * 0.34f)
+        y = top + (height * 0.46f)
     )
 }
 
@@ -2791,11 +2791,7 @@ private fun TableCup(
     }
 
     Box(
-        modifier = Modifier
-            .size(width = 56.dp, height = cupContainerHeight)
-            .onGloballyPositioned { coordinates ->
-                onCupAnchorMeasured?.invoke(coordinates.boundsInRoot().cupLandingPoint())
-            },
+        modifier = Modifier.size(width = 56.dp, height = cupContainerHeight),
         contentAlignment = Alignment.BottomCenter
     ) {
         Column(
@@ -2814,7 +2810,11 @@ private fun TableCup(
         }
 
         Box(
-            modifier = Modifier.size(width = 40.dp, height = 46.dp),
+            modifier = Modifier
+                .size(width = 40.dp, height = 46.dp)
+                .onGloballyPositioned { coordinates ->
+                    onCupAnchorMeasured?.invoke(coordinates.boundsInRoot().cupLandingPoint())
+                },
             contentAlignment = Alignment.Center
         ) {
             if (isCurrentTurn) {
@@ -3092,15 +3092,32 @@ private fun TargetArrowOverlay(
     cupCenters: Map<Int, TablePoint>,
     modifier: Modifier = Modifier
 ) {
-    Canvas(modifier = modifier) {
-        val actorCenter = cupCenters[arrow.actorId] ?: return@Canvas
+    var overlayOrigin by remember { mutableStateOf(TablePoint(0f, 0f)) }
 
-        arrow.targetIds.distinct().forEach { targetId ->
-            val targetCenter = cupCenters[targetId] ?: return@forEach
-            drawTargetArrow(
-                start = Offset(actorCenter.x, actorCenter.y),
-                end = Offset(targetCenter.x, targetCenter.y)
+    Box(
+        modifier = modifier.onGloballyPositioned { coordinates ->
+            val bounds = coordinates.boundsInRoot()
+            overlayOrigin = TablePoint(bounds.left, bounds.top)
+        }
+    ) {
+        Canvas(modifier = Modifier.matchParentSize()) {
+            val actorCenter = cupCenters[arrow.actorId] ?: return@Canvas
+            val actorLocal = Offset(
+                x = actorCenter.x - overlayOrigin.x,
+                y = actorCenter.y - overlayOrigin.y
             )
+
+            arrow.targetIds.distinct().forEach { targetId ->
+                val targetCenter = cupCenters[targetId] ?: return@forEach
+                val targetLocal = Offset(
+                    x = targetCenter.x - overlayOrigin.x,
+                    y = targetCenter.y - overlayOrigin.y
+                )
+                drawTargetArrow(
+                    start = actorLocal,
+                    end = targetLocal
+                )
+            }
         }
     }
 }
@@ -3117,7 +3134,7 @@ private fun DrawScope.drawTargetArrow(
     val directionX = deltaX / distance
     val directionY = deltaY / distance
     val startInset = 28f
-    val endInset = 34f
+    val endInset = 20f
 
     val shaftStart = Offset(
         x = start.x + (directionX * startInset),
