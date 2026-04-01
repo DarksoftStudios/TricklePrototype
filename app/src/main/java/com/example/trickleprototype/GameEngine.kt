@@ -50,6 +50,8 @@ data class RoundResult(
     val forcedGuessForHuman: Int?,
     val mustTargetForHuman: Boolean,
     val requiresSecondTargetForHuman: Boolean,
+    val activeTargetArrowActorId: Int?,
+    val activeTargetArrowTargetIds: List<Int>,
     val marbleTransfers: List<MarbleTransferEvent>
 )
 
@@ -163,6 +165,8 @@ class GameEngine(
 
     private val pending = ArrayDeque<PendingLog>()
     private var lastEventKind: LogEventKind? = null
+    private var activeTargetArrowActorId: Int? = null
+    private var activeTargetArrowTargetIds: List<Int> = emptyList()
 
     private var statsStore: StatsStore? = null
 
@@ -199,6 +203,8 @@ class GameEngine(
         targetedThisRound.clear()
         attacksThisRound.clear()
         currentWeatherCard = null
+        activeTargetArrowActorId = null
+        activeTargetArrowTargetIds = emptyList()
         firstNonZeroGuessThisRound = null
         firstTargetingActorId = null
         firstWrongZeroResolvedThisRound = false
@@ -637,6 +643,8 @@ class GameEngine(
         winnerIds = emptyList()
         pending.clear()
         lastEventKind = null
+        activeTargetArrowActorId = null
+        activeTargetArrowTargetIds = emptyList()
         currentRoundCorrectlyGuessedTargetIds.clear()
         firstNonZeroGuessThisRound = null
         firstTargetingActorId = null
@@ -792,6 +800,9 @@ class GameEngine(
         }
 
         val actorId = turnOrder[turnCursor]
+
+        activeTargetArrowActorId = null
+        activeTargetArrowTargetIds = emptyList()
 
         if (actorId == HUMAN_ID) {
             phase = EnginePhase.PLAYER_TURN
@@ -1006,6 +1017,8 @@ class GameEngine(
         attacksThisRound[actorId] = targetIds.first()
         passStreaks[actorId] = 0
         targetingActionsTakenThisRound += 1
+        activeTargetArrowActorId = actorId
+        activeTargetArrowTargetIds = targetIds
 
         if (actorId == HUMAN_ID &&
             currentWeatherId() == "stormfront" &&
@@ -1838,6 +1851,8 @@ class GameEngine(
             forcedGuessForHuman = lockedGuessForRound(),
             mustTargetForHuman = phase == EnginePhase.PLAYER_TURN && actorMustTarget(HUMAN_ID),
             requiresSecondTargetForHuman = phase == EnginePhase.PLAYER_TURN && actorNeedsTwoTargetsIfTargeting(),
+            activeTargetArrowActorId = activeTargetArrowActorId,
+            activeTargetArrowTargetIds = activeTargetArrowTargetIds,
             marbleTransfers = latestMarbleTransfers.toList()
         )
     }

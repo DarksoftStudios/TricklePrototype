@@ -15,6 +15,7 @@ import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.animateColor
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
@@ -94,6 +95,7 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.graphics.ImageBitmap
@@ -124,6 +126,8 @@ import androidx.core.view.WindowCompat
 import com.example.trickleprototype.ui.theme.TricklePrototypeTheme
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlin.math.PI
+import kotlin.math.atan2
 import kotlin.math.cos
 import kotlin.math.sin
 import kotlin.random.Random
@@ -295,6 +299,13 @@ private data class MarbleFlightVisual(
     val launchDelayMs: Int,
     val laneOffsetPx: Float
 )
+
+@Immutable
+private data class TargetArrowVisual(
+    val actorId: Int,
+    val targetIds: List<Int>
+)
+
 
 private fun marbleTransferPoint(
     transferType: MarbleTransferEndpointType,
@@ -520,6 +531,7 @@ private fun TrickleApp() {
     var floatingIndicators by remember { mutableStateOf<Map<Int, FloatingIndicator>>(emptyMap()) }
     var nextIndicatorToken by remember { mutableStateOf(1L) }
     var marbleFlights by remember { mutableStateOf<List<MarbleFlightVisual>>(emptyList()) }
+    var activeTargetArrow by remember { mutableStateOf<TargetArrowVisual?>(null) }
     var nextMarbleFlightId by remember { mutableLongStateOf(1L) }
     var bowlSpawnPoint by remember { mutableStateOf<TablePoint?>(null) }
     val cupCenters = remember { mutableStateMapOf<Int, TablePoint>() }
@@ -690,6 +702,10 @@ private fun TrickleApp() {
     val forcedGuess = lastResult?.forcedGuessForHuman
     val mustTarget = lastResult?.mustTargetForHuman == true
     val needsSecondTarget = lastResult?.requiresSecondTargetForHuman == true
+    val activeTargetArrowFromResult = lastResult?.activeTargetArrowActorId?.let { actorId ->
+        val targetIds = lastResult?.activeTargetArrowTargetIds.orEmpty()
+        if (targetIds.isEmpty()) null else TargetArrowVisual(actorId = actorId, targetIds = targetIds)
+    }
 
     val scrollState = rememberScrollState()
     LaunchedEffect(logText) { scrollState.scrollTo(0) }
@@ -726,6 +742,7 @@ private fun TrickleApp() {
         logText = ""
         floatingIndicators = emptyMap()
         marbleFlights = emptyList()
+        activeTargetArrow = null
         lastQueuedMarbleTransferSignature = ""
         achievementQueue = emptyList()
         activeAchievement = null
@@ -760,6 +777,7 @@ private fun TrickleApp() {
 
         floatingIndicators = emptyMap()
         marbleFlights = emptyList()
+        activeTargetArrow = null
         lastQueuedMarbleTransferSignature = ""
         achievementQueue = emptyList()
         activeAchievement = null
@@ -906,6 +924,10 @@ private fun TrickleApp() {
                 val result = engine.step()
                 lastResult = result
                 logText = buildLogText(result, difficulty!!)
+                activeTargetArrow = result.activeTargetArrowActorId?.let { actorId ->
+                    val targetIds = result.activeTargetArrowTargetIds
+                    if (targetIds.isEmpty()) null else TargetArrowVisual(actorId = actorId, targetIds = targetIds)
+                }
 
                 if (result.phase == EnginePhase.BOT_TURN) {
                     val base = if (result.lastEventKind == LogEventKind.PASS) 300L else 1000L
@@ -1511,6 +1533,19 @@ private fun TrickleApp() {
             val canPassThisTurn = !mustTarget || !hasValidTargets
             val secondDropdownOptions = dropdownOptions.filter { it.id != targetId }
 
+            val previewTargetIds = buildList {
+                targetId?.let { add(it) }
+                if (needsSecondTarget) {
+                    secondTargetId?.let { add(it) }
+                }
+            }
+            val displayTargetArrow = when {
+                pendingHumanAction == PendingHumanAction.TARGET && previewTargetIds.isNotEmpty() -> {
+                    TargetArrowVisual(actorId = GameEngine.HUMAN_ID, targetIds = previewTargetIds)
+                }
+                else -> activeTargetArrow ?: activeTargetArrowFromResult
+            }
+
             val zeroGuessUnlocked = statsStore.load().zeroHeroUnlocked
 
             val winnerBadgeLabel = buildWinnerBadgeLabel(lastResult)
@@ -1534,6 +1569,18 @@ private fun TrickleApp() {
                 selectedGuess: Int?,
                 selectedSecondTargetId: Int?
             ) {
+                if (selectedTargetId != null) {
+                    activeTargetArrow = TargetArrowVisual(
+                        actorId = GameEngine.HUMAN_ID,
+                        targetIds = buildList {
+                            add(selectedTargetId)
+                            selectedSecondTargetId?.let { add(it) }
+                        }
+                    )
+                } else {
+                    activeTargetArrow = null
+                }
+
                 humanActionLocked = true
                 val result = engine.submitHumanTurn(
                     targetId = selectedTargetId,
@@ -1542,6 +1589,10 @@ private fun TrickleApp() {
                 )
                 lastResult = result
                 logText = buildLogText(result, difficulty!!)
+                activeTargetArrow = result.activeTargetArrowActorId?.let { actorId ->
+                    val targetIds = result.activeTargetArrowTargetIds
+                    if (targetIds.isEmpty()) null else TargetArrowVisual(actorId = actorId, targetIds = targetIds)
+                }
 
                 if (result.phase == EnginePhase.PLAYER_TURN) {
                     humanActionLocked = false
@@ -1792,6 +1843,10 @@ private fun TrickleApp() {
                                         val result = engine.startRound(choice)
                                         lastResult = result
                                         logText = buildLogText(result, difficulty!!)
+                                        activeTargetArrow = result.activeTargetArrowActorId?.let { actorId ->
+                                            val targetIds = result.activeTargetArrowTargetIds
+                                            if (targetIds.isEmpty()) null else TargetArrowVisual(actorId = actorId, targetIds = targetIds)
+                                        }
                                         targetId = null
                                         secondTargetId = null
                                     }
@@ -1856,6 +1911,16 @@ private fun TrickleApp() {
                         .matchParentSize()
                         .zIndex(5f)
                 )
+
+                displayTargetArrow?.let { arrow ->
+                    TargetArrowOverlay(
+                        arrow = arrow,
+                        cupCenters = cupCenters,
+                        modifier = Modifier
+                            .matchParentSize()
+                            .zIndex(5.5f)
+                    )
+                }
 
                 MarbleFlightOverlay(
                     flights = marbleFlights,
@@ -2699,7 +2764,16 @@ private fun TableCup(
 ) {
     val bucketFill = if (highlighted) Color(0xFFFF5252) else Color(0xFFD32F2F)
     val bucketBorder = if (highlighted) Color(0xFFFFCDD2) else Color(0xFF7F0000)
-    val turnGlowColor = Color(0xFFFFEB3B)
+    val turnGlowTransition = rememberInfiniteTransition(label = "turnGlowTransition")
+    val turnGlowColor by turnGlowTransition.animateColor(
+        initialValue = Color.White,
+        targetValue = Color(0xFF464646),
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 1400, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "turnGlowColor"
+    )
     val cupShape = GenericShape { size, _ ->
         val topInset = size.width * 0.04f
         val bottomInset = size.width * 0.13f
@@ -3010,6 +3084,112 @@ private fun TableCenterBowl(
             )
         )
     }
+}
+
+@Composable
+private fun TargetArrowOverlay(
+    arrow: TargetArrowVisual,
+    cupCenters: Map<Int, TablePoint>,
+    modifier: Modifier = Modifier
+) {
+    Canvas(modifier = modifier) {
+        val actorCenter = cupCenters[arrow.actorId] ?: return@Canvas
+
+        arrow.targetIds.distinct().forEach { targetId ->
+            val targetCenter = cupCenters[targetId] ?: return@forEach
+            drawTargetArrow(
+                start = Offset(actorCenter.x, actorCenter.y),
+                end = Offset(targetCenter.x, targetCenter.y)
+            )
+        }
+    }
+}
+
+private fun DrawScope.drawTargetArrow(
+    start: Offset,
+    end: Offset
+) {
+    val deltaX = end.x - start.x
+    val deltaY = end.y - start.y
+    val distance = kotlin.math.sqrt((deltaX * deltaX) + (deltaY * deltaY))
+    if (distance < 8f) return
+
+    val directionX = deltaX / distance
+    val directionY = deltaY / distance
+    val startInset = 28f
+    val endInset = 34f
+
+    val shaftStart = Offset(
+        x = start.x + (directionX * startInset),
+        y = start.y + (directionY * startInset)
+    )
+    val shaftEnd = Offset(
+        x = end.x - (directionX * endInset),
+        y = end.y - (directionY * endInset)
+    )
+
+    val angle = atan2(shaftEnd.y - shaftStart.y, shaftEnd.x - shaftStart.x)
+    val arrowHeadLength = 24f
+    val arrowHeadSpread = (PI / 7.5f).toFloat()
+    val leftHead = Offset(
+        x = shaftEnd.x - (arrowHeadLength * cos(angle - arrowHeadSpread)),
+        y = shaftEnd.y - (arrowHeadLength * sin(angle - arrowHeadSpread))
+    )
+    val rightHead = Offset(
+        x = shaftEnd.x - (arrowHeadLength * cos(angle + arrowHeadSpread)),
+        y = shaftEnd.y - (arrowHeadLength * sin(angle + arrowHeadSpread))
+    )
+
+    drawLine(
+        color = Color.White.copy(alpha = 0.24f),
+        start = shaftStart,
+        end = shaftEnd,
+        strokeWidth = 12f,
+        cap = StrokeCap.Round
+    )
+    drawLine(
+        color = Color(0xFFFFF1B8),
+        start = shaftStart,
+        end = shaftEnd,
+        strokeWidth = 6f,
+        cap = StrokeCap.Round,
+        pathEffect = PathEffect.dashPathEffect(floatArrayOf(24f, 14f), 0f)
+    )
+    drawLine(
+        color = Color.White.copy(alpha = 0.35f),
+        start = shaftStart,
+        end = shaftEnd,
+        strokeWidth = 2f,
+        cap = StrokeCap.Round
+    )
+    drawLine(
+        color = Color.White.copy(alpha = 0.24f),
+        start = shaftEnd,
+        end = leftHead,
+        strokeWidth = 10f,
+        cap = StrokeCap.Round
+    )
+    drawLine(
+        color = Color.White.copy(alpha = 0.24f),
+        start = shaftEnd,
+        end = rightHead,
+        strokeWidth = 10f,
+        cap = StrokeCap.Round
+    )
+    drawLine(
+        color = Color(0xFFFFF1B8),
+        start = shaftEnd,
+        end = leftHead,
+        strokeWidth = 5f,
+        cap = StrokeCap.Round
+    )
+    drawLine(
+        color = Color(0xFFFFF1B8),
+        start = shaftEnd,
+        end = rightHead,
+        strokeWidth = 5f,
+        cap = StrokeCap.Round
+    )
 }
 
 @Composable
@@ -3490,6 +3670,8 @@ private fun engineSnapshot(engine: GameEngine): RoundResult {
         mustTargetForHuman = false,
         requiresSecondTargetForHuman = false,
         hatHolderId = null,
+        activeTargetArrowActorId = null,
+        activeTargetArrowTargetIds = emptyList(),
         marbleTransfers = emptyList()
     )
 }
