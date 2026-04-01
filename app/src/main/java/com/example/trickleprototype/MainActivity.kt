@@ -61,10 +61,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.ExposedDropdownMenuBox
-import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -177,6 +173,13 @@ private enum class IndicatorTone {
     GOOD,
     BAD,
     ALERT
+}
+
+private enum class TargetVisualState {
+    NORMAL,
+    SELECTABLE,
+    SELECTED,
+    DISABLED
 }
 
 @Immutable
@@ -1532,6 +1535,65 @@ private fun TrickleApp() {
             val hasValidTargets = dropdownOptions.isNotEmpty()
             val canPassThisTurn = !mustTarget || !hasValidTargets
             val secondDropdownOptions = dropdownOptions.filter { it.id != targetId }
+            val isHumanTargetingSelectionActive =
+                inputsEnabled && pendingHumanAction == PendingHumanAction.TARGET
+            val primaryTargetableIds = dropdownOptions.map { it.id }.toSet()
+            val secondaryTargetableIds = secondDropdownOptions.map { it.id }.toSet()
+
+            fun visualStateForTargetablePlayer(playerId: Int): TargetVisualState {
+                if (!isHumanTargetingSelectionActive) return TargetVisualState.NORMAL
+                if (playerId == targetId || (needsSecondTarget && playerId == secondTargetId)) {
+                    return TargetVisualState.SELECTED
+                }
+
+                val legalIds = if (needsSecondTarget && targetId != null) {
+                    secondaryTargetableIds
+                } else {
+                    primaryTargetableIds
+                }
+
+                return if (playerId in legalIds) {
+                    TargetVisualState.SELECTABLE
+                } else {
+                    TargetVisualState.DISABLED
+                }
+            }
+
+            fun handleTargetSeatClick(clickedPlayerId: Int) {
+                if (!isHumanTargetingSelectionActive) return
+
+                if (!needsSecondTarget) {
+                    if (clickedPlayerId == targetId) {
+                        targetId = null
+                    } else if (clickedPlayerId in primaryTargetableIds) {
+                        targetId = clickedPlayerId
+                    }
+                    return
+                }
+
+                if (targetId == null) {
+                    if (clickedPlayerId in primaryTargetableIds) {
+                        targetId = clickedPlayerId
+                        secondTargetId = null
+                    }
+                    return
+                }
+
+                if (clickedPlayerId == targetId) {
+                    targetId = null
+                    secondTargetId = null
+                    return
+                }
+
+                if (clickedPlayerId == secondTargetId) {
+                    secondTargetId = null
+                    return
+                }
+
+                if (clickedPlayerId in secondaryTargetableIds) {
+                    secondTargetId = clickedPlayerId
+                }
+            }
 
             val previewTargetIds = buildList {
                 targetId?.let { add(it) }
@@ -1670,6 +1732,8 @@ private fun TrickleApp() {
                             indicator = floatingIndicators[GameEngine.HUMAN_ID],
                             hasHat = lastResult?.hatHolderId == GameEngine.HUMAN_ID,
                             isStarter = lastResult?.currentStarterId == GameEngine.HUMAN_ID,
+                            targetVisualState = TargetVisualState.NORMAL,
+                            onTargetClick = null,
                             onCupAnchorMeasured = { playerId, anchor ->
                                 cupCenters[playerId] = anchor
                             },
@@ -1701,6 +1765,8 @@ private fun TrickleApp() {
                             starterId = lastResult?.currentStarterId,
                             indicators = floatingIndicators,
                             showMarbleCounts = difficulty == Difficulty.EASY,
+                            targetVisualStateForBot = { botId -> visualStateForTargetablePlayer(botId) },
+                            onBotClicked = { botId -> handleTargetSeatClick(botId) },
                             onCupAnchorMeasured = { playerId, anchor ->
                                 cupCenters[playerId] = anchor
                             },
@@ -1717,6 +1783,8 @@ private fun TrickleApp() {
                             starterId = lastResult?.currentStarterId,
                             indicators = floatingIndicators,
                             showMarbleCounts = difficulty == Difficulty.EASY,
+                            targetVisualStateForBot = { botId -> visualStateForTargetablePlayer(botId) },
+                            onBotClicked = { botId -> handleTargetSeatClick(botId) },
                             onCupAnchorMeasured = { playerId, anchor ->
                                 cupCenters[playerId] = anchor
                             },
@@ -1795,14 +1863,19 @@ private fun TrickleApp() {
                             dropdownOptions = dropdownOptions,
                             selectedTargetId = targetId,
                             onTargetPicked = { pickedTargetId ->
-                                targetId = pickedTargetId
-                                if (secondTargetId == pickedTargetId) secondTargetId = null
+                                if (pickedTargetId < 0) {
+                                    targetId = null
+                                    secondTargetId = null
+                                } else {
+                                    targetId = pickedTargetId
+                                    if (secondTargetId == pickedTargetId) secondTargetId = null
+                                }
                             },
                             needsSecondTarget = needsSecondTarget,
                             secondDropdownOptions = secondDropdownOptions,
                             selectedSecondTargetId = secondTargetId,
                             onSecondTargetPicked = { pickedSecondTargetId ->
-                                secondTargetId = pickedSecondTargetId
+                                secondTargetId = if (pickedSecondTargetId < 0) null else pickedSecondTargetId
                             },
                             guess = guess,
                             onGuessSelected = { selectedGuess ->
@@ -2661,11 +2734,27 @@ private fun PlayerStatusStack(
     indicator: FloatingIndicator?,
     hasHat: Boolean,
     isStarter: Boolean,
+    targetVisualState: TargetVisualState,
+    onTargetClick: (() -> Unit)?,
     onCupAnchorMeasured: (Int, TablePoint) -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val contentAlpha = when (targetVisualState) {
+        TargetVisualState.DISABLED -> 0.38f
+        else -> 1f
+    }
+
     Row(
-        modifier = modifier.fillMaxWidth(),
+        modifier = modifier
+            .fillMaxWidth()
+            .alpha(contentAlpha)
+            .then(
+                if (onTargetClick != null) {
+                    Modifier.clickable(onClick = onTargetClick)
+                } else {
+                    Modifier
+                }
+            ),
         horizontalArrangement = Arrangement.Center,
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -2686,6 +2775,7 @@ private fun PlayerStatusStack(
             indicator = indicator,
             hasHat = hasHat,
             isStarter = isStarter,
+            targetVisualState = targetVisualState,
             onCupAnchorMeasured = { measuredAnchor ->
                 onCupAnchorMeasured(GameEngine.HUMAN_ID, measuredAnchor)
             }
@@ -2711,6 +2801,8 @@ private fun BotCupColumn(
     starterId: Int?,
     indicators: Map<Int, FloatingIndicator>,
     showMarbleCounts: Boolean,
+    targetVisualStateForBot: (Int) -> TargetVisualState,
+    onBotClicked: (Int) -> Unit,
     onCupAnchorMeasured: (Int, TablePoint) -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -2720,7 +2812,25 @@ private fun BotCupColumn(
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         bots.forEach { bot ->
+            val targetVisualState = targetVisualStateForBot(bot.id)
+            val contentAlpha = when (targetVisualState) {
+                TargetVisualState.DISABLED -> 0.38f
+                else -> 1f
+            }
+            val nameColor = when (targetVisualState) {
+                TargetVisualState.SELECTED -> Color(0xFFFFF59D)
+                TargetVisualState.SELECTABLE -> Color(0xFFFFF59D)
+                else -> Color.White
+            }
+
             Column(
+                modifier = Modifier
+                    .alpha(contentAlpha)
+                    .clickable(
+                        enabled = targetVisualState == TargetVisualState.SELECTABLE ||
+                                targetVisualState == TargetVisualState.SELECTED,
+                        onClick = { onBotClicked(bot.id) }
+                    ),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 TableCup(
@@ -2731,6 +2841,7 @@ private fun BotCupColumn(
                     hasHat = hatHolderId == bot.id,
                     isStarter = starterId == bot.id,
                     marbleCountText = if (showMarbleCounts) bot.marbles.toString() else null,
+                    targetVisualState = targetVisualState,
                     onCupAnchorMeasured = { measuredAnchor ->
                         onCupAnchorMeasured(bot.id, measuredAnchor)
                     }
@@ -2738,7 +2849,7 @@ private fun BotCupColumn(
 
                 Text(
                     text = bot.baseName,
-                    color = Color.White,
+                    color = nameColor,
                     fontSize = 13.sp,
                     lineHeight = 13.sp,
                     maxLines = 1,
@@ -2760,10 +2871,25 @@ private fun TableCup(
     hasHat: Boolean = false,
     isStarter: Boolean = false,
     marbleCountText: String? = null,
+    targetVisualState: TargetVisualState = TargetVisualState.NORMAL,
     onCupAnchorMeasured: ((TablePoint) -> Unit)? = null
 ) {
-    val bucketFill = if (highlighted) Color(0xFFFF5252) else Color(0xFFD32F2F)
-    val bucketBorder = if (highlighted) Color(0xFFFFCDD2) else Color(0xFF7F0000)
+    val bucketFill = when (targetVisualState) {
+        TargetVisualState.SELECTED -> Color(0xFFFFB300)
+        TargetVisualState.SELECTABLE -> Color(0xFFD84315)
+        TargetVisualState.DISABLED -> Color(0xFF5D4037)
+        TargetVisualState.NORMAL -> if (highlighted) Color(0xFFFF5252) else Color(0xFFD32F2F)
+    }
+    val bucketBorder = when (targetVisualState) {
+        TargetVisualState.SELECTED -> Color(0xFFFFF176)
+        TargetVisualState.SELECTABLE -> Color(0xFFFFCC80)
+        TargetVisualState.DISABLED -> Color(0xFF3E2723)
+        TargetVisualState.NORMAL -> if (highlighted) Color(0xFFFFCDD2) else Color(0xFF7F0000)
+    }
+    val cupContentAlpha = when (targetVisualState) {
+        TargetVisualState.DISABLED -> 0.78f
+        else -> 1f
+    }
     val turnGlowTransition = rememberInfiniteTransition(label = "turnGlowTransition")
     val turnGlowColor by turnGlowTransition.animateColor(
         initialValue = Color.White,
@@ -2869,7 +2995,7 @@ private fun TableCup(
                     if (marbleCountText != null) {
                         Text(
                             text = marbleCountText,
-                            color = Color.White,
+                            color = Color.White.copy(alpha = cupContentAlpha),
                             fontWeight = FontWeight.ExtraBold,
                             fontSize = 14.sp,
                             maxLines = 1,
@@ -3455,23 +3581,53 @@ private fun TableActionPanel(
                     Spacer(Modifier.height(8.dp))
                 }
 
-                TargetDropdown(
-                    options = dropdownOptions,
-                    selectedTargetId = selectedTargetId,
-                    enabled = dropdownOptions.isNotEmpty(),
-                    label = "Target",
-                    onSelect = onTargetPicked
+                val targetPrompt = when {
+                    needsSecondTarget && selectedTargetId == null ->
+                        "Click a cup or name to pick your first target."
+                    needsSecondTarget && selectedSecondTargetId == null ->
+                        "Click a second cup or name."
+                    needsSecondTarget ->
+                        ""
+                    selectedTargetId == null ->
+                        "Click a cup or name to pick your target."
+                    else ->
+                        ""
+                }
+
+                Text(
+                    text = targetPrompt,
+                    color = Color.White,
+                    fontWeight = FontWeight.Bold,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth()
                 )
 
-                if (needsSecondTarget && selectedTargetId != null) {
+                if (selectedTargetId != null) {
                     Spacer(Modifier.height(8.dp))
-                    TargetDropdown(
-                        options = secondDropdownOptions,
-                        selectedTargetId = selectedSecondTargetId,
-                        enabled = secondDropdownOptions.isNotEmpty(),
-                        label = "Second target",
-                        onSelect = onSecondTargetPicked
+
+                    fun selectedTargetName(playerId: Int?): String {
+                        return (dropdownOptions + secondDropdownOptions)
+                            .firstOrNull { it.id == playerId }
+                            ?.baseName
+                            ?: "-"
+                    }
+
+                    val targetSummary = buildString {
+                        append("Target: ")
+                        append(selectedTargetName(selectedTargetId))
+                        if (needsSecondTarget && selectedSecondTargetId != null) {
+                            append(" | Second: ")
+                            append(selectedTargetName(selectedSecondTargetId))
+                        }
+                    }
+
+                    Text(
+                        text = targetSummary,
+                        color = Color(0xFFFFF59D),
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.fillMaxWidth()
                     )
+
                 }
 
                 Spacer(Modifier.height(12.dp))
@@ -4319,53 +4475,5 @@ private fun SmallChoiceButton(
             maxLines = 1,
             softWrap = false
         )
-    }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun TargetDropdown(
-    options: List<PlayerState>,
-    selectedTargetId: Int?,
-    enabled: Boolean,
-    label: String = "You target",
-    onSelect: (Int) -> Unit
-) {
-    var expanded by remember { mutableStateOf(false) }
-    val selectedName = options.firstOrNull { it.id == selectedTargetId }?.baseName ?: "-"
-
-    ExposedDropdownMenuBox(
-        expanded = expanded,
-        onExpandedChange = { if (enabled) expanded = !expanded }
-    ) {
-        OutlinedTextField(
-            value = selectedName,
-            onValueChange = {},
-            readOnly = true,
-            enabled = enabled,
-            label = { Text(label) },
-            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
-            modifier = Modifier
-                .menuAnchor()
-                .widthIn(min = 160.dp, max = 220.dp)
-        )
-
-        val menuMaxHeight = (options.size * 56).dp
-
-        ExposedDropdownMenu(
-            expanded = expanded && enabled,
-            onDismissRequest = { expanded = false },
-            modifier = Modifier.heightIn(max = menuMaxHeight)
-        ) {
-            options.forEach { p ->
-                DropdownMenuItem(
-                    text = { Text(p.baseName) },
-                    onClick = {
-                        onSelect(p.id)
-                        expanded = false
-                    }
-                )
-            }
-        }
     }
 }
