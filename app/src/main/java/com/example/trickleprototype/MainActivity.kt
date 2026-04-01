@@ -504,13 +504,12 @@ private fun TrickleApp() {
     }
 
     var difficulty by remember { mutableStateOf<Difficulty?>(null) }
-    var weatherEnabled by remember { mutableStateOf(false) }
+    var weatherEnabled by remember { mutableStateOf(settingsPrefs.getBoolean("weather_enabled", false)) }
 
     var choice by remember { mutableIntStateOf(1) }
     var targetId by remember { mutableStateOf<Int?>(null) }
     var secondTargetId by remember { mutableStateOf<Int?>(null) }
     var guess by remember { mutableIntStateOf(3) }
-    var displayedRound by remember { mutableIntStateOf(1) }
     var pendingHumanAction by remember { mutableStateOf(PendingHumanAction.NONE) }
     var showLogOverlay by remember { mutableStateOf(false) }
 
@@ -598,6 +597,10 @@ private fun TrickleApp() {
 
     LaunchedEffect(passTargetConfirmEnabled) {
         settingsPrefs.edit().putBoolean("pass_target_confirm_enabled", passTargetConfirmEnabled).apply()
+    }
+
+    LaunchedEffect(weatherEnabled) {
+        settingsPrefs.edit().putBoolean("weather_enabled", weatherEnabled).apply()
     }
 
     val seenAchievements = remember { mutableSetOf<String>() }
@@ -736,7 +739,6 @@ private fun TrickleApp() {
         targetId = null
         secondTargetId = null
         guess = 3
-        displayedRound = 1
         pendingHumanAction = PendingHumanAction.NONE
         showLogOverlay = false
         showQuitConfirm = false
@@ -766,7 +768,6 @@ private fun TrickleApp() {
         targetId = null
         secondTargetId = null
         guess = 3
-        displayedRound = 1
         pendingHumanAction = PendingHumanAction.NONE
         showLogOverlay = false
         showQuitConfirm = false
@@ -1515,7 +1516,7 @@ private fun TrickleApp() {
             val winnerBadgeLabel = buildWinnerBadgeLabel(lastResult)
 
             val playerPhaseBadge = phaseBadgeText(
-                roundNumber = displayedRound,
+                roundNumber = displayedRoundFromEngine,
                 enginePhase = phase,
                 pendingHumanAction = pendingHumanAction,
                 humanActionLocked = humanActionLocked,
@@ -1952,7 +1953,7 @@ private fun phaseBadgeText(
     }
 
     val instruction = when (enginePhase) {
-        EnginePhase.SELECT, EnginePhase.ROUND_END -> "Choose your number"
+        EnginePhase.SELECT, EnginePhase.ROUND_END -> "Choose 0, 1, or 3."
         EnginePhase.BOT_TURN -> {
             if (isTrickling) {
                 "Trickling"
@@ -1986,7 +1987,7 @@ private fun phaseBadgeText(
                 }
             }
         }
-        EnginePhase.SETUP -> "Choose your number"
+        EnginePhase.SETUP -> "Choose 0, 1, or 3."
         EnginePhase.GAME_OVER -> "Game Over"
     }
 
@@ -2849,13 +2850,13 @@ private fun StarterBadge(
     Surface(
         modifier = modifier,
         shape = RoundedCornerShape(6.dp),
-        color = Color(0xFF90CAF9),
+        color = Color(0xFF4CAF50),
         border = BorderStroke(1.dp, Color.Black.copy(alpha = 0.35f)),
         shadowElevation = 4.dp
     ) {
         Text(
             text = "STARTER",
-            color = Color.Black,
+            color = Color(0xFF024406),
             fontWeight = FontWeight.Bold,
             fontSize = 8.sp,
             modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp)
@@ -3148,7 +3149,7 @@ private fun TableActionPanel(
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             if (showChoiceButtons) {
-                Text("Choose your number", color = Color.White, fontWeight = FontWeight.Bold)
+                Text("Choose 0, 1, or 3.", color = Color.White, fontWeight = FontWeight.Bold)
                 Spacer(Modifier.height(8.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     SmallChoiceButton("0", selected = choice == 0, enabled = choiceEnabled) { onChoiceSelected(0) }
