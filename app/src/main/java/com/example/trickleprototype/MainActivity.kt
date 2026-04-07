@@ -1160,7 +1160,7 @@ private fun TrickleApp() {
                 }
             }
 
-            Spacer(Modifier.height(10.dp))
+            Spacer(Modifier.height(4.dp))
 
             when (screen) {
                 AppScreen.SPLASH -> {
@@ -1290,13 +1290,13 @@ private fun TrickleApp() {
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
                         MenuLinkButton(text = "PLAY") { screen = AppScreen.PLAY }
-                        Spacer(Modifier.height(10.dp))
+                        Spacer(Modifier.height(4.dp))
                         MenuLinkButton(text = "RULES") { screen = AppScreen.RULES }
-                        Spacer(Modifier.height(10.dp))
+                        Spacer(Modifier.height(4.dp))
                         MenuLinkButton(text = "PROFILE") { screen = AppScreen.PROFILE }
-                        Spacer(Modifier.height(10.dp))
+                        Spacer(Modifier.height(4.dp))
                         MenuLinkButton(text = "SETTINGS") { screen = AppScreen.SETTINGS }
-                        Spacer(Modifier.height(10.dp))
+                        Spacer(Modifier.height(4.dp))
                         MenuLinkButton(text = "QUIT") { activity?.finish() }
 
                         Spacer(Modifier.height(28.dp))
@@ -1339,10 +1339,10 @@ private fun TrickleApp() {
                                 }
                             }
 
-                            Spacer(Modifier.height(10.dp))
+                            Spacer(Modifier.height(4.dp))
                             MenuLinkButton(text = "EASY") { startGame(Difficulty.EASY) }
 
-                            Spacer(Modifier.height(10.dp))
+                            Spacer(Modifier.height(4.dp))
                             MenuLinkButton(
                                 text = if (normalUnlocked) "NORMAL" else "NORMAL (LOCKED)"
                             ) {
@@ -1353,7 +1353,7 @@ private fun TrickleApp() {
                                 }
                             }
 
-                            Spacer(Modifier.height(10.dp))
+                            Spacer(Modifier.height(4.dp))
                             MenuLinkButton(
                                 text = if (hardUnlocked) "HARD" else "HARD (LOCKED)"
                             ) {
@@ -1364,10 +1364,10 @@ private fun TrickleApp() {
                                 }
                             }
 
-                            Spacer(Modifier.height(10.dp))
+                            Spacer(Modifier.height(4.dp))
                             MenuLinkButton(text = "BACK") { screen = AppScreen.MAIN_MENU }
 
-                            Spacer(Modifier.height(24.dp))
+                            Spacer(Modifier.height(16.dp))
                         }
                     }
                     return@Column
@@ -1382,15 +1382,15 @@ private fun TrickleApp() {
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
                         MenuLinkButton(text = "HOW TO PLAY") { showHowToPlay = true }
-                        Spacer(Modifier.height(10.dp))
+                        Spacer(Modifier.height(4.dp))
                         MenuLinkButton(text = "ADVANCED TIPS") { showTips = true }
-                        Spacer(Modifier.height(10.dp))
+                        Spacer(Modifier.height(4.dp))
                         MenuLinkButton(text = "ARCHETYPES") { showArchetypes = true }
 
                         Spacer(Modifier.height(16.dp))
                         MenuLinkButton(text = "BACK") { screen = AppScreen.MAIN_MENU }
 
-                        Spacer(Modifier.height(24.dp))
+                        Spacer(Modifier.height(14.dp))
                     }
                     return@Column
                 }
@@ -1404,9 +1404,9 @@ private fun TrickleApp() {
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
                         MenuLinkButton(text = "STATS") { showStats = true }
-                        Spacer(Modifier.height(10.dp))
+                        Spacer(Modifier.height(4.dp))
                         MenuLinkButton(text = "ACHIEVEMENTS") { showAchievements = true }
-                        Spacer(Modifier.height(10.dp))
+                        Spacer(Modifier.height(4.dp))
                         MenuLinkButton(text = "CUSTOMIZE") { screen = AppScreen.CUSTOMIZE }
 
                         Spacer(Modifier.height(16.dp))
@@ -1503,7 +1503,7 @@ private fun TrickleApp() {
                                 splashSoundPlayer = null
                             }
                         }
-                        Spacer(Modifier.height(10.dp))
+                        Spacer(Modifier.height(4.dp))
                         MenuLinkButton(
                             text = if (musicEnabled) "MUSIC: ON" else "MUSIC: OFF"
                         ) {
@@ -1517,13 +1517,13 @@ private fun TrickleApp() {
                                 }
                             }
                         }
-                        Spacer(Modifier.height(10.dp))
+                        Spacer(Modifier.height(4.dp))
                         MenuLinkButton(
                             text = if (passTargetConfirmEnabled) "PASS CONFIRM: ON" else "PASS CONFIRM: OFF"
                         ) {
                             passTargetConfirmEnabled = !passTargetConfirmEnabled
                         }
-                        Spacer(Modifier.height(10.dp))
+                        Spacer(Modifier.height(4.dp))
                         MenuLinkButton(text = "RESET STATS") {
                             showResetStatsConfirm = true
                         }
@@ -2887,7 +2887,7 @@ private fun BotCupColumn(
                     textAlign = TextAlign.Center,
                     modifier = Modifier.width(54.dp)
                 )
-                Spacer(Modifier.height(10.dp))
+                Spacer(Modifier.height(4.dp))
             }
         }
     }
@@ -2944,7 +2944,7 @@ private fun TableCup(
     }
 
     Box(
-        modifier = Modifier.size(width = 56.dp, height = 86.dp),
+        modifier = Modifier.size(width = 56.dp, height = 68.dp),
         contentAlignment = Alignment.BottomCenter
     ) {
         SeatIndicatorLane(
@@ -2959,7 +2959,7 @@ private fun TableCup(
 
         Box(
             modifier = Modifier
-                .padding(top = 24.dp)
+                .padding(top = 12.dp)
                 .size(width = 40.dp, height = 46.dp)
                 .onGloballyPositioned { coordinates ->
                     onCupAnchorMeasured?.invoke(coordinates.boundsInRoot().cupLandingPoint())
@@ -3080,18 +3080,20 @@ private fun SeatIndicatorLane(
         IndicatorSprite(
             drawableRes = if (isStarter) R.drawable.starter else null,
             contentDescription = if (isStarter) "Starter" else null,
-            size = 18.dp
+            size = 18.dp,
+            visualScale = 1.7f
         )
 
-        Spacer(Modifier.width(2.dp))
+        Spacer(Modifier.width(1.dp))
 
         IndicatorSprite(
             drawableRes = if (hasHat) R.drawable.thehat else null,
             contentDescription = if (hasHat) "Hat" else null,
-            size = 14.dp
+            size = 14.dp,
+            visualScale = 1.5f
         )
 
-        Spacer(Modifier.width(2.dp))
+        Spacer(Modifier.width(1.dp))
 
         IndicatorSprite(
             drawableRes = when (displayedChoice) {
@@ -3101,7 +3103,8 @@ private fun SeatIndicatorLane(
                 else -> R.drawable.choicenone
             },
             contentDescription = "Choice",
-            size = 14.dp
+            size = 16.dp,
+            visualScale = 1.25f
         )
     }
 }
@@ -3111,7 +3114,8 @@ private fun IndicatorSprite(
     drawableRes: Int?,
     contentDescription: String?,
     size: androidx.compose.ui.unit.Dp,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    visualScale: Float = 1f
 ) {
     Box(
         modifier = modifier.size(size),
@@ -3121,7 +3125,12 @@ private fun IndicatorSprite(
             Image(
                 painter = painterResource(id = drawableRes),
                 contentDescription = contentDescription,
-                modifier = Modifier.fillMaxSize(),
+                modifier = Modifier
+                    .fillMaxSize()
+                    .graphicsLayer {
+                        scaleX = visualScale
+                        scaleY = visualScale
+                    },
                 contentScale = ContentScale.Fit
             )
         }
@@ -4273,7 +4282,7 @@ private fun AchievementUnlockOverlay(
                             fontSize = 36.sp,
                             color = Color(0xFFEAFDFF)
                         )
-                        Spacer(Modifier.height(10.dp))
+                        Spacer(Modifier.height(4.dp))
                         Text(
                             text = popup.title,
                             color = Color.White,
@@ -4307,7 +4316,7 @@ private fun AchievementsText(stats: PlayerStats) {
     Column {
         Spacer(Modifier.height(16.dp))
         Text("(Unlock on Normal or Hard)", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-        Spacer(Modifier.height(10.dp))
+        Spacer(Modifier.height(4.dp))
 
         AchievementSectionHeader("Core")
         AchievementRow(stats.firstPerfectWin, "Perfect Puddler", "Win with 0 wrong guesses")
