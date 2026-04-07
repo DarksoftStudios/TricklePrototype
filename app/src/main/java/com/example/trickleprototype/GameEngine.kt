@@ -605,6 +605,7 @@ class GameEngine(
 
                             val player = players.firstOrNull { it.id == pid }
                             if (player != null) {
+                                player.revealedChoice = revealValue
                                 val awarded = applyPositiveGain(player, revealValue)
 
                                 if (pid == HUMAN_ID) {
@@ -652,6 +653,7 @@ class GameEngine(
         targetingActionsTakenThisRound = 0
         playersWithPositiveScoringEventThisRound.clear()
         roundStartMarbles.clear()
+        players.forEach { it.revealedChoice = null }
 
         drawWeatherForRound()
         currentWeatherId()?.let { gameSeenWeatherIds += it }
@@ -1037,8 +1039,10 @@ class GameEngine(
                 if (!revealedThisRound.containsKey(targetId)) {
                     val c = selectionsThisRound[targetId]!!
                     revealedThisRound[targetId] = c
+                    players.firstOrNull { it.id == targetId }?.revealedChoice = c
                 }
                 val actual = revealedThisRound[targetId]!!
+                players.firstOrNull { it.id == targetId }?.revealedChoice = actual
                 log += RoundLogEvent("${displayNameFor(targetId)} is revealed: $actual")
             }
 
@@ -1239,6 +1243,7 @@ class GameEngine(
                     val c = selectionsThisRound[p.id]!!
                     val trickle = trickleScoreForSelection(c)
                     revealedThisRound[p.id] = c
+                    p.revealedChoice = c
                     val awarded = applyTrickleGain(p, trickle)
 
                     if (p.id == HUMAN_ID) {

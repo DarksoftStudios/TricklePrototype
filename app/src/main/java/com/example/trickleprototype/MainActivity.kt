@@ -1299,7 +1299,7 @@ private fun TrickleApp() {
                         Spacer(Modifier.height(10.dp))
                         MenuLinkButton(text = "QUIT") { activity?.finish() }
 
-                        Spacer(Modifier.height(24.dp))
+                        Spacer(Modifier.height(28.dp))
                     }
                     return@Column
                 }
@@ -1759,7 +1759,7 @@ private fun TrickleApp() {
                             indicator = floatingIndicators[GameEngine.HUMAN_ID],
                             hasHat = lastResult?.hatHolderId == GameEngine.HUMAN_ID,
                             isStarter = lastResult?.currentStarterId == GameEngine.HUMAN_ID,
-                            displayedChoice = choice,
+                            displayedChoice = lastResult?.players?.firstOrNull { it.id == GameEngine.HUMAN_ID }?.revealedChoice,
                             targetVisualState = TargetVisualState.NORMAL,
                             onTargetClick = null,
                             onCupAnchorMeasured = { playerId, anchor ->
@@ -1792,7 +1792,6 @@ private fun TrickleApp() {
                             hatHolderId = lastResult?.hatHolderId,
                             starterId = lastResult?.currentStarterId,
                             indicators = floatingIndicators,
-                            roundLog = lastResult?.log.orEmpty(),
                             showMarbleCounts = difficulty == Difficulty.EASY,
                             targetVisualStateForBot = { botId -> visualStateForTargetablePlayer(botId) },
                             onBotClicked = { botId -> handleTargetSeatClick(botId) },
@@ -1811,7 +1810,6 @@ private fun TrickleApp() {
                             hatHolderId = lastResult?.hatHolderId,
                             starterId = lastResult?.currentStarterId,
                             indicators = floatingIndicators,
-                            roundLog = lastResult?.log.orEmpty(),
                             showMarbleCounts = difficulty == Difficulty.EASY,
                             targetVisualStateForBot = { botId -> visualStateForTargetablePlayer(botId) },
                             onBotClicked = { botId -> handleTargetSeatClick(botId) },
@@ -2832,7 +2830,6 @@ private fun BotCupColumn(
     hatHolderId: Int?,
     starterId: Int?,
     indicators: Map<Int, FloatingIndicator>,
-    roundLog: List<RoundLogEvent>,
     showMarbleCounts: Boolean,
     targetVisualStateForBot: (Int) -> TargetVisualState,
     onBotClicked: (Int) -> Unit,
@@ -2873,10 +2870,7 @@ private fun BotCupColumn(
                     indicator = indicators[bot.id],
                     hasHat = hatHolderId == bot.id,
                     isStarter = starterId == bot.id,
-                    displayedChoice = displayedChoiceFromLog(
-                        playerName = bot.baseName,
-                        log = roundLog
-                    ),
+                    displayedChoice = bot.revealedChoice,
                     marbleCountText = if (showMarbleCounts) bot.marbles.toString() else null,
                     targetVisualState = targetVisualState,
                     onCupAnchorMeasured = { measuredAnchor ->
@@ -2950,7 +2944,7 @@ private fun TableCup(
     }
 
     Box(
-        modifier = Modifier.size(width = 56.dp, height = 82.dp),
+        modifier = Modifier.size(width = 56.dp, height = 86.dp),
         contentAlignment = Alignment.BottomCenter
     ) {
         SeatIndicatorLane(
@@ -2965,7 +2959,7 @@ private fun TableCup(
 
         Box(
             modifier = Modifier
-                .padding(top = 20.dp)
+                .padding(top = 24.dp)
                 .size(width = 40.dp, height = 46.dp)
                 .onGloballyPositioned { coordinates ->
                     onCupAnchorMeasured?.invoke(coordinates.boundsInRoot().cupLandingPoint())
@@ -3086,7 +3080,7 @@ private fun SeatIndicatorLane(
         IndicatorSprite(
             drawableRes = if (isStarter) R.drawable.starter else null,
             contentDescription = if (isStarter) "Starter" else null,
-            size = 42.dp
+            size = 18.dp
         )
 
         Spacer(Modifier.width(2.dp))
