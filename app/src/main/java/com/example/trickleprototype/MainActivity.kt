@@ -379,6 +379,33 @@ private fun resolvePlayerIdByName(players: List<PlayerState>, rawName: String): 
     return players.firstOrNull { it.baseName.equals(trimmed, ignoreCase = true) }?.id
 }
 
+private fun displayedChoiceFromLog(
+    playerName: String,
+    log: List<RoundLogEvent>
+): Int? {
+    val escapedName = Regex.escape(playerName)
+    val revealedRegex = Regex("""^$escapedName is revealed: (0|1|3)$""")
+    val choseRegex = Regex("""^$escapedName chose (0|1|3)\.$""")
+
+    for (event in log.asReversed()) {
+        val line = event.text.trim()
+
+        revealedRegex.matchEntire(line)
+            ?.groupValues
+            ?.getOrNull(1)
+            ?.toIntOrNull()
+            ?.let { return it }
+
+        choseRegex.matchEntire(line)
+            ?.groupValues
+            ?.getOrNull(1)
+            ?.toIntOrNull()
+            ?.let { return it }
+    }
+
+    return null
+}
+
 private fun splitTargetNames(rawNames: String): List<String> {
     return rawNames
         .split(" and ")
@@ -1732,6 +1759,7 @@ private fun TrickleApp() {
                             indicator = floatingIndicators[GameEngine.HUMAN_ID],
                             hasHat = lastResult?.hatHolderId == GameEngine.HUMAN_ID,
                             isStarter = lastResult?.currentStarterId == GameEngine.HUMAN_ID,
+                            displayedChoice = choice,
                             targetVisualState = TargetVisualState.NORMAL,
                             onTargetClick = null,
                             onCupAnchorMeasured = { playerId, anchor ->
@@ -1764,6 +1792,7 @@ private fun TrickleApp() {
                             hatHolderId = lastResult?.hatHolderId,
                             starterId = lastResult?.currentStarterId,
                             indicators = floatingIndicators,
+                            roundLog = lastResult?.log.orEmpty(),
                             showMarbleCounts = difficulty == Difficulty.EASY,
                             targetVisualStateForBot = { botId -> visualStateForTargetablePlayer(botId) },
                             onBotClicked = { botId -> handleTargetSeatClick(botId) },
@@ -1773,7 +1802,7 @@ private fun TrickleApp() {
                             modifier = Modifier
                                 .align(Alignment.CenterStart)
                                 .fillMaxHeight()
-                                .padding(start = 0.dp, top = 8.dp, bottom = 16.dp)
+                                .padding(start = 0.dp, top = 0.dp, bottom = 8.dp)
                         )
 
                         BotCupColumn(
@@ -1782,6 +1811,7 @@ private fun TrickleApp() {
                             hatHolderId = lastResult?.hatHolderId,
                             starterId = lastResult?.currentStarterId,
                             indicators = floatingIndicators,
+                            roundLog = lastResult?.log.orEmpty(),
                             showMarbleCounts = difficulty == Difficulty.EASY,
                             targetVisualStateForBot = { botId -> visualStateForTargetablePlayer(botId) },
                             onBotClicked = { botId -> handleTargetSeatClick(botId) },
@@ -1791,7 +1821,7 @@ private fun TrickleApp() {
                             modifier = Modifier
                                 .align(Alignment.CenterEnd)
                                 .fillMaxHeight()
-                                .padding(end = 0.dp, top = 8.dp, bottom = 16.dp)
+                                .padding(end = 0.dp, top = 0.dp, bottom = 8.dp)
                         )
 
                         TableActionPanel(
@@ -2734,6 +2764,7 @@ private fun PlayerStatusStack(
     indicator: FloatingIndicator?,
     hasHat: Boolean,
     isStarter: Boolean,
+    displayedChoice: Int?,
     targetVisualState: TargetVisualState,
     onTargetClick: (() -> Unit)?,
     onCupAnchorMeasured: (Int, TablePoint) -> Unit,
@@ -2775,6 +2806,7 @@ private fun PlayerStatusStack(
             indicator = indicator,
             hasHat = hasHat,
             isStarter = isStarter,
+            displayedChoice = displayedChoice,
             targetVisualState = targetVisualState,
             onCupAnchorMeasured = { measuredAnchor ->
                 onCupAnchorMeasured(GameEngine.HUMAN_ID, measuredAnchor)
@@ -2800,6 +2832,7 @@ private fun BotCupColumn(
     hatHolderId: Int?,
     starterId: Int?,
     indicators: Map<Int, FloatingIndicator>,
+    roundLog: List<RoundLogEvent>,
     showMarbleCounts: Boolean,
     targetVisualStateForBot: (Int) -> TargetVisualState,
     onBotClicked: (Int) -> Unit,
@@ -2840,6 +2873,10 @@ private fun BotCupColumn(
                     indicator = indicators[bot.id],
                     hasHat = hatHolderId == bot.id,
                     isStarter = starterId == bot.id,
+                    displayedChoice = displayedChoiceFromLog(
+                        playerName = bot.baseName,
+                        log = roundLog
+                    ),
                     marbleCountText = if (showMarbleCounts) bot.marbles.toString() else null,
                     targetVisualState = targetVisualState,
                     onCupAnchorMeasured = { measuredAnchor ->
@@ -2870,6 +2907,7 @@ private fun TableCup(
     indicator: FloatingIndicator? = null,
     hasHat: Boolean = false,
     isStarter: Boolean = false,
+    displayedChoice: Int? = null,
     marbleCountText: String? = null,
     targetVisualState: TargetVisualState = TargetVisualState.NORMAL,
     onCupAnchorMeasured: ((TablePoint) -> Unit)? = null
@@ -2910,33 +2948,24 @@ private fun TableCup(
         lineTo(bottomInset, size.height)
         close()
     }
-    val cupContainerHeight = when {
-        hasHat && isStarter -> 88.dp
-        hasHat || isStarter -> 72.dp
-        else -> 58.dp
-    }
 
     Box(
-        modifier = Modifier.size(width = 56.dp, height = cupContainerHeight),
+        modifier = Modifier.size(width = 56.dp, height = 82.dp),
         contentAlignment = Alignment.BottomCenter
     ) {
-        Column(
+        SeatIndicatorLane(
+            isStarter = isStarter,
+            hasHat = hasHat,
+            displayedChoice = displayedChoice,
             modifier = Modifier
                 .align(Alignment.TopCenter)
-                .padding(top = 0.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(1.dp)
-        ) {
-            if (isStarter) {
-                StarterBadge()
-            }
-            if (hasHat) {
-                JesterHatBadge()
-            }
-        }
+                .fillMaxWidth()
+                .height(24.dp)
+        )
 
         Box(
             modifier = Modifier
+                .padding(top = 20.dp)
                 .size(width = 40.dp, height = 46.dp)
                 .onGloballyPositioned { coordinates ->
                     onCupAnchorMeasured?.invoke(coordinates.boundsInRoot().cupLandingPoint())
@@ -3023,7 +3052,7 @@ private fun TableCup(
                 modifier = Modifier
                     .align(Alignment.Center)
                     .zIndex(3f)
-                    .padding(bottom = if (hasHat) 0.dp else 4.dp)
+                    .padding(top = 18.dp)
                     .alpha(alpha.value),
                 shape = RoundedCornerShape(10.dp),
                 color = indicatorToneColor(indicator.tone).copy(alpha = 1f),
@@ -3042,56 +3071,65 @@ private fun TableCup(
     }
 }
 
-
 @Composable
-private fun StarterBadge(
+private fun SeatIndicatorLane(
+    isStarter: Boolean,
+    hasHat: Boolean,
+    displayedChoice: Int?,
     modifier: Modifier = Modifier
 ) {
-    Surface(
+    Row(
         modifier = modifier,
-        shape = RoundedCornerShape(6.dp),
-        color = Color(0xFF4CAF50),
-        border = BorderStroke(1.dp, Color.Black.copy(alpha = 0.35f)),
-        shadowElevation = 4.dp
+        horizontalArrangement = Arrangement.Center,
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        Text(
-            text = "STARTER",
-            color = Color(0xFF024406),
-            fontWeight = FontWeight.Bold,
-            fontSize = 8.sp,
-            modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp)
+        IndicatorSprite(
+            drawableRes = if (isStarter) R.drawable.starter else null,
+            contentDescription = if (isStarter) "Starter" else null,
+            size = 42.dp
+        )
+
+        Spacer(Modifier.width(2.dp))
+
+        IndicatorSprite(
+            drawableRes = if (hasHat) R.drawable.thehat else null,
+            contentDescription = if (hasHat) "Hat" else null,
+            size = 14.dp
+        )
+
+        Spacer(Modifier.width(2.dp))
+
+        IndicatorSprite(
+            drawableRes = when (displayedChoice) {
+                0 -> R.drawable.choicezero
+                1 -> R.drawable.choiceone
+                3 -> R.drawable.choicethree
+                else -> R.drawable.choicenone
+            },
+            contentDescription = "Choice",
+            size = 14.dp
         )
     }
 }
 
 @Composable
-private fun JesterHatBadge(
+private fun IndicatorSprite(
+    drawableRes: Int?,
+    contentDescription: String?,
+    size: androidx.compose.ui.unit.Dp,
     modifier: Modifier = Modifier
 ) {
-    Row(
-        modifier = modifier.height(26.dp),
-        horizontalArrangement = Arrangement.spacedBy(2.dp),
-        verticalAlignment = Alignment.Bottom
+    Box(
+        modifier = modifier.size(size),
+        contentAlignment = Alignment.Center
     ) {
-        repeat(3) { index ->
-            Canvas(
-                modifier = Modifier.size(width = 12.dp, height = if (index == 1) 24.dp else 18.dp)
-            ) {
-                drawPath(
-                    path = androidx.compose.ui.graphics.Path().apply {
-                        moveTo(size.width / 2f, 0f)
-                        lineTo(size.width, size.height * 0.78f)
-                        lineTo(0f, size.height * 0.78f)
-                        close()
-                    },
-                    color = hatStripeColor(index)
-                )
-                drawCircle(
-                    color = if (index % 2 == 0) Color.Black else Color.White,
-                    radius = size.minDimension * 0.11f,
-                    center = Offset(size.width / 2f, size.height * 0.88f)
-                )
-            }
+        if (drawableRes != null) {
+            Image(
+                painter = painterResource(id = drawableRes),
+                contentDescription = contentDescription,
+                modifier = Modifier.fillMaxSize(),
+                contentScale = ContentScale.Fit
+            )
         }
     }
 }
