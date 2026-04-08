@@ -2939,6 +2939,10 @@ private fun TableCup(
                 modifier = Modifier
                     .size(width = 72.dp, height = 84.dp)
                     .offset(y = 8.dp)
+                    .graphicsLayer {
+                        scaleX = 1.4f
+                        scaleY = 1.4f
+                    }
                     .alpha(cupContentAlpha)
             )
 
