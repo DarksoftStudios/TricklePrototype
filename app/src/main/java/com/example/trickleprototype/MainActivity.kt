@@ -430,10 +430,8 @@ private fun extractVisualIndicators(
         val actorName = match.groupValues[1]
         val targetNames = splitTargetNames(match.groupValues[2])
         val indicators = mutableListOf<Pair<Int, Pair<String, IndicatorTone>>>()
-        pairFor(actorName, "AIM", IndicatorTone.ALERT)?.let { indicators += it }
-        targetNames.forEach { name ->
-            pairFor(name, "TARGET", IndicatorTone.ALERT)?.let { indicators += it }
-        }
+
+
         return indicators
     }
 
@@ -2906,45 +2904,13 @@ private fun TableCup(
     targetVisualState: TargetVisualState = TargetVisualState.NORMAL,
     onCupAnchorMeasured: ((TablePoint) -> Unit)? = null
 ) {
-    val bucketFill = when (targetVisualState) {
-        TargetVisualState.SELECTED -> Color(0xFFFFB300)
-        TargetVisualState.SELECTABLE -> Color(0xFFD84315)
-        TargetVisualState.DISABLED -> Color(0xFF5D4037)
-        TargetVisualState.NORMAL -> if (highlighted) Color(0xFFFF5252) else Color(0xFFD32F2F)
-    }
-    val bucketBorder = when (targetVisualState) {
-        TargetVisualState.SELECTED -> Color(0xFFFFF176)
-        TargetVisualState.SELECTABLE -> Color(0xFFFFCC80)
-        TargetVisualState.DISABLED -> Color(0xFF3E2723)
-        TargetVisualState.NORMAL -> if (highlighted) Color(0xFFFFCDD2) else Color(0xFF7F0000)
-    }
     val cupContentAlpha = when (targetVisualState) {
         TargetVisualState.DISABLED -> 0.78f
         else -> 1f
     }
-    val turnGlowTransition = rememberInfiniteTransition(label = "turnGlowTransition")
-    val turnGlowColor by turnGlowTransition.animateColor(
-        initialValue = Color.White,
-        targetValue = Color(0xFF464646),
-        animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 1400, easing = FastOutSlowInEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "turnGlowColor"
-    )
-    val cupShape = GenericShape { size, _ ->
-        val topInset = size.width * 0.04f
-        val bottomInset = size.width * 0.13f
-
-        moveTo(topInset, 0f)
-        lineTo(size.width - topInset, 0f)
-        lineTo(size.width - bottomInset, size.height)
-        lineTo(bottomInset, size.height)
-        close()
-    }
 
     Box(
-        modifier = Modifier.size(width = 56.dp, height = 68.dp),
+        modifier = Modifier.size(width = 58.dp, height = 72.dp),
         contentAlignment = Alignment.BottomCenter
     ) {
         SeatIndicatorLane(
@@ -2966,69 +2932,29 @@ private fun TableCup(
                 },
             contentAlignment = Alignment.Center
         ) {
-            if (isCurrentTurn) {
-                Surface(
-                    modifier = Modifier.size(width = 50.dp, height = 58.dp),
-                    shape = cupShape,
-                    color = turnGlowColor.copy(alpha = 0.20f),
-                    border = BorderStroke(3.dp, turnGlowColor.copy(alpha = 0.95f)),
-                    shadowElevation = 14.dp
-                ) {}
-            }
+            Image(
+                painter = painterResource(id = R.drawable.redbucket),
+                contentDescription = label,
+                contentScale = ContentScale.Fit,
+                modifier = Modifier
+                    .size(width = 72.dp, height = 84.dp)
+                    .offset(y = 8.dp)
+                    .alpha(cupContentAlpha)
+            )
 
-            Surface(
-                modifier = Modifier.size(width = 44.dp, height = 52.dp),
-                shape = cupShape,
-                color = bucketFill,
-                border = BorderStroke(2.dp, if (isCurrentTurn) turnGlowColor else bucketBorder),
-                shadowElevation = if (isCurrentTurn) 10.dp else 5.dp
-            ) {
-                Box(
+            if (marbleCountText != null) {
+                Text(
+                    text = marbleCountText,
+                    color = Color.White.copy(alpha = cupContentAlpha),
+                    fontWeight = FontWeight.ExtraBold,
+                    fontSize = 14.sp,
+                    maxLines = 1,
+                    textAlign = TextAlign.Center,
                     modifier = Modifier
-                        .fillMaxSize()
-                        .padding(horizontal = 3.dp, vertical = 4.dp)
-                ) {
-                    Surface(
-                        modifier = Modifier
-                            .align(Alignment.TopCenter)
-                            .fillMaxWidth()
-                            .height(6.dp),
-                        shape = RoundedCornerShape(3.dp),
-                        color = Color.White.copy(alpha = 0.20f)
-                    ) {}
-
-                    Surface(
-                        modifier = Modifier
-                            .align(Alignment.Center)
-                            .fillMaxWidth(0.76f)
-                            .fillMaxHeight(0.60f),
-                        shape = GenericShape { size, _ ->
-                            val innerTopInset = size.width * 0.03f
-                            val innerBottomInset = size.width * 0.14f
-
-                            moveTo(innerTopInset, 0f)
-                            lineTo(size.width - innerTopInset, 0f)
-                            lineTo(size.width - innerBottomInset, size.height)
-                            lineTo(innerBottomInset, size.height)
-                            close()
-                        },
-                        color = Color.Black.copy(alpha = 0.10f)
-                    ) {}
-
-                    if (marbleCountText != null) {
-                        Text(
-                            text = marbleCountText,
-                            color = Color.White.copy(alpha = cupContentAlpha),
-                            fontWeight = FontWeight.ExtraBold,
-                            fontSize = 14.sp,
-                            maxLines = 1,
-                            textAlign = TextAlign.Center,
-                            modifier = Modifier
-                                .align(Alignment.Center)
-                                .fillMaxWidth()
-                        )
-                    }
-                }
+                        .align(Alignment.Center)
+                        .offset(y = 8.dp)
+                        .fillMaxWidth()
+                )
             }
         }
 
@@ -3081,7 +3007,7 @@ private fun SeatIndicatorLane(
             drawableRes = if (isStarter) R.drawable.starter else null,
             contentDescription = if (isStarter) "Starter" else null,
             size = 18.dp,
-            visualScale = 1.7f
+            visualScale = 2.8f
         )
 
         Spacer(Modifier.width(1.dp))
@@ -3090,7 +3016,7 @@ private fun SeatIndicatorLane(
             drawableRes = if (hasHat) R.drawable.thehat else null,
             contentDescription = if (hasHat) "Hat" else null,
             size = 14.dp,
-            visualScale = 1.5f
+            visualScale = 2.5f
         )
 
         Spacer(Modifier.width(1.dp))
