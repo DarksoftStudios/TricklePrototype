@@ -114,6 +114,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.window.DialogProperties
@@ -2965,6 +2966,59 @@ private fun PlayerStatusStack(
     }
 }
 
+private fun formatBotCupLabel(label: String): String {
+    val trimmed = label.trim()
+    if (trimmed.isEmpty()) return trimmed
+
+    val hyphenIndex = trimmed.indexOf('-')
+    if (hyphenIndex in 1 until trimmed.lastIndex) {
+        return trimmed.substring(0, hyphenIndex + 1) + "\n" + trimmed.substring(hyphenIndex + 1)
+    }
+
+    val words = trimmed.split(Regex("\\s+")).filter { it.isNotEmpty() }
+    if (words.size >= 2) {
+        var bestSplitIndex = 1
+        var smallestDifference = Int.MAX_VALUE
+
+        for (index in 1 until words.size) {
+            val firstLine = words.take(index).joinToString(" ")
+            val secondLine = words.drop(index).joinToString(" ")
+            val difference = kotlin.math.abs(firstLine.length - secondLine.length)
+            if (difference < smallestDifference) {
+                smallestDifference = difference
+                bestSplitIndex = index
+            }
+        }
+
+        return words.take(bestSplitIndex).joinToString(" ") + "" + words.drop(bestSplitIndex).joinToString(" ")
+    }
+
+    return trimmed
+}
+
+private fun botCupLabelFontSize(label: String): TextUnit {
+    val longestLineLength = formatBotCupLabel(label)
+        .split("")
+                .maxOfOrNull { it.length }
+                ?: 0
+
+            return when {
+                longestLineLength <= 9 -> 13.sp
+                longestLineLength <= 10 -> 12.sp
+                longestLineLength <= 11 -> 11.sp
+                else -> 10.sp
+            }
+}
+
+private fun botCupLabelLineHeight(fontSize: TextUnit): TextUnit {
+    return when (fontSize) {
+        13.sp -> 12.sp
+        12.sp -> 11.sp
+        11.sp -> 10.sp
+        else -> 10.sp
+    }
+}
+
 @Composable
 private fun BotCupColumn(
     bots: List<PlayerState>,
@@ -3024,15 +3078,20 @@ private fun BotCupColumn(
                     }
                 )
 
+                val formattedLabel = formatBotCupLabel(bot.baseName)
+                val labelFontSize = botCupLabelFontSize(bot.baseName)
+
                 Text(
-                    text = bot.baseName,
+                    text = formattedLabel,
                     color = nameColor,
-                    fontSize = 13.sp,
-                    lineHeight = 13.sp,
-                    maxLines = 1,
+                    fontSize = labelFontSize,
+                    lineHeight = botCupLabelLineHeight(labelFontSize),
+                    maxLines = 2,
+                    softWrap = true,
                     textAlign = TextAlign.Center,
                     modifier = Modifier
                         .width(54.dp)
+                        .heightIn(min = 28.dp)
                         .then(
                             if (taggingEnabled) {
                                 Modifier.clickable { onBotNameClicked(bot.id) }
