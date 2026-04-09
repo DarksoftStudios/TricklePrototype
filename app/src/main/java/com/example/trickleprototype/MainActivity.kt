@@ -182,6 +182,17 @@ private enum class TargetVisualState {
     DISABLED
 }
 
+private val TAGGABLE_ARCHETYPE_NAMES = listOf(
+    "Chaos Grandma",
+    "Strobe",
+    "Three-Pusher",
+    "Spite Player",
+    "Limper",
+    "Scout",
+    "Pacifist Collector"
+)
+
+
 @Immutable
 private data class FloatingIndicator(
     val token: Long,
@@ -552,6 +563,8 @@ private fun TrickleApp() {
     var pendingHumanAction by remember { mutableStateOf(PendingHumanAction.NONE) }
     var showLogOverlay by remember { mutableStateOf(false) }
     var revealArchetypesPostGame by remember { mutableStateOf(false) }
+    val botTags = remember { mutableStateMapOf<Int, String>() }
+    var tagMenuBotId by remember { mutableStateOf<Int?>(null) }
 
     var dieButtonsEnabled by remember { mutableStateOf(true) }
 
@@ -725,10 +738,17 @@ private fun TrickleApp() {
     val basePlayers = lastResult?.players ?: engine.getPlayersSnapshot()
     val gameOver = (phase == EnginePhase.GAME_OVER)
     val revealArchetypesActive = revealArchetypesPostGame && gameOver
-    val players = applyArchetypeRevealToPlayers(
+    val botTagSnapshot = botTags.toMap()
+    val revealedPlayers = applyArchetypeRevealToPlayers(
         players = basePlayers,
         result = lastResult,
         revealArchetypes = revealArchetypesActive
+    )
+    val players = applyBotTagsToPlayers(
+        players = revealedPlayers,
+        difficulty = difficulty,
+        revealArchetypes = revealArchetypesActive,
+        botTags = botTagSnapshot
     )
     val currentActorId = lastResult?.currentActorId
     val currentWeatherName = lastResult?.currentWeatherName
@@ -745,13 +765,14 @@ private fun TrickleApp() {
     val scrollState = rememberScrollState()
     LaunchedEffect(logText) { scrollState.scrollTo(0) }
 
-    LaunchedEffect(lastResult, difficulty, revealArchetypesActive) {
+    LaunchedEffect(lastResult, difficulty, revealArchetypesActive, botTagSnapshot) {
         val result = lastResult ?: return@LaunchedEffect
         val pickedDifficulty = difficulty ?: return@LaunchedEffect
         logText = buildLogText(
             result = result,
             difficulty = pickedDifficulty,
-            revealArchetypes = revealArchetypesActive
+            revealArchetypes = revealArchetypesActive,
+            botTags = botTagSnapshot
         )
     }
 
@@ -805,6 +826,8 @@ private fun TrickleApp() {
         pendingHumanAction = PendingHumanAction.NONE
         showLogOverlay = false
         showQuitConfirm = false
+        botTags.clear()
+        tagMenuBotId = null
 
         humanActionLocked = false
         startLocked = false
@@ -816,6 +839,8 @@ private fun TrickleApp() {
         difficulty = picked
         engine.setDifficulty(picked)
         engine.setWeatherEnabled(weatherEnabled)
+        botTags.clear()
+        tagMenuBotId = null
 
         val snap = engineSnapshot(engine)
         lastResult = snap
@@ -823,7 +848,8 @@ private fun TrickleApp() {
         logText = buildLogText(
             result = snap,
             difficulty = picked,
-            revealArchetypes = false
+            revealArchetypes = false,
+            botTags = botTags.toMap()
         )
 
         floatingIndicators = emptyMap()
@@ -840,6 +866,8 @@ private fun TrickleApp() {
         pendingHumanAction = PendingHumanAction.NONE
         showLogOverlay = false
         showQuitConfirm = false
+        botTags.clear()
+        tagMenuBotId = null
 
         humanActionLocked = false
         startLocked = false
@@ -977,7 +1005,8 @@ private fun TrickleApp() {
                 logText = buildLogText(
                     result = result,
                     difficulty = difficulty!!,
-                    revealArchetypes = revealArchetypesPostGame && result.phase == EnginePhase.GAME_OVER
+                    revealArchetypes = revealArchetypesPostGame && result.phase == EnginePhase.GAME_OVER,
+                    botTags = botTags.toMap()
                 )
                 activeTargetArrow = result.activeTargetArrowActorId?.let { actorId ->
                     val targetIds = result.activeTargetArrowTargetIds
@@ -1712,7 +1741,8 @@ private fun TrickleApp() {
                 logText = buildLogText(
                     result = result,
                     difficulty = difficulty!!,
-                    revealArchetypes = revealArchetypesPostGame && result.phase == EnginePhase.GAME_OVER
+                    revealArchetypes = revealArchetypesPostGame && result.phase == EnginePhase.GAME_OVER,
+                    botTags = botTags.toMap()
                 )
                 activeTargetArrow = result.activeTargetArrowActorId?.let { actorId ->
                     val targetIds = result.activeTargetArrowTargetIds
@@ -1829,8 +1859,10 @@ private fun TrickleApp() {
                             starterId = lastResult?.currentStarterId,
                             indicators = floatingIndicators,
                             showMarbleCounts = difficulty == Difficulty.EASY,
+                            taggingEnabled = difficulty != Difficulty.EASY && !revealArchetypesActive,
                             targetVisualStateForBot = { botId -> visualStateForTargetablePlayer(botId) },
                             onBotClicked = { botId -> handleTargetSeatClick(botId) },
+                            onBotNameClicked = { botId -> tagMenuBotId = botId },
                             onCupAnchorMeasured = { playerId, anchor ->
                                 cupCenters[playerId] = anchor
                             },
@@ -1847,8 +1879,10 @@ private fun TrickleApp() {
                             starterId = lastResult?.currentStarterId,
                             indicators = floatingIndicators,
                             showMarbleCounts = difficulty == Difficulty.EASY,
+                            taggingEnabled = difficulty != Difficulty.EASY && !revealArchetypesActive,
                             targetVisualStateForBot = { botId -> visualStateForTargetablePlayer(botId) },
                             onBotClicked = { botId -> handleTargetSeatClick(botId) },
+                            onBotNameClicked = { botId -> tagMenuBotId = botId },
                             onCupAnchorMeasured = { playerId, anchor ->
                                 cupCenters[playerId] = anchor
                             },
@@ -1982,7 +2016,8 @@ private fun TrickleApp() {
                                         logText = buildLogText(
                                             result = result,
                                             difficulty = difficulty!!,
-                                            revealArchetypes = revealArchetypesPostGame && result.phase == EnginePhase.GAME_OVER
+                                            revealArchetypes = revealArchetypesPostGame && result.phase == EnginePhase.GAME_OVER,
+                                            botTags = botTags.toMap()
                                         )
                                         activeTargetArrow = result.activeTargetArrowActorId?.let { actorId ->
                                             val targetIds = result.activeTargetArrowTargetIds
@@ -2103,6 +2138,51 @@ private fun TrickleApp() {
                 .background(Color.Black.copy(alpha = splashFadeAlpha))
                 .zIndex(100f)
         )
+    }
+
+    tagMenuBotId?.let { selectedBotId ->
+        val selectedBot = players.firstOrNull { it.id == selectedBotId }
+        if (selectedBot != null) {
+            SimpleDialog(
+                title = "Tag ${selectedBot.baseName}",
+                onClose = { tagMenuBotId = null },
+                accentColor = Color(0xFFFFF59D)
+            ) {
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    TAGGABLE_ARCHETYPE_NAMES.forEach { archetypeName ->
+                        Button(
+                            onClick = {
+                                botTags[selectedBotId] = "$archetypeName(?)"
+                                tagMenuBotId = null
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = Color(0xFF263238),
+                                contentColor = Color.White
+                            )
+                        ) {
+                            OneLineButtonText(archetypeName)
+                        }
+                    }
+
+                    OutlinedButton(
+                        onClick = {
+                            botTags.remove(selectedBotId)
+                            tagMenuBotId = null
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        border = BorderStroke(1.dp, Color(0xFFFFF59D)),
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            contentColor = Color(0xFFFFF59D)
+                        )
+                    ) {
+                        OneLineButtonText("Clear Tag")
+                    }
+                }
+            }
+        }
     }
 
     if (showQuitConfirm) {
@@ -2893,8 +2973,10 @@ private fun BotCupColumn(
     starterId: Int?,
     indicators: Map<Int, FloatingIndicator>,
     showMarbleCounts: Boolean,
+    taggingEnabled: Boolean,
     targetVisualStateForBot: (Int) -> TargetVisualState,
     onBotClicked: (Int) -> Unit,
+    onBotNameClicked: (Int) -> Unit,
     onCupAnchorMeasured: (Int, TablePoint) -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -2916,17 +2998,19 @@ private fun BotCupColumn(
             }
 
             Column(
-                modifier = Modifier
-                    .alpha(contentAlpha)
-                    .clickable(
-                        enabled = targetVisualState == TargetVisualState.SELECTABLE ||
-                                targetVisualState == TargetVisualState.SELECTED,
-                        onClick = { onBotClicked(bot.id) }
-                    ),
+                modifier = Modifier.alpha(contentAlpha),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 TableCup(
                     label = bot.baseName.take(1).uppercase(),
+                    onClick = if (
+                        targetVisualState == TargetVisualState.SELECTABLE ||
+                        targetVisualState == TargetVisualState.SELECTED
+                    ) {
+                        { onBotClicked(bot.id) }
+                    } else {
+                        null
+                    },
                     highlighted = false,
                     isCurrentTurn = currentActorId == bot.id,
                     indicator = indicators[bot.id],
@@ -2947,7 +3031,15 @@ private fun BotCupColumn(
                     lineHeight = 13.sp,
                     maxLines = 1,
                     textAlign = TextAlign.Center,
-                    modifier = Modifier.width(54.dp)
+                    modifier = Modifier
+                        .width(54.dp)
+                        .then(
+                            if (taggingEnabled) {
+                                Modifier.clickable { onBotNameClicked(bot.id) }
+                            } else {
+                                Modifier
+                            }
+                        )
                 )
                 Spacer(Modifier.height(4.dp))
             }
@@ -2966,6 +3058,7 @@ private fun TableCup(
     displayedChoice: Int? = null,
     marbleCountText: String? = null,
     targetVisualState: TargetVisualState = TargetVisualState.NORMAL,
+    onClick: (() -> Unit)? = null,
     onCupAnchorMeasured: ((TablePoint) -> Unit)? = null
 ) {
     val cupContentAlpha = when (targetVisualState) {
@@ -2974,7 +3067,15 @@ private fun TableCup(
     }
 
     Box(
-        modifier = Modifier.size(width = 58.dp, height = 72.dp),
+        modifier = Modifier
+            .size(width = 58.dp, height = 72.dp)
+            .then(
+                if (onClick != null) {
+                    Modifier.clickable(onClick = onClick)
+                } else {
+                    Modifier
+                }
+            ),
         contentAlignment = Alignment.BottomCenter
     ) {
         SeatIndicatorLane(
@@ -3940,6 +4041,26 @@ private fun applyArchetypeRevealToPlayers(
     }
 }
 
+
+private fun applyBotTagsToPlayers(
+    players: List<PlayerState>,
+    difficulty: Difficulty?,
+    revealArchetypes: Boolean,
+    botTags: Map<Int, String>
+): List<PlayerState> {
+    if (difficulty == null || difficulty == Difficulty.EASY || revealArchetypes) return players
+
+    return players.map { player ->
+        val tag = botTags[player.id]
+        if (player.id == GameEngine.HUMAN_ID || tag == null) {
+            player
+        } else {
+            player.copy(baseName = tag)
+        }
+    }
+}
+
+
 private fun applyArchetypeRevealToLogText(
     logText: String,
     result: RoundResult,
@@ -3962,19 +4083,50 @@ private fun applyArchetypeRevealToLogText(
         }
 }
 
+private fun applyBotTagsToLogText(
+    logText: String,
+    result: RoundResult,
+    difficulty: Difficulty,
+    revealArchetypes: Boolean,
+    botTags: Map<Int, String>
+): String {
+    if (difficulty == Difficulty.EASY || revealArchetypes || botTags.isEmpty()) return logText
+
+    val playerNamesById = result.players.associate { player -> player.id to player.baseName }
+
+    return botTags
+        .entries
+        .sortedByDescending { entry -> playerNamesById[entry.key]?.length ?: 0 }
+        .fold(logText) { currentText, entry ->
+            val botName = playerNamesById[entry.key] ?: return@fold currentText
+            currentText.replace(
+                Regex("\\b${Regex.escape(botName)}\\b"),
+                entry.value
+            )
+        }
+}
+
 private fun buildLogText(
     result: RoundResult,
     difficulty: Difficulty,
-    revealArchetypes: Boolean
+    revealArchetypes: Boolean,
+    botTags: Map<Int, String> = emptyMap()
 ): String {
     if (difficulty == Difficulty.HARD && result.phase != EnginePhase.GAME_OVER) return ""
 
     val baseLogText = result.log.asReversed().joinToString("\n") { it.text }.ifBlank { "" }
-
-    return applyArchetypeRevealToLogText(
+    val revealAdjustedLogText = applyArchetypeRevealToLogText(
         logText = baseLogText,
         result = result,
         revealArchetypes = revealArchetypes
+    )
+
+    return applyBotTagsToLogText(
+        logText = revealAdjustedLogText,
+        result = result,
+        difficulty = difficulty,
+        revealArchetypes = revealArchetypes,
+        botTags = botTags
     )
 }
 

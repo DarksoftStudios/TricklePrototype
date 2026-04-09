@@ -115,6 +115,7 @@ class GameEngine(
 
     // stats: per-game trackers
     private var gameWrongGuesses: Int = 0
+    private var humanMadeWrongGuessThisGame: Boolean = false
 
     private var gameRoundReached: Int = 1
     private var gameHumanWasTrickedByZero: Boolean = false
@@ -237,6 +238,7 @@ class GameEngine(
         lastEventKind = null
 
         gameWrongGuesses = 0
+        humanMadeWrongGuessThisGame = false
 
         gameRoundReached = 1
         gameHumanWasTrickedByZero = false
@@ -1189,6 +1191,7 @@ class GameEngine(
 
             if (actorId == HUMAN_ID && guess != 0) {
                 gameWrongGuesses += 1
+                humanMadeWrongGuessThisGame = true
                 gameHumanWasTrickedByZero = true
             }
         } else {
@@ -1215,7 +1218,10 @@ class GameEngine(
                 currentWeatherId() == "thunderstorm") {
                 unlockWeatherAchievement("thunderstorm_shock_therapy")
             }
-            if (actorId == HUMAN_ID) gameWrongGuesses += 1
+            if (actorId == HUMAN_ID) {
+                gameWrongGuesses += 1
+                humanMadeWrongGuessThisGame = true
+            }
         }
     }
 
@@ -1345,6 +1351,21 @@ class GameEngine(
                             s.totalWins += 1
                         }
 
+                        if (!s.has113MarblesTotal && s.totalMarblesAcrossGames >= 113L) {
+                            s.has113MarblesTotal = true
+                            log += RoundLogEvent("*** Achievement Unlocked: Bucket Filler - Gain 113 marbles across games! ***")
+                        }
+
+                        if (!s.has1113MarblesTotal && s.totalMarblesAcrossGames >= 1113L) {
+                            s.has1113MarblesTotal = true
+                            log += RoundLogEvent("*** Achievement Unlocked: Tub Filler - Gain 1,113 marbles across games! ***")
+                        }
+
+                        if (!s.has11113MarblesTotal && s.totalMarblesAcrossGames >= 11113L) {
+                            s.has11113MarblesTotal = true
+                            log += RoundLogEvent("*** Achievement Unlocked: Pool Filler - Gain 11,113 marbles across games! ***")
+                        }
+
                         // All other achievements (Perfect Puddler, Dumb Luck, On a Roll, etc.) stay here
                         if (!s.pacifistGame && !gameHumanMadeGuess) {
                             s.pacifistGame = true
@@ -1396,7 +1417,7 @@ class GameEngine(
 
                         if (humanWon) {
 
-                            if (gameWrongGuesses == 0) {
+                            if (!humanMadeWrongGuessThisGame) {
                                 s.perfectGames += 1
                                 if (!s.firstPerfectWin) {
                                     s.firstPerfectWin = true
