@@ -551,6 +551,7 @@ private fun TrickleApp() {
     var guess by remember { mutableIntStateOf(3) }
     var pendingHumanAction by remember { mutableStateOf(PendingHumanAction.NONE) }
     var showLogOverlay by remember { mutableStateOf(false) }
+    var revealArchetypesPostGame by remember { mutableStateOf(false) }
 
     var dieButtonsEnabled by remember { mutableStateOf(true) }
 
@@ -721,9 +722,15 @@ private fun TrickleApp() {
 
     val phase = lastResult?.phase ?: engine.getPhase()
     val displayedRoundFromEngine = lastResult?.roundNumber ?: engine.getRoundNumber()
-    val players = lastResult?.players ?: engine.getPlayersSnapshot()
-    val currentActorId = lastResult?.currentActorId
+    val basePlayers = lastResult?.players ?: engine.getPlayersSnapshot()
     val gameOver = (phase == EnginePhase.GAME_OVER)
+    val revealArchetypesActive = revealArchetypesPostGame && gameOver
+    val players = applyArchetypeRevealToPlayers(
+        players = basePlayers,
+        result = lastResult,
+        revealArchetypes = revealArchetypesActive
+    )
+    val currentActorId = lastResult?.currentActorId
     val currentWeatherName = lastResult?.currentWeatherName
     val currentWeatherEffect = lastResult?.currentWeatherEffect
     val currentWeatherId = weatherIdForName(currentWeatherName)
@@ -737,6 +744,16 @@ private fun TrickleApp() {
 
     val scrollState = rememberScrollState()
     LaunchedEffect(logText) { scrollState.scrollTo(0) }
+
+    LaunchedEffect(lastResult, difficulty, revealArchetypesActive) {
+        val result = lastResult ?: return@LaunchedEffect
+        val pickedDifficulty = difficulty ?: return@LaunchedEffect
+        logText = buildLogText(
+            result = result,
+            difficulty = pickedDifficulty,
+            revealArchetypes = revealArchetypesActive
+        )
+    }
 
     LaunchedEffect(currentWeatherName, displayedRoundFromEngine, screen) {
         if (screen != AppScreen.GAME) return@LaunchedEffect
@@ -768,6 +785,7 @@ private fun TrickleApp() {
 
         lastResult = null
         logText = ""
+        revealArchetypesPostGame = false
         floatingIndicators = emptyMap()
         marbleFlights = emptyList()
         activeTargetArrow = null
@@ -801,7 +819,12 @@ private fun TrickleApp() {
 
         val snap = engineSnapshot(engine)
         lastResult = snap
-        logText = buildLogText(snap, picked)
+        revealArchetypesPostGame = false
+        logText = buildLogText(
+            result = snap,
+            difficulty = picked,
+            revealArchetypes = false
+        )
 
         floatingIndicators = emptyMap()
         marbleFlights = emptyList()
@@ -951,7 +974,11 @@ private fun TrickleApp() {
 
                 val result = engine.step()
                 lastResult = result
-                logText = buildLogText(result, difficulty!!)
+                logText = buildLogText(
+                    result = result,
+                    difficulty = difficulty!!,
+                    revealArchetypes = revealArchetypesPostGame && result.phase == EnginePhase.GAME_OVER
+                )
                 activeTargetArrow = result.activeTargetArrowActorId?.let { actorId ->
                     val targetIds = result.activeTargetArrowTargetIds
                     if (targetIds.isEmpty()) null else TargetArrowVisual(actorId = actorId, targetIds = targetIds)
@@ -1636,6 +1663,13 @@ private fun TrickleApp() {
             val zeroGuessUnlocked = statsStore.load().zeroHeroUnlocked
 
             val winnerBadgeLabel = buildWinnerBadgeLabel(lastResult)
+            val canShowLogPanel = when (difficulty) {
+                Difficulty.HARD -> gameOver
+                else -> showLogOverlay
+            }
+            val canRevealArchetypes = gameOver && (
+                    difficulty == Difficulty.NORMAL || difficulty == Difficulty.HARD
+                    )
 
             val playerPhaseBadge = phaseBadgeText(
                 roundNumber = displayedRoundFromEngine,
@@ -1675,7 +1709,11 @@ private fun TrickleApp() {
                     secondTargetId = selectedSecondTargetId
                 )
                 lastResult = result
-                logText = buildLogText(result, difficulty!!)
+                logText = buildLogText(
+                    result = result,
+                    difficulty = difficulty!!,
+                    revealArchetypes = revealArchetypesPostGame && result.phase == EnginePhase.GAME_OVER
+                )
                 activeTargetArrow = result.activeTargetArrowActorId?.let { actorId ->
                     val targetIds = result.activeTargetArrowTargetIds
                     if (targetIds.isEmpty()) null else TargetArrowVisual(actorId = actorId, targetIds = targetIds)
@@ -1941,7 +1979,11 @@ private fun TrickleApp() {
                                         pendingHumanAction = PendingHumanAction.NONE
                                         val result = engine.startRound(choice)
                                         lastResult = result
-                                        logText = buildLogText(result, difficulty!!)
+                                        logText = buildLogText(
+                                            result = result,
+                                            difficulty = difficulty!!,
+                                            revealArchetypes = revealArchetypesPostGame && result.phase == EnginePhase.GAME_OVER
+                                        )
                                         activeTargetArrow = result.activeTargetArrowActorId?.let { actorId ->
                                             val targetIds = result.activeTargetArrowTargetIds
                                             if (targetIds.isEmpty()) null else TargetArrowVisual(actorId = actorId, targetIds = targetIds)
@@ -1969,12 +2011,12 @@ private fun TrickleApp() {
                             }
                         )
 
-                        if (difficulty != Difficulty.HARD && showLogOverlay) {
+                        if (canShowLogPanel && logText.isNotBlank()) {
                             Box(
                                 modifier = Modifier
                                     .align(Alignment.BottomCenter)
                                     .fillMaxWidth(0.62f)
-                                    .padding(bottom = 54.dp)
+                                    .padding(bottom = if (canRevealArchetypes) 96.dp else 54.dp)
                             ) {
                                 LogPanel(
                                     logText = logText,
@@ -1996,6 +2038,28 @@ private fun TrickleApp() {
                                 )
                             ) {
                                 Text(if (showLogOverlay) "Hide Log" else "Log")
+                            }
+                        }
+
+                        if (canRevealArchetypes) {
+                            Button(
+                                onClick = { revealArchetypesPostGame = !revealArchetypesPostGame },
+                                modifier = Modifier
+                                    .align(Alignment.BottomCenter)
+                                    .padding(bottom = if (difficulty == Difficulty.HARD) 6.dp else 42.dp),
+                                shape = RoundedCornerShape(12.dp),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = Color(0xFF263238),
+                                    contentColor = Color.White
+                                )
+                            ) {
+                                Text(
+                                    if (revealArchetypesActive) {
+                                        "Show Bot Names"
+                                    } else {
+                                        "Reveal Archetypes"
+                                    }
+                                )
                             }
                         }
                     }
@@ -3816,7 +3880,8 @@ private fun engineSnapshot(engine: GameEngine): RoundResult {
         hatHolderId = null,
         activeTargetArrowActorId = null,
         activeTargetArrowTargetIds = emptyList(),
-        marbleTransfers = emptyList()
+        marbleTransfers = emptyList(),
+        botArchetypeNamesByPlayerId = emptyMap()
     )
 }
 
@@ -3858,10 +3923,59 @@ private fun DifficultyEntryTransitionOverlay(
     }
 }
 
-private fun buildLogText(result: RoundResult, difficulty: Difficulty): String {
-    if (difficulty == Difficulty.HARD) return ""
+private fun applyArchetypeRevealToPlayers(
+    players: List<PlayerState>,
+    result: RoundResult?,
+    revealArchetypes: Boolean
+): List<PlayerState> {
+    if (!revealArchetypes || result == null) return players
 
-    return result.log.asReversed().joinToString("\n") { it.text }.ifBlank { "" }
+    return players.map { player ->
+        val archetypeName = result.botArchetypeNamesByPlayerId[player.id]
+        if (archetypeName == null) {
+            player
+        } else {
+            player.copy(baseName = archetypeName)
+        }
+    }
+}
+
+private fun applyArchetypeRevealToLogText(
+    logText: String,
+    result: RoundResult,
+    revealArchetypes: Boolean
+): String {
+    if (!revealArchetypes) return logText
+
+    val playerNamesById = result.players.associate { player -> player.id to player.baseName }
+
+    return result.botArchetypeNamesByPlayerId
+        .entries
+        .sortedByDescending { entry -> playerNamesById[entry.key]?.length ?: 0 }
+        .fold(logText) { currentText, entry ->
+            val botName = playerNamesById[entry.key] ?: return@fold currentText
+            val replacement = entry.value
+            currentText.replace(
+                Regex("\\b${Regex.escape(botName)}\\b"),
+                replacement
+            )
+        }
+}
+
+private fun buildLogText(
+    result: RoundResult,
+    difficulty: Difficulty,
+    revealArchetypes: Boolean
+): String {
+    if (difficulty == Difficulty.HARD && result.phase != EnginePhase.GAME_OVER) return ""
+
+    val baseLogText = result.log.asReversed().joinToString("\n") { it.text }.ifBlank { "" }
+
+    return applyArchetypeRevealToLogText(
+        logText = baseLogText,
+        result = result,
+        revealArchetypes = revealArchetypes
+    )
 }
 
 @Composable

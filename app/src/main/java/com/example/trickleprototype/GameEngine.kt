@@ -52,7 +52,8 @@ data class RoundResult(
     val requiresSecondTargetForHuman: Boolean,
     val activeTargetArrowActorId: Int?,
     val activeTargetArrowTargetIds: List<Int>,
-    val marbleTransfers: List<MarbleTransferEvent>
+    val marbleTransfers: List<MarbleTransferEvent>,
+    val botArchetypeNamesByPlayerId: Map<Int, String>
 )
 
 class GameEngine(
@@ -1858,7 +1859,16 @@ class GameEngine(
             requiresSecondTargetForHuman = phase == EnginePhase.PLAYER_TURN && actorNeedsTwoTargetsIfTargeting(),
             activeTargetArrowActorId = activeTargetArrowActorId,
             activeTargetArrowTargetIds = activeTargetArrowTargetIds,
-            marbleTransfers = latestMarbleTransfers.toList()
+            marbleTransfers = latestMarbleTransfers.toList(),
+            botArchetypeNamesByPlayerId = players
+                .asSequence()
+                .filter { it.id != HUMAN_ID }
+                .mapNotNull { player ->
+                    archetypeById[player.id]?.displayName?.let { archetypeName ->
+                        player.id to archetypeName
+                    }
+                }
+                .toMap()
         )
     }
 }
