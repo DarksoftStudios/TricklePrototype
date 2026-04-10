@@ -128,6 +128,7 @@ import kotlin.math.atan2
 import kotlin.math.cos
 import kotlin.math.sin
 import kotlin.random.Random
+import kotlin.math.max
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -174,6 +175,12 @@ private enum class IndicatorTone {
     GOOD,
     BAD,
     ALERT
+}
+
+private enum class SeatIndicatorPlacement {
+    BELOW,
+    INSIDE_LEFT,
+    INSIDE_RIGHT
 }
 
 private enum class TargetVisualState {
@@ -1867,6 +1874,7 @@ private fun TrickleApp() {
                             onCupAnchorMeasured = { playerId, anchor ->
                                 cupCenters[playerId] = anchor
                             },
+                            indicatorPlacement = SeatIndicatorPlacement.INSIDE_RIGHT,
                             modifier = Modifier
                                 .align(Alignment.CenterStart)
                                 .fillMaxHeight()
@@ -1887,6 +1895,7 @@ private fun TrickleApp() {
                             onCupAnchorMeasured = { playerId, anchor ->
                                 cupCenters[playerId] = anchor
                             },
+                            indicatorPlacement = SeatIndicatorPlacement.INSIDE_LEFT,
                             modifier = Modifier
                                 .align(Alignment.CenterEnd)
                                 .fillMaxHeight()
@@ -2949,6 +2958,7 @@ private fun PlayerStatusStack(
             isStarter = isStarter,
             displayedChoice = displayedChoice,
             targetVisualState = targetVisualState,
+            indicatorPlacement = SeatIndicatorPlacement.BELOW,
             onCupAnchorMeasured = { measuredAnchor ->
                 onCupAnchorMeasured(GameEngine.HUMAN_ID, measuredAnchor)
             }
@@ -2999,15 +3009,15 @@ private fun formatBotCupLabel(label: String): String {
 private fun botCupLabelFontSize(label: String): TextUnit {
     val longestLineLength = formatBotCupLabel(label)
         .split("")
-                .maxOfOrNull { it.length }
-                ?: 0
+        .maxOfOrNull { it.length }
+        ?: 0
 
-            return when {
-                longestLineLength <= 9 -> 13.sp
-                longestLineLength <= 10 -> 12.sp
-                longestLineLength <= 11 -> 11.sp
-                else -> 10.sp
-            }
+    return when {
+        longestLineLength <= 9 -> 13.sp
+        longestLineLength <= 10 -> 12.sp
+        longestLineLength <= 11 -> 11.sp
+        else -> 10.sp
+    }
 }
 
 private fun botCupLabelLineHeight(fontSize: TextUnit): TextUnit {
@@ -3032,6 +3042,7 @@ private fun BotCupColumn(
     onBotClicked: (Int) -> Unit,
     onBotNameClicked: (Int) -> Unit,
     onCupAnchorMeasured: (Int, TablePoint) -> Unit,
+    indicatorPlacement: SeatIndicatorPlacement,
     modifier: Modifier = Modifier
 ) {
     Column(
@@ -3073,6 +3084,7 @@ private fun BotCupColumn(
                     displayedChoice = bot.revealedChoice,
                     marbleCountText = if (showMarbleCounts) bot.marbles.toString() else null,
                     targetVisualState = targetVisualState,
+                    indicatorPlacement = indicatorPlacement,
                     onCupAnchorMeasured = { measuredAnchor ->
                         onCupAnchorMeasured(bot.id, measuredAnchor)
                     }
@@ -3117,6 +3129,8 @@ private fun TableCup(
     displayedChoice: Int? = null,
     marbleCountText: String? = null,
     targetVisualState: TargetVisualState = TargetVisualState.NORMAL,
+    indicatorPlacement: SeatIndicatorPlacement = SeatIndicatorPlacement.BELOW,
+    scale: Float = 1f,
     onClick: (() -> Unit)? = null,
     onCupAnchorMeasured: ((TablePoint) -> Unit)? = null
 ) {
@@ -3124,10 +3138,31 @@ private fun TableCup(
         TargetVisualState.DISABLED -> 0.78f
         else -> 1f
     }
+    val holderWidth = (58.dp * scale).coerceAtLeast(38.dp)
+    val cupBodyWidth = (40.dp * scale).coerceAtLeast(28.dp)
+    val cupBodyHeight = (46.dp * scale).coerceAtLeast(32.dp)
+    val holderHeight = when (indicatorPlacement) {
+        SeatIndicatorPlacement.BELOW -> (78.dp * scale).coerceAtLeast(58.dp)
+        SeatIndicatorPlacement.INSIDE_LEFT,
+        SeatIndicatorPlacement.INSIDE_RIGHT -> cupBodyHeight
+    }
+    val cupImageWidth = (72.dp * scale).coerceAtLeast(48.dp)
+    val cupImageHeight = (84.dp * scale).coerceAtLeast(56.dp)
+    val cupImageOffsetY = 8.dp * scale
+    val cupBodyTopPadding = when (indicatorPlacement) {
+        SeatIndicatorPlacement.BELOW -> 4.dp * scale
+        SeatIndicatorPlacement.INSIDE_LEFT,
+        SeatIndicatorPlacement.INSIDE_RIGHT -> 0.dp
+    }
+    val floatingIndicatorTopPadding = when (indicatorPlacement) {
+        SeatIndicatorPlacement.BELOW -> 12.dp * scale
+        SeatIndicatorPlacement.INSIDE_LEFT,
+        SeatIndicatorPlacement.INSIDE_RIGHT -> 8.dp * scale
+    }
 
     Box(
         modifier = Modifier
-            .size(width = 58.dp, height = 72.dp)
+            .size(width = holderWidth, height = holderHeight)
             .then(
                 if (onClick != null) {
                     Modifier.clickable(onClick = onClick)
@@ -3135,22 +3170,13 @@ private fun TableCup(
                     Modifier
                 }
             ),
-        contentAlignment = Alignment.BottomCenter
+        contentAlignment = Alignment.TopCenter
     ) {
-        SeatIndicatorLane(
-            isStarter = isStarter,
-            hasHat = hasHat,
-            displayedChoice = displayedChoice,
-            modifier = Modifier
-                .align(Alignment.TopCenter)
-                .fillMaxWidth()
-                .height(24.dp)
-        )
-
         Box(
             modifier = Modifier
-                .padding(top = 12.dp)
-                .size(width = 40.dp, height = 46.dp)
+                .align(Alignment.TopCenter)
+                .padding(top = cupBodyTopPadding)
+                .size(width = cupBodyWidth, height = cupBodyHeight)
                 .onGloballyPositioned { coordinates ->
                     onCupAnchorMeasured?.invoke(coordinates.boundsInRoot().cupLandingPoint())
                 },
@@ -3161,8 +3187,8 @@ private fun TableCup(
                 contentDescription = label,
                 contentScale = ContentScale.Fit,
                 modifier = Modifier
-                    .size(width = 72.dp, height = 84.dp)
-                    .offset(y = 8.dp)
+                    .size(width = cupImageWidth, height = cupImageHeight)
+                    .offset(y = cupImageOffsetY)
                     .graphicsLayer {
                         scaleX = 1.4f
                         scaleY = 1.4f
@@ -3175,15 +3201,49 @@ private fun TableCup(
                     text = marbleCountText,
                     color = Color.White.copy(alpha = cupContentAlpha),
                     fontWeight = FontWeight.ExtraBold,
-                    fontSize = 14.sp,
+                    fontSize = max(9f, 14f * scale).sp,
                     maxLines = 1,
                     textAlign = TextAlign.Center,
                     modifier = Modifier
                         .align(Alignment.Center)
-                        .offset(y = 8.dp)
+                        .offset(y = cupImageOffsetY)
                         .fillMaxWidth()
                 )
             }
+
+            if (indicatorPlacement == SeatIndicatorPlacement.INSIDE_LEFT || indicatorPlacement == SeatIndicatorPlacement.INSIDE_RIGHT) {
+                SideSeatIndicatorStack(
+                    isStarter = isStarter,
+                    hasHat = hasHat,
+                    displayedChoice = displayedChoice,
+                    scale = scale,
+                    modifier = Modifier
+                        .align(
+                            if (indicatorPlacement == SeatIndicatorPlacement.INSIDE_LEFT) {
+                                Alignment.CenterStart
+                            } else {
+                                Alignment.CenterEnd
+                            }
+                        )
+                        .zIndex(2f)
+                        .padding(
+                            start = if (indicatorPlacement == SeatIndicatorPlacement.INSIDE_LEFT) (4.dp * scale).coerceAtLeast(2.dp) else 0.dp,
+                            end = if (indicatorPlacement == SeatIndicatorPlacement.INSIDE_RIGHT) (4.dp * scale).coerceAtLeast(2.dp) else 0.dp
+                        )
+                )
+            }
+        }
+
+        if (indicatorPlacement == SeatIndicatorPlacement.BELOW) {
+            SeatIndicatorLane(
+                isStarter = isStarter,
+                hasHat = hasHat,
+                displayedChoice = displayedChoice,
+                scale = scale,
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(bottom = 1.dp)
+            )
         }
 
         if (indicator != null) {
@@ -3200,7 +3260,7 @@ private fun TableCup(
                 modifier = Modifier
                     .align(Alignment.Center)
                     .zIndex(3f)
-                    .padding(top = 18.dp)
+                    .padding(top = floatingIndicatorTopPadding)
                     .alpha(alpha.value),
                 shape = RoundedCornerShape(10.dp),
                 color = indicatorToneColor(indicator.tone).copy(alpha = 1f),
@@ -3211,8 +3271,11 @@ private fun TableCup(
                     text = indicator.text,
                     color = Color.Black,
                     fontWeight = FontWeight.Bold,
-                    fontSize = 9.sp,
-                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                    fontSize = max(7f, 9f * scale).sp,
+                    modifier = Modifier.padding(
+                        horizontal = (6.dp * scale).coerceAtLeast(3.dp),
+                        vertical = (2.dp * scale).coerceAtLeast(1.dp)
+                    )
                 )
             }
         }
@@ -3224,8 +3287,14 @@ private fun SeatIndicatorLane(
     isStarter: Boolean,
     hasHat: Boolean,
     displayedChoice: Int?,
+    scale: Float = 1f,
     modifier: Modifier = Modifier
 ) {
+    val starterSize = (18.dp * scale).coerceAtLeast(11.dp)
+    val hatSize = (14.dp * scale).coerceAtLeast(9.dp)
+    val choiceSize = (16.dp * scale).coerceAtLeast(10.dp)
+    val spacing = (1.dp * scale).coerceAtLeast(0.5.dp)
+
     Row(
         modifier = modifier,
         horizontalArrangement = Arrangement.Center,
@@ -3234,20 +3303,20 @@ private fun SeatIndicatorLane(
         IndicatorSprite(
             drawableRes = if (isStarter) R.drawable.starter else null,
             contentDescription = if (isStarter) "Starter" else null,
-            size = 18.dp,
+            size = starterSize,
             visualScale = 2.8f
         )
 
-        Spacer(Modifier.width(1.dp))
+        Spacer(Modifier.width(spacing))
 
         IndicatorSprite(
             drawableRes = if (hasHat) R.drawable.thehat else null,
             contentDescription = if (hasHat) "Hat" else null,
-            size = 14.dp,
+            size = hatSize,
             visualScale = 2.5f
         )
 
-        Spacer(Modifier.width(1.dp))
+        Spacer(Modifier.width(spacing))
 
         IndicatorSprite(
             drawableRes = when (displayedChoice) {
@@ -3257,8 +3326,54 @@ private fun SeatIndicatorLane(
                 else -> R.drawable.choicenone
             },
             contentDescription = "Choice",
-            size = 16.dp,
+            size = choiceSize,
             visualScale = 1.25f
+        )
+    }
+}
+
+@Composable
+private fun SideSeatIndicatorStack(
+    isStarter: Boolean,
+    hasHat: Boolean,
+    displayedChoice: Int?,
+    scale: Float = 1f,
+    modifier: Modifier = Modifier
+) {
+    val starterSize = (14.dp * scale).coerceAtLeast(11.dp)
+    val hatSize = (12.dp * scale).coerceAtLeast(10.dp)
+    val choiceSize = (14.dp * scale).coerceAtLeast(11.dp)
+    val spacing = (0.5.dp * scale).coerceAtLeast(0.dp)
+
+    Column(
+        modifier = modifier,
+        verticalArrangement = Arrangement.spacedBy(spacing, Alignment.CenterVertically),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        IndicatorSprite(
+            drawableRes = if (isStarter) R.drawable.starter else null,
+            contentDescription = if (isStarter) "Starter" else null,
+            size = starterSize,
+            visualScale = 2.6f
+        )
+
+        IndicatorSprite(
+            drawableRes = if (hasHat) R.drawable.thehat else null,
+            contentDescription = if (hasHat) "Hat" else null,
+            size = hatSize,
+            visualScale = 2.3f
+        )
+
+        IndicatorSprite(
+            drawableRes = when (displayedChoice) {
+                0 -> R.drawable.choicezero
+                1 -> R.drawable.choiceone
+                3 -> R.drawable.choicethree
+                else -> R.drawable.choicenone
+            },
+            contentDescription = "Choice",
+            size = choiceSize,
+            visualScale = 1.2f
         )
     }
 }
