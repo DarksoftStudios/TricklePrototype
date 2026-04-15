@@ -562,7 +562,7 @@ private fun TrickleApp() {
     }
 
     var difficulty by remember { mutableStateOf<Difficulty?>(null) }
-    var weatherEnabled by remember { mutableStateOf(settingsPrefs.getBoolean("weather_enabled", false)) }
+    var weatherEnabled by remember { mutableStateOf(settingsPrefs.getBoolean("weather_enabled", true)) }
 
     var choice by remember { mutableIntStateOf(1) }
     var targetId by remember { mutableStateOf<Int?>(null) }
@@ -846,7 +846,11 @@ private fun TrickleApp() {
         engine.attachStatsStore(statsStore)
         difficulty = picked
         engine.setDifficulty(picked)
-        engine.setWeatherEnabled(weatherEnabled)
+
+        val stats = statsStore.load()
+        val weatherControlUnlocked = stats.wonHard
+        val effectiveWeatherEnabled = if (weatherControlUnlocked) weatherEnabled else true
+        engine.setWeatherEnabled(effectiveWeatherEnabled)
         botTags.clear()
         tagMenuBotId = null
 
@@ -1389,7 +1393,7 @@ private fun TrickleApp() {
                         ) {
                             MenuLinkButton(
                                 text = when {
-                                    !weatherUnlocked -> "WEATHER (LOCKED)"
+                                    !weatherUnlocked -> "WEATHER: OFF (LOCKED)"
                                     weatherEnabled -> "WEATHER: ON"
                                     else -> "WEATHER: OFF"
                                 }
@@ -1397,7 +1401,8 @@ private fun TrickleApp() {
                                 if (weatherUnlocked) {
                                     weatherEnabled = !weatherEnabled
                                 } else {
-                                    Toast.makeText(context, "Win on HARD to unlock WEATHER", Toast.LENGTH_SHORT).show()
+                                    weatherEnabled = true
+                                    Toast.makeText(context, "Win on HARD to unlock WEATHER OFF", Toast.LENGTH_SHORT).show()
                                 }
                             }
 
