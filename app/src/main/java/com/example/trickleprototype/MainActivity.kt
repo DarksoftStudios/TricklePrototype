@@ -1865,6 +1865,15 @@ private fun TrickleApp() {
                                 .height(660.dp)
                         )
 
+                        val smogVisibleBotIds = if (
+                            difficulty != Difficulty.EASY &&
+                            (lastResult?.smogRevealedPlayerIds?.isNotEmpty() == true)
+                        ) {
+                            lastResult?.smogRevealedPlayerIds ?: emptySet()
+                        } else {
+                            emptySet()
+                        }
+
                         BotCupColumn(
                             bots = leftBots,
                             currentActorId = currentActorId,
@@ -1872,6 +1881,7 @@ private fun TrickleApp() {
                             starterId = lastResult?.currentStarterId,
                             indicators = floatingIndicators,
                             showMarbleCounts = difficulty == Difficulty.EASY,
+                            playersWithForcedMarbleCounts = smogVisibleBotIds,
                             taggingEnabled = difficulty != Difficulty.EASY && !revealArchetypesActive,
                             targetVisualStateForBot = { botId -> visualStateForTargetablePlayer(botId) },
                             onBotClicked = { botId -> handleTargetSeatClick(botId) },
@@ -1893,6 +1903,7 @@ private fun TrickleApp() {
                             starterId = lastResult?.currentStarterId,
                             indicators = floatingIndicators,
                             showMarbleCounts = difficulty == Difficulty.EASY,
+                            playersWithForcedMarbleCounts = smogVisibleBotIds,
                             taggingEnabled = difficulty != Difficulty.EASY && !revealArchetypesActive,
                             targetVisualStateForBot = { botId -> visualStateForTargetablePlayer(botId) },
                             onBotClicked = { botId -> handleTargetSeatClick(botId) },
@@ -3059,6 +3070,7 @@ private fun BotCupColumn(
     starterId: Int?,
     indicators: Map<Int, FloatingIndicator>,
     showMarbleCounts: Boolean,
+    playersWithForcedMarbleCounts: Set<Int> = emptySet(),
     taggingEnabled: Boolean,
     targetVisualStateForBot: (Int) -> TargetVisualState,
     onBotClicked: (Int) -> Unit,
@@ -3104,7 +3116,7 @@ private fun BotCupColumn(
                     hasHat = hatHolderId == bot.id,
                     isStarter = starterId == bot.id,
                     displayedChoice = bot.revealedChoice,
-                    marbleCountText = if (showMarbleCounts) bot.marbles.toString() else null,
+                    marbleCountText = if (showMarbleCounts || bot.id in playersWithForcedMarbleCounts) bot.marbles.toString() else null,
                     targetVisualState = targetVisualState,
                     indicatorPlacement = indicatorPlacement,
                     onCupAnchorMeasured = { measuredAnchor ->
@@ -4178,7 +4190,8 @@ private fun engineSnapshot(engine: GameEngine): RoundResult {
         activeTargetArrowActorId = null,
         activeTargetArrowTargetIds = emptyList(),
         marbleTransfers = emptyList(),
-        botArchetypeNamesByPlayerId = emptyMap()
+        botArchetypeNamesByPlayerId = emptyMap(),
+        smogRevealedPlayerIds = emptySet()
     )
 }
 

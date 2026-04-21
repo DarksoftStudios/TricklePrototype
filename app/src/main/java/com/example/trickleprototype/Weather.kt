@@ -406,7 +406,7 @@ object Weather {
             ruleText = "When weather is revealed, every player tied for the highest score reveals both their current score and their selected 0, 1, or 3. They immediately gain that amount, then do not gain again during Trickling because they have already been revealed. Those players cannot be targeted for the rest of the round.",
             category = WeatherCategory.INFORMATION,
             complexity = WeatherComplexity.HARD,
-            copies = 333,
+            copies = 2,
             enabled = true,
             digitalOnly = true,
             effectTags = setOf(WeatherEffectTag.REVEAL_HIGHEST_SCORE_CHOICES_AND_PROTECT)

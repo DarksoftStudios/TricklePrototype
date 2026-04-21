@@ -53,7 +53,8 @@ data class RoundResult(
     val activeTargetArrowActorId: Int?,
     val activeTargetArrowTargetIds: List<Int>,
     val marbleTransfers: List<MarbleTransferEvent>,
-    val botArchetypeNamesByPlayerId: Map<Int, String>
+    val botArchetypeNamesByPlayerId: Map<Int, String>,
+    val smogRevealedPlayerIds: Set<Int>
 )
 
 class GameEngine(
@@ -87,7 +88,6 @@ class GameEngine(
     }
 
 
-
     fun setHumanName(name: String) {
         val cleaned = name.trim().ifBlank { "Player" }
         players.firstOrNull { it.id == HUMAN_ID }?.baseName = cleaned
@@ -103,6 +103,7 @@ class GameEngine(
     private val targetedThisRound = mutableSetOf<Int>()
     private val attacksThisRound = mutableMapOf<Int, Int>()
     private val weatherProtectedThisRound = mutableSetOf<Int>()
+    private val smogRevealedPlayerIds = mutableSetOf<Int>()
 
     private var turnOrder: List<Int> = emptyList()
     private var turnCursor: Int = 0
@@ -174,9 +175,13 @@ class GameEngine(
 
     private var statsStore: StatsStore? = null
 
-    init { reset() }
+    init {
+        reset()
+    }
 
-    fun attachStatsStore(store: StatsStore) { statsStore = store }
+    fun attachStatsStore(store: StatsStore) {
+        statsStore = store
+    }
 
     fun setDifficulty(d: Difficulty) {
         difficulty = d
@@ -208,6 +213,7 @@ class GameEngine(
         targetedThisRound.clear()
         attacksThisRound.clear()
         weatherProtectedThisRound.clear()
+        smogRevealedPlayerIds.clear()
         currentWeatherCard = null
         activeTargetArrowActorId = null
         activeTargetArrowTargetIds = emptyList()
@@ -341,11 +347,16 @@ class GameEngine(
                     unlockWeatherAchievement("heat_mirage_what_just_happened")
                 }
             }
+
             "high_pressure" -> unlockWeatherAchievement("high_pressure_one_shot")
         }
     }
 
-    private fun markHumanScoredFromOwnSelection(actualSelection: Int, moved: Int, obscured: Boolean) {
+    private fun markHumanScoredFromOwnSelection(
+        actualSelection: Int,
+        moved: Int,
+        obscured: Boolean
+    ) {
         if (obscured && moved > 0 && currentWeatherId() == "whiteout") {
             unlockWeatherAchievement("whiteout_hidden_moves")
         }
@@ -363,9 +374,11 @@ class GameEngine(
 
             val newWeatherIds = gameUnlockedWeatherAchievementIds - s.unlockedWeatherAchievements
             if (newWeatherIds.isNotEmpty()) {
-                s.unlockedWeatherAchievements = (s.unlockedWeatherAchievements + newWeatherIds).toSet()
+                s.unlockedWeatherAchievements =
+                    (s.unlockedWeatherAchievements + newWeatherIds).toSet()
                 newWeatherIds.forEach { newId ->
-                    val def = WeatherAchievements.perCard.firstOrNull { it.id == newId } ?: return@forEach
+                    val def =
+                        WeatherAchievements.perCard.firstOrNull { it.id == newId } ?: return@forEach
                     log += RoundLogEvent("*** Achievement Unlocked: ${def.title} - ${def.desc}! ***")
                 }
             }
@@ -378,6 +391,7 @@ class GameEngine(
             store.save(s)
         }
     }
+
     private fun weatherHas(tag: WeatherEffectTag): Boolean =
         currentWeatherCard?.effectTags?.contains(tag) == true
 
@@ -432,18 +446,31 @@ class GameEngine(
     }
 
     private fun applyPositiveGain(player: PlayerState, amount: Int): Int {
-        return applyPositiveGainInternal(player = player, amount = amount, allowDuringDrought = false)
+        return applyPositiveGainInternal(
+            player = player,
+            amount = amount,
+            allowDuringDrought = false
+        )
     }
 
     private fun applyTrickleGain(player: PlayerState, amount: Int): Int {
-        return applyPositiveGainInternal(player = player, amount = amount, allowDuringDrought = true)
+        return applyPositiveGainInternal(
+            player = player,
+            amount = amount,
+            allowDuringDrought = true
+        )
     }
 
-    private fun applyPositiveGainInternal(player: PlayerState, amount: Int, allowDuringDrought: Boolean): Int {
+    private fun applyPositiveGainInternal(
+        player: PlayerState,
+        amount: Int,
+        allowDuringDrought: Boolean
+    ): Int {
         if (amount <= 0) return 0
         if (noMarblesMoveThisRound() && !(allowDuringDrought && currentWeatherId() == "drought")) return 0
         if (weatherHas(WeatherEffectTag.ONE_POSITIVE_SCORING_EVENT_PER_PLAYER) &&
-            player.id in playersWithPositiveScoringEventThisRound) {
+            player.id in playersWithPositiveScoringEventThisRound
+        ) {
             return 0
         }
 
@@ -561,6 +588,7 @@ class GameEngine(
                 firstWrongZeroResolvedThisRound = true
                 3
             }
+
             weatherHas(WeatherEffectTag.WRONG_ZERO_COSTS_THREE) -> -3
             weatherHas(WeatherEffectTag.WRONG_ZERO_COSTS_TWO) -> -2
             weatherHas(WeatherEffectTag.WRONG_ZERO_GIVES_ONE) -> +1
@@ -667,6 +695,8 @@ class GameEngine(
                 val leaderIds = highestScorePlayerIds(activeIds)
                 weatherProtectedThisRound.clear()
                 weatherProtectedThisRound += leaderIds
+                smogRevealedPlayerIds.clear()
+                smogRevealedPlayerIds += leaderIds
 
                 for (pid in leaderIds) {
                     val choice = selectionsThisRound[pid] ?: continue
@@ -705,6 +735,7 @@ class GameEngine(
         targetedThisRound.clear()
         attacksThisRound.clear()
         weatherProtectedThisRound.clear()
+        smogRevealedPlayerIds.clear()
         bannerText = null
         winnerIds = emptyList()
         pending.clear()
@@ -916,7 +947,8 @@ class GameEngine(
         if (candidates.isEmpty()) return null
 
         val targetId = candidates.random(rng)
-        val guess = guessFromVisibleReveal(pub, targetId, defaultGuess = DieChoice.THREE)?.v ?: return null
+        val guess =
+            guessFromVisibleReveal(pub, targetId, defaultGuess = DieChoice.THREE)?.v ?: return null
         return targetId to guess
     }
 
@@ -935,7 +967,11 @@ class GameEngine(
 
             val droughtTargets = legalTargets.filter { it in lastRoundCorrectlyGuessedTargetIds }
             if (droughtTargets.isNotEmpty()) {
-                queueGuessAction(actorId = actorId, targetIds = listOf(droughtTargets.random(rng)), guess = 3)
+                queueGuessAction(
+                    actorId = actorId,
+                    targetIds = listOf(droughtTargets.random(rng)),
+                    guess = 3
+                )
                 passStreaks[actorId] = 0
             } else {
                 queuePass(actorId)
@@ -1001,7 +1037,8 @@ class GameEngine(
                 }
 
                 if (actorNeedsTwoTargetsIfTargeting()) {
-                    val firstTarget = decision.targetId.takeIf { it in legalTargets } ?: legalTargets.firstOrNull()
+                    val firstTarget = decision.targetId.takeIf { it in legalTargets }
+                        ?: legalTargets.firstOrNull()
                     val secondTarget = legalTargets.firstOrNull { it != firstTarget }
 
                     if (firstTarget != null && secondTarget != null) {
@@ -1010,7 +1047,8 @@ class GameEngine(
                         queuePass(actorId)
                     }
                 } else {
-                    val finalTarget = decision.targetId.takeIf { it in legalTargets } ?: legalTargets.firstOrNull()
+                    val finalTarget = decision.targetId.takeIf { it in legalTargets }
+                        ?: legalTargets.firstOrNull()
                     if (finalTarget != null) {
                         queueGuessAction(actorId, listOf(finalTarget), finalGuess)
                     } else {
@@ -1046,7 +1084,13 @@ class GameEngine(
             val blockedTarget = targetIds.first { isUntargetableFromWeather(it) }
             pending.addLast(
                 PendingLog(kind = LogEventKind.PASS) {
-                    log += RoundLogEvent("${displayNameFor(actorId)} tried to target ${displayNameFor(blockedTarget)}, but weather protects them this round. (pass)")
+                    log += RoundLogEvent(
+                        "${displayNameFor(actorId)} tried to target ${
+                            displayNameFor(
+                                blockedTarget
+                            )
+                        }, but weather protects them this round. (pass)"
+                    )
                     attacksThisRound[actorId] = 0
                     passStreaks[actorId] = (passStreaks[actorId] ?: 0) + 1
                 }
@@ -1069,7 +1113,13 @@ class GameEngine(
             val takenTarget = targetIds.first { it in targetedThisRound }
             pending.addLast(
                 PendingLog(kind = LogEventKind.PASS) {
-                    log += RoundLogEvent("${displayNameFor(actorId)} tried to target ${displayNameFor(takenTarget)}, but they were already targeted. (pass)")
+                    log += RoundLogEvent(
+                        "${displayNameFor(actorId)} tried to target ${
+                            displayNameFor(
+                                takenTarget
+                            )
+                        }, but they were already targeted. (pass)"
+                    )
                     attacksThisRound[actorId] = 0
                     passStreaks[actorId] = (passStreaks[actorId] ?: 0) + 1
                 }
@@ -1097,7 +1147,8 @@ class GameEngine(
             }
             if (currentWeatherId() == "crosswinds" &&
                 targetIds.size == 2 &&
-                targetIds.all { selectionsThisRound[it] == guess }) {
+                targetIds.all { selectionsThisRound[it] == guess }
+            ) {
                 unlockWeatherAchievement("crosswinds_two_birds_one_guess")
             }
         }
@@ -1116,7 +1167,8 @@ class GameEngine(
         if (actorId == HUMAN_ID &&
             currentWeatherId() == "stormfront" &&
             weatherHas(WeatherEffectTag.LIMIT_TARGETING_ACTIONS_TO_HALF_ROUNDED_DOWN) &&
-            hasReachedStormfrontTargetingLimit()) {
+            hasReachedStormfrontTargetingLimit()
+        ) {
             unlockWeatherAchievement("stormfront_cut_off")
         }
 
@@ -1183,7 +1235,13 @@ class GameEngine(
                             "high_pressure" -> if (moved > 0) unlockWeatherAchievement("high_pressure_one_shot")
                         }
                     }
-                    log += RoundLogEvent("${displayNameFor(actorId)} was correct and takes $moved from ${displayNameFor(targetId)}.")
+                    log += RoundLogEvent(
+                        "${displayNameFor(actorId)} was correct and takes $moved from ${
+                            displayNameFor(
+                                targetId
+                            )
+                        }."
+                    )
                 } else {
                     val awarded = applyPositiveGain(actor, reward)
                     if (actorId == HUMAN_ID) {
@@ -1241,14 +1299,26 @@ class GameEngine(
                         if (actorId == HUMAN_ID && currentWeatherId() == "drought") {
                             unlockWeatherAchievement("drought_dry_spell")
                         }
-                        log += RoundLogEvent("${displayNameFor(actorId)} was wrong on a 0 and gives $moved to ${displayNameFor(targetId)} (HAT moves to ${displayNameFor(actorId)}).")
+                        log += RoundLogEvent(
+                            "${displayNameFor(actorId)} was wrong on a 0 and gives $moved to ${
+                                displayNameFor(
+                                    targetId
+                                )
+                            } (HAT moves to ${displayNameFor(actorId)})."
+                        )
                     } else {
                         val lost = removeMarblesToBowl(actor, -penalty)
                         hatHolderId = actorId
                         if (actorId == HUMAN_ID && currentWeatherId() == "drought") {
                             unlockWeatherAchievement("drought_dry_spell")
                         }
-                        log += RoundLogEvent("${displayNameFor(actorId)} was wrong on a 0, loses $lost (HAT moves to ${displayNameFor(actorId)}).")
+                        log += RoundLogEvent(
+                            "${displayNameFor(actorId)} was wrong on a 0, loses $lost (HAT moves to ${
+                                displayNameFor(
+                                    actorId
+                                )
+                            })."
+                        )
                     }
                 }
 
@@ -1265,7 +1335,13 @@ class GameEngine(
                             unlockWeatherAchievement("drought_dry_spell")
                         }
                     }
-                    log += RoundLogEvent("${displayNameFor(actorId)} was wrong on a 0, gains $awarded (HAT moves to ${displayNameFor(actorId)}).")
+                    log += RoundLogEvent(
+                        "${displayNameFor(actorId)} was wrong on a 0, gains $awarded (HAT moves to ${
+                            displayNameFor(
+                                actorId
+                            )
+                        })."
+                    )
                 }
 
                 else -> {
@@ -1273,7 +1349,13 @@ class GameEngine(
                     if (actorId == HUMAN_ID && currentWeatherId() == "drought") {
                         unlockWeatherAchievement("drought_dry_spell")
                     }
-                    log += RoundLogEvent("${displayNameFor(actorId)} was wrong on a 0, loses 0 (HAT moves to ${displayNameFor(actorId)}).")
+                    log += RoundLogEvent(
+                        "${displayNameFor(actorId)} was wrong on a 0, loses 0 (HAT moves to ${
+                            displayNameFor(
+                                actorId
+                            )
+                        })."
+                    )
                 }
             }
 
@@ -1290,20 +1372,41 @@ class GameEngine(
                     if (currentWeatherId() == "sleet" && moved > 0) {
                         unlockWeatherAchievement("sleet_cold_exchange")
                     }
-                    markHumanScoredFromOwnSelection(actualSelection = actual, moved = moved, obscured = false)
+                    markHumanScoredFromOwnSelection(
+                        actualSelection = actual,
+                        moved = moved,
+                        obscured = false
+                    )
                 }
-                log += RoundLogEvent("${displayNameFor(actorId)} was wrong, ${displayNameFor(targetId)} takes $moved from them.")
+                log += RoundLogEvent(
+                    "${displayNameFor(actorId)} was wrong, ${
+                        displayNameFor(
+                            targetId
+                        )
+                    } takes $moved from them."
+                )
             } else {
                 val awarded = applyPositiveGain(target, consolation)
                 if (targetId == HUMAN_ID) {
-                    markHumanScoredFromOwnSelection(actualSelection = actual, moved = awarded, obscured = false)
+                    markHumanScoredFromOwnSelection(
+                        actualSelection = actual,
+                        moved = awarded,
+                        obscured = false
+                    )
                 }
-                log += RoundLogEvent("${displayNameFor(actorId)} was wrong, ${displayNameFor(targetId)} gains $awarded.")
+                log += RoundLogEvent(
+                    "${displayNameFor(actorId)} was wrong, ${
+                        displayNameFor(
+                            targetId
+                        )
+                    } gains $awarded."
+                )
             }
             if (targetId == HUMAN_ID &&
                 actual == 0 &&
                 guess != 0 &&
-                currentWeatherId() == "thunderstorm") {
+                currentWeatherId() == "thunderstorm"
+            ) {
                 unlockWeatherAchievement("thunderstorm_shock_therapy")
             }
             if (actorId == HUMAN_ID) {
@@ -1410,10 +1513,12 @@ class GameEngine(
                             s.easyGames += 1
                             if (humanWon) s.easyWins += 1
                         }
+
                         Difficulty.NORMAL -> {
                             s.normalGames += 1
                             if (humanWon) s.normalWins += 1
                         }
+
                         Difficulty.HARD -> {
                             s.hardGames += 1
                             if (humanWon) s.hardWins += 1
@@ -1493,7 +1598,8 @@ class GameEngine(
                         if (!s.justPressEverything &&
                             gameHumanPassedAtLeastOnce &&
                             gameHumanChoicesUsed.containsAll(setOf(0, 1, 3)) &&
-                            gameHumanGuessesUsed.containsAll(setOf(1, 3))) {
+                            gameHumanGuessesUsed.containsAll(setOf(1, 3))
+                        ) {
                             s.justPressEverything = true
                             log += RoundLogEvent("*** Achievement Unlocked: Just Press Everything - Do every action possible in a game ***")
                         }
@@ -1561,6 +1667,7 @@ class GameEngine(
                                     }
                                     s.normalWins += 1
                                 }
+
                                 Difficulty.HARD -> {
                                     if (!s.wonHard) {
                                         s.wonHard = true
@@ -1568,6 +1675,7 @@ class GameEngine(
                                     }
                                     s.hardWins += 1
                                 }
+
                                 Difficulty.EASY -> Unit
                             }
 
@@ -1700,7 +1808,8 @@ class GameEngine(
 
     private fun activePlayerIds(): List<Int> {
         val restricted = tiebreakerParticipantIds
-        return if (restricted == null) players.map { it.id } else players.map { it.id }.filter { it in restricted }
+        return if (restricted == null) players.map { it.id } else players.map { it.id }
+            .filter { it in restricted }
     }
 
     private fun nextStarterIndex(activeIds: List<Int>): Int {
@@ -1812,7 +1921,13 @@ class GameEngine(
         do {
             firstRoll = listOf(0, 1, 3)[rng.nextInt(3)]
             secondRoll = listOf(0, 1, 3)[rng.nextInt(3)]
-            log += RoundLogEvent("${displayNameFor(firstId)} rolls $firstRoll. ${displayNameFor(secondId)} rolls $secondRoll.")
+            log += RoundLogEvent(
+                "${displayNameFor(firstId)} rolls $firstRoll. ${
+                    displayNameFor(
+                        secondId
+                    )
+                } rolls $secondRoll."
+            )
         } while (firstRoll == secondRoll)
 
         val chooserId: Int
@@ -1836,7 +1951,13 @@ class GameEngine(
             log += RoundLogEvent("${displayNameFor(guesserId)} is correct and wins the tiebreaker.")
             listOf(guesserId)
         } else {
-            log += RoundLogEvent("${displayNameFor(guesserId)} is wrong, so ${displayNameFor(chooserId)} wins the tiebreaker.")
+            log += RoundLogEvent(
+                "${displayNameFor(guesserId)} is wrong, so ${
+                    displayNameFor(
+                        chooserId
+                    )
+                } wins the tiebreaker."
+            )
             listOf(chooserId)
         }
     }
@@ -1887,8 +2008,9 @@ class GameEngine(
         if (colludersToAdd == 1) {
             val id = colluderIds[0]
             val isRomeo = rng.nextBoolean()
-            val arch = if (isRomeo) Colluder(code = "J", displayName = "Romeo", partnerId = NO_PARTNER)
-            else Colluder(code = "R", displayName = "Juliet", partnerId = NO_PARTNER)
+            val arch =
+                if (isRomeo) Colluder(code = "J", displayName = "Romeo", partnerId = NO_PARTNER)
+                else Colluder(code = "R", displayName = "Juliet", partnerId = NO_PARTNER)
             archetypeById[id] = arch
             memById[id] = BotMemory()
         } else if (colludersToAdd == 2) {
@@ -1926,7 +2048,8 @@ class GameEngine(
     private fun targetableIdsForHuman(): List<Int> =
         if (actorMustPassBecauseAlreadyScored(HUMAN_ID) ||
             hasReachedStormfrontTargetingLimit() ||
-            !actorHasEnoughLegalTargetsToTarget(HUMAN_ID) && weatherHas(WeatherEffectTag.MUST_TARGET_IF_LEGAL)) {
+            !actorHasEnoughLegalTargetsToTarget(HUMAN_ID) && weatherHas(WeatherEffectTag.MUST_TARGET_IF_LEGAL)
+        ) {
             emptyList()
         } else {
             legalTargetIdsForActor(HUMAN_ID)
@@ -1947,7 +2070,8 @@ class GameEngine(
             EnginePhase.BOT_TURN, EnginePhase.PLAYER_TURN -> turnOrder.getOrNull(turnCursor)
             else -> null
         }
-        val targetables = if (phase == EnginePhase.PLAYER_TURN) targetableIdsForHuman() else emptyList()
+        val targetables =
+            if (phase == EnginePhase.PLAYER_TURN) targetableIdsForHuman() else emptyList()
 
         return RoundResult(
             phase = phase,
@@ -1977,7 +2101,8 @@ class GameEngine(
                         player.id to archetypeName
                     }
                 }
-                .toMap()
+                .toMap(),
+            smogRevealedPlayerIds = smogRevealedPlayerIds
         )
     }
 }
