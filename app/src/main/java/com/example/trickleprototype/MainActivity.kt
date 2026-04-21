@@ -2863,7 +2863,14 @@ private fun DrawScope.drawWeatherIcon(
             snowFlake(size.width * 0.72f, size.height * 0.28f, 0.32f)
         }
 
-        "smog" -> {
+        "snow" -> {
+            cloud()
+            snowFlake(size.width * 0.34f, size.height * 0.72f, 0.34f)
+            snowFlake(size.width * 0.50f, size.height * 0.78f, 0.28f)
+            snowFlake(size.width * 0.66f, size.height * 0.70f, 0.36f)
+        }
+
+        "whiteout" -> {
             cloud(offsetY = unit * 0.08f)
             windBand(size.height * 0.62f, curve = unit * 0.01f)
             windBand(size.height * 0.74f, curve = unit * 0.01f)
@@ -2872,6 +2879,16 @@ private fun DrawScope.drawWeatherIcon(
                 topLeft = Offset(size.width * 0.18f, size.height * 0.52f),
                 size = Size(size.width * 0.64f, size.height * 0.22f)
             )
+        }
+
+        "smog" -> {
+            cloud(offsetY = unit * 0.02f)
+            drawOval(
+                color = tint.copy(alpha = 0.16f),
+                topLeft = Offset(size.width * 0.18f, size.height * 0.22f),
+                size = Size(size.width * 0.64f, size.height * 0.20f)
+            )
+            ring(size.width * 0.50f, size.height * 0.68f, unit * 0.12f, width = stroke * 0.46f)
         }
 
         else -> {

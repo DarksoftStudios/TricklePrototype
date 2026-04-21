@@ -102,6 +102,7 @@ class GameEngine(
     private val revealedScoresThisRound = mutableMapOf<Int, Int>()
     private val targetedThisRound = mutableSetOf<Int>()
     private val attacksThisRound = mutableMapOf<Int, Int>()
+    private val weatherProtectedThisRound = mutableSetOf<Int>()
 
     private var turnOrder: List<Int> = emptyList()
     private var turnCursor: Int = 0
@@ -206,6 +207,7 @@ class GameEngine(
         revealedScoresThisRound.clear()
         targetedThisRound.clear()
         attacksThisRound.clear()
+        weatherProtectedThisRound.clear()
         currentWeatherCard = null
         activeTargetArrowActorId = null
         activeTargetArrowTargetIds = emptyList()
@@ -314,7 +316,7 @@ class GameEngine(
                 "perfect_storm" -> "perfect_storm_twelve"
                 "lightning_storm" -> "lightning_storm_strike_twice"
                 "heat_mirage" -> "heat_mirage_what_just_happened"
-                "smog" -> "smog_hidden_moves"
+                "whiteout" -> "whiteout_hidden_moves"
                 "high_pressure" -> "high_pressure_one_shot"
                 "stormfront" -> "stormfront_cut_off"
                 "cold_rain" -> "cold_rain_shared_storm"
@@ -340,13 +342,12 @@ class GameEngine(
                 }
             }
             "high_pressure" -> unlockWeatherAchievement("high_pressure_one_shot")
-            "smog" -> unlockWeatherAchievement("smog_hidden_moves")
         }
     }
 
     private fun markHumanScoredFromOwnSelection(actualSelection: Int, moved: Int, obscured: Boolean) {
-        if (obscured && moved > 0 && currentWeatherId() == "smog") {
-            unlockWeatherAchievement("smog_hidden_moves")
+        if (obscured && moved > 0 && currentWeatherId() == "whiteout") {
+            unlockWeatherAchievement("whiteout_hidden_moves")
         }
         markHumanScoredFromOwnSelection(actualSelection = actualSelection, gained = moved)
     }
@@ -475,17 +476,30 @@ class GameEngine(
         return moved
     }
 
+    private fun reduceTargetedGain(amount: Int): Int {
+        if (amount <= 0) return 0
+        if (!weatherHas(WeatherEffectTag.REDUCE_TARGETED_GAINS_BY_ONE)) return amount
+        return maxOf(0, amount - 1)
+    }
+
+    private fun increaseTrickleGain(amount: Int): Int {
+        if (amount <= 0) return 0
+        if (!weatherHas(WeatherEffectTag.INCREASE_TRICKLE_GAINS_BY_TWO)) return amount
+        return amount + 2
+    }
+
     private fun roundScoreForSelection(value: Int): Int {
         if (noMarblesMoveThisRound()) return 0
         return baseScoreForSelection(value)
     }
 
     private fun trickleScoreForSelection(value: Int): Int {
-        return if (currentWeatherId() == "drought") {
+        val base = if (currentWeatherId() == "drought") {
             baseScoreForSelection(value)
         } else {
             roundScoreForSelection(value)
         }
+        return increaseTrickleGain(base)
     }
 
     private fun baseScoreForSelection(value: Int): Int {
@@ -567,7 +581,7 @@ class GameEngine(
         if (weatherHas(WeatherEffectTag.FIRST_GUESSER_NO_REWARD_IF_CORRECT) && firstTargetingActorId == actorId) {
             return 0
         }
-        return roundScoreForSelection(guess)
+        return reduceTargetedGain(roundScoreForSelection(guess))
     }
 
     private fun lockedGuessForRound(): Int? {
@@ -579,7 +593,22 @@ class GameEngine(
         }
     }
 
+    private fun highestScorePlayerIds(activeIds: Collection<Int>): Set<Int> {
+        if (activeIds.isEmpty()) return emptySet()
+        val highestScore = players
+            .asSequence()
+            .filter { it.id in activeIds }
+            .maxOfOrNull { it.marbles }
+            ?: return emptySet()
+        return players
+            .asSequence()
+            .filter { it.id in activeIds && it.marbles == highestScore }
+            .map { it.id }
+            .toSet()
+    }
+
     private fun isUntargetableFromWeather(playerId: Int): Boolean {
+        if (playerId in weatherProtectedThisRound) return true
         val choice = selectionsThisRound[playerId] ?: return false
         return when {
             weatherHas(WeatherEffectTag.REVEAL_ONES) && choice == 1 -> true
@@ -632,6 +661,35 @@ class GameEngine(
                 }
             }
         }
+
+        if (weatherHas(WeatherEffectTag.REVEAL_HIGHEST_SCORE_CHOICES_AND_PROTECT)) {
+            enqueueOther {
+                val leaderIds = highestScorePlayerIds(activeIds)
+                weatherProtectedThisRound.clear()
+                weatherProtectedThisRound += leaderIds
+
+                for (pid in leaderIds) {
+                    val choice = selectionsThisRound[pid] ?: continue
+                    val player = players.firstOrNull { it.id == pid } ?: continue
+
+                    revealedScoresThisRound[pid] = player.marbles
+                    revealedThisRound[pid] = choice
+                    player.revealedChoice = choice
+
+                    val awarded = applyPositiveGain(player, choice)
+
+                    if (pid == HUMAN_ID) {
+                        markHumanScoredFromOwnSelection(
+                            actualSelection = choice,
+                            moved = awarded,
+                            obscured = false
+                        )
+                    }
+
+                    log += RoundLogEvent("${displayNameFor(pid)} is revealed by Smog: score ${player.marbles - awarded}, choice $choice, gains $awarded, and cannot be targeted this round.")
+                }
+            }
+        }
     }
 
     fun startRound(humanChoice: Int): RoundResult {
@@ -646,6 +704,7 @@ class GameEngine(
         revealedScoresThisRound.clear()
         targetedThisRound.clear()
         attacksThisRound.clear()
+        weatherProtectedThisRound.clear()
         bannerText = null
         winnerIds = emptyList()
         pending.clear()
@@ -1194,7 +1253,7 @@ class GameEngine(
                 }
 
                 penalty > 0 -> {
-                    val awarded = applyPositiveGain(actor, penalty)
+                    val awarded = applyPositiveGain(actor, reduceTargetedGain(penalty))
                     hatHolderId = actorId
                     if (actorId == HUMAN_ID) {
                         when (currentWeatherId()) {
@@ -1224,7 +1283,7 @@ class GameEngine(
                 gameHumanWasTrickedByZero = true
             }
         } else {
-            val consolation = roundScoreForSelection(actual)
+            val consolation = reduceTargetedGain(roundScoreForSelection(actual))
             if (weatherHas(WeatherEffectTag.USE_CUP_TO_CUP_TRANSFERS)) {
                 val moved = transferMarbles(from = actor, to = target, amount = consolation)
                 if (targetId == HUMAN_ID) {
@@ -1268,7 +1327,7 @@ class GameEngine(
 
         if (hideTrickles && hasUntargetedActivePlayers) {
             enqueueOther {
-                log += RoundLogEvent("Trickle obscured by the Smog.")
+                log += RoundLogEvent("Trickle obscured by the Whiteout.")
             }
         }
 

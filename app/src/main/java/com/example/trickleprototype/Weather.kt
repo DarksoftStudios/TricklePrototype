@@ -55,7 +55,10 @@ enum class WeatherEffectTag {
     ONLY_TOP_ROUND_SCORERS_KEEP_POINTS,
     ONLY_LOWEST_POSITIVE_ROUND_SCORERS_KEEP_POINTS,
 
-    HIDE_UNTARGETED_TRICKLE_REVEALS
+    HIDE_UNTARGETED_TRICKLE_REVEALS,
+    REDUCE_TARGETED_GAINS_BY_ONE,
+    INCREASE_TRICKLE_GAINS_BY_TWO,
+    REVEAL_HIGHEST_SCORE_CHOICES_AND_PROTECT
 }
 
 data class WeatherCard(
@@ -368,8 +371,24 @@ object Weather {
         ),
 
         WeatherCard(
-            id = "smog",
-            displayName = "Smog",
+            id = "snow",
+            displayName = "Snow",
+            effectText = "Targeted gains are reduced by 1, and Trickling gains are increased by 2",
+            ruleText = "Any positive marble gain caused by targeting is reduced by 1, to a minimum of 0. During Trickling, each untargeted player's gain is increased by 2.",
+            category = WeatherCategory.SCORING,
+            complexity = WeatherComplexity.MEDIUM,
+            copies = 2,
+            enabled = true,
+            digitalOnly = true,
+            effectTags = setOf(
+                WeatherEffectTag.REDUCE_TARGETED_GAINS_BY_ONE,
+                WeatherEffectTag.INCREASE_TRICKLE_GAINS_BY_TWO
+            )
+        ),
+
+        WeatherCard(
+            id = "whiteout",
+            displayName = "Whiteout",
             effectText = "Untargeted players choices are hidden during Trickling",
             ruleText = "Scoring still resolves normally for untargeted players, but their chosen values are not shown to players or logs as public reveal information. The system still knows the values internally; visibility only is suppressed.",
             category = WeatherCategory.INFORMATION,
@@ -378,6 +397,19 @@ object Weather {
             enabled = true,
             digitalOnly = true,
             effectTags = setOf(WeatherEffectTag.HIDE_UNTARGETED_TRICKLE_REVEALS)
+        ),
+
+        WeatherCard(
+            id = "smog",
+            displayName = "Smog",
+            effectText = "Highest scorers reveal score and 0/1/3, gain now, and cannot be targeted",
+            ruleText = "When weather is revealed, every player tied for the highest score reveals both their current score and their selected 0, 1, or 3. They immediately gain that amount, then do not gain again during Trickling because they have already been revealed. Those players cannot be targeted for the rest of the round.",
+            category = WeatherCategory.INFORMATION,
+            complexity = WeatherComplexity.HARD,
+            copies = 333,
+            enabled = true,
+            digitalOnly = true,
+            effectTags = setOf(WeatherEffectTag.REVEAL_HIGHEST_SCORE_CHOICES_AND_PROTECT)
         )
     )
 
@@ -440,7 +472,9 @@ object Weather {
                 WeatherEffectTag.SCORE_THREES_AS_FOUR in card.effectTags ||
                 WeatherEffectTag.DOUBLE_ALL_MARBLE_GAINS in card.effectTags ||
                 WeatherEffectTag.DOUBLE_ALL_MARBLE_LOSSES in card.effectTags ||
-                WeatherEffectTag.UNTARGETED_ZERO_TRICKLES_FOR_ONE in card.effectTags
+                WeatherEffectTag.UNTARGETED_ZERO_TRICKLES_FOR_ONE in card.effectTags ||
+                WeatherEffectTag.REDUCE_TARGETED_GAINS_BY_ONE in card.effectTags ||
+                WeatherEffectTag.INCREASE_TRICKLE_GAINS_BY_TWO in card.effectTags
 
     fun affectsTargeting(card: WeatherCard): Boolean =
         WeatherEffectTag.LOCK_GUESSES_SAME_AS_FIRST in card.effectTags ||
@@ -449,7 +483,8 @@ object Weather {
                 WeatherEffectTag.FIRST_WRONG_ON_ZERO_NO_LOSS_BUT_HAT_MOVES in card.effectTags ||
                 WeatherEffectTag.MUST_TARGET_TWO_WITH_SAME_GUESS_IF_TARGETING in card.effectTags ||
                 WeatherEffectTag.MUST_TARGET_IF_LEGAL in card.effectTags ||
-                WeatherEffectTag.LIMIT_TARGETING_ACTIONS_TO_HALF_ROUNDED_DOWN in card.effectTags
+                WeatherEffectTag.LIMIT_TARGETING_ACTIONS_TO_HALF_ROUNDED_DOWN in card.effectTags ||
+                WeatherEffectTag.REVEAL_HIGHEST_SCORE_CHOICES_AND_PROTECT in card.effectTags
 
     fun affectsResolution(card: WeatherCard): Boolean =
         WeatherEffectTag.ONE_POSITIVE_SCORING_EVENT_PER_PLAYER in card.effectTags ||
@@ -458,7 +493,8 @@ object Weather {
                 WeatherEffectTag.ONLY_LOWEST_POSITIVE_ROUND_SCORERS_KEEP_POINTS in card.effectTags
 
     fun affectsInformation(card: WeatherCard): Boolean =
-        WeatherEffectTag.HIDE_UNTARGETED_TRICKLE_REVEALS in card.effectTags
+        WeatherEffectTag.HIDE_UNTARGETED_TRICKLE_REVEALS in card.effectTags ||
+                WeatherEffectTag.REVEAL_HIGHEST_SCORE_CHOICES_AND_PROTECT in card.effectTags
 
     fun transformSelectedChoice(choice: DieChoice, card: WeatherCard): DieChoice {
         if (WeatherEffectTag.ROTATE_SELECTED_VALUES_0_TO_1_TO_3_TO_0 !in card.effectTags) {
@@ -480,6 +516,10 @@ object Weather {
             chosenValue == 3 && WeatherEffectTag.SCORE_THREES_AS_FOUR in card.effectTags -> 4
             chosenValue == 0 && WeatherEffectTag.UNTARGETED_ZERO_TRICKLES_FOR_ONE in card.effectTags -> 1
             else -> chosenValue
+        }
+
+        if (WeatherEffectTag.INCREASE_TRICKLE_GAINS_BY_TWO in card.effectTags) {
+            result += 2
         }
 
         if (WeatherEffectTag.DOUBLE_ALL_MARBLE_GAINS in card.effectTags) {

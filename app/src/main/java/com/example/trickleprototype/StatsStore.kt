@@ -104,7 +104,7 @@ object WeatherAchievements {
         WeatherAchievementDef("perfect_storm_twelve", "Perfect Storm", "Score 12 points in one round during Perfect Storm"),
         WeatherAchievementDef("lightning_storm_strike_twice", "Strike Twice", "Gain points from a failed guess during Lightning Storm"),
         WeatherAchievementDef("heat_mirage_what_just_happened", "What Just Happened?", "Score after your number rotates during Heat Mirage"),
-        WeatherAchievementDef("smog_hidden_moves", "Hidden Moves", "Gain marbles from a trickle obscured by Smog"),
+        WeatherAchievementDef("whiteout_hidden_moves", "Hidden Moves", "Gain marbles from a trickle obscured by Whiteout"),
         WeatherAchievementDef("high_pressure_one_shot", "One Shot", "Gain your single allowed positive score during High Pressure"),
         WeatherAchievementDef("stormfront_cut_off", "Cut Off", "Trigger the target limit during Stormfront"),
         WeatherAchievementDef("cold_rain_shared_storm", "Shared Storm", "Receive marbles from the Cold Rain redistribution"),
