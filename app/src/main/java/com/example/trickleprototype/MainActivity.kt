@@ -562,7 +562,7 @@ private fun TrickleApp() {
     }
 
     var difficulty by remember { mutableStateOf<Difficulty?>(null) }
-    var weatherEnabled by remember { mutableStateOf(settingsPrefs.getBoolean("weather_enabled", true)) }
+    var weatherEnabled by remember { mutableStateOf(settingsPrefs.getBoolean("weather_enabled", false)) }
 
     var choice by remember { mutableIntStateOf(1) }
     var targetId by remember { mutableStateOf<Int?>(null) }
@@ -849,7 +849,7 @@ private fun TrickleApp() {
 
         val stats = statsStore.load()
         val weatherControlUnlocked = stats.wonHard
-        val effectiveWeatherEnabled = if (weatherControlUnlocked) weatherEnabled else true
+        val effectiveWeatherEnabled = if (weatherControlUnlocked) weatherEnabled else false
         engine.setWeatherEnabled(effectiveWeatherEnabled)
         botTags.clear()
         tagMenuBotId = null
@@ -1393,7 +1393,7 @@ private fun TrickleApp() {
                         ) {
                             MenuLinkButton(
                                 text = when {
-                                    !weatherUnlocked -> "WEATHER: OFF (LOCKED)"
+                                    !weatherUnlocked -> "WEATHER:(LOCKED)"
                                     weatherEnabled -> "WEATHER: ON"
                                     else -> "WEATHER: OFF"
                                 }
@@ -1402,7 +1402,7 @@ private fun TrickleApp() {
                                     weatherEnabled = !weatherEnabled
                                 } else {
                                     weatherEnabled = true
-                                    Toast.makeText(context, "Win on HARD to unlock WEATHER OFF", Toast.LENGTH_SHORT).show()
+                                    Toast.makeText(context, "Win on HARD to unlock WEATHER", Toast.LENGTH_SHORT).show()
                                 }
                             }
 
@@ -4392,7 +4392,7 @@ private fun AdvancedTipsText() {
                 "- On Hard mode, there is no Log to review, you must rely on your memory.\n\n" +
                 "JESTER'S HAT RULE:\n" +
                 "- If you guess 1 or 3 on someone who actually chose 0, you lose 1 marble and take the Jester's Hat.\n" +
-                "- If you guess 0 someone who actually chose 0, you lose 0 marbles and take the Jester's Hat.\n" +
+                "- If you guess 0 on someone who chose 0, you lose 0 marbles and take the Jester's Hat.\n" +
                 "- Next round, the Hat-holder goes first BUT only if the Hat ended the round on a different person than it started.\n"
     )
 }
