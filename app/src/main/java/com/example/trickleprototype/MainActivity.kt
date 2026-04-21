@@ -1416,7 +1416,7 @@ private fun TrickleApp() {
                                 if (normalUnlocked) {
                                     startGame(Difficulty.NORMAL)
                                 } else {
-                                    Toast.makeText(context, "Play a game on EASY to unlock NORMAL", Toast.LENGTH_SHORT).show()
+                                    Toast.makeText(context, "Finish a game to unlock NORMAL", Toast.LENGTH_SHORT).show()
                                 }
                             }
 
@@ -1427,7 +1427,7 @@ private fun TrickleApp() {
                                 if (hardUnlocked) {
                                     startGame(Difficulty.HARD)
                                 } else {
-                                    Toast.makeText(context, "Beat a game on NORMAL to unlock HARD", Toast.LENGTH_SHORT).show()
+                                    Toast.makeText(context, "Win a game on NORMAL to unlock HARD", Toast.LENGTH_SHORT).show()
                                 }
                             }
 
@@ -1539,7 +1539,7 @@ private fun TrickleApp() {
                             AlertDialog(
                                 onDismissRequest = { showResetStatsConfirm = false },
                                 title = { Text("ARE YOU SURE?") },
-                                text = { Text("This will reset all stats.") },
+                                text = { Text("This will reset all stats and unlocks.") },
                                 confirmButton = {
                                     TextButton(
                                         onClick = {
@@ -4700,9 +4700,9 @@ private fun AchievementsText(stats: PlayerStats) {
 
         Spacer(Modifier.height(14.dp))
         AchievementSectionHeader("Difficulty")
-        AchievementRow(stats.wonEasy, "Comp Stomp", "Win on Easy")
-        AchievementRow(stats.wonNormal, "Pattern Finder", "Win on Normal")
-        AchievementRow(stats.wonHard, "TR1CKL3!", "Win on Hard to unlock Weather")
+        AchievementRow(stats.wonEasy, "Comp Stomp", "Won on Easy")
+        AchievementRow(stats.wonNormal, "Pattern Finder", "Won on Normal")
+        AchievementRow(stats.wonHard, "TR1CKL3!", "Win on Hard")
         AchievementRow(
             unlocked = stats.playedAllDifficulties,
             title = "Tourist",

@@ -27,6 +27,7 @@ data class PublicRoundInfo(
     val startingPlayerId: Int,
     val hatHolderId: Int?,
     val revealedThisRound: Map<Int, Int>,
+    val revealedScoresThisRound: Map<Int, Int>,
     val targetedThisRound: Set<Int>,
 
     val lastRoundChoices: Map<Int, Int>,
@@ -46,6 +47,7 @@ data class PublicRoundInfo(
 interface Archetype {
     val code: String
     val displayName: String
+    val isAggressiveInHardMode: Boolean get() = false
 
     fun chooseDie(public: PublicRoundInfo, mem: BotMemory): DieChoice
     fun takeTurn(public: PublicRoundInfo, mem: BotMemory): TurnDecision
@@ -61,6 +63,21 @@ internal fun candidateTargets(public: PublicRoundInfo, forbidIds: Set<Int> = emp
 
 internal fun anyRevealed(public: PublicRoundInfo, value: Int): List<Int> {
     return public.revealedThisRound.filterValues { it == value }.keys.toList()
+}
+
+internal fun guessFromVisibleReveal(public: PublicRoundInfo, targetId: Int, defaultGuess: DieChoice = DieChoice.THREE): DieChoice? {
+    val visible = when (public.revealedThisRound[targetId]) {
+        3 -> DieChoice.THREE
+        1 -> DieChoice.ONE
+        0 -> DieChoice.ZERO
+        else -> null
+    }
+
+    if (visible != null) {
+        weatherAdjustedGuess(public, visible)?.let { return it }
+    }
+
+    return weatherAdjustedGuess(public, defaultGuess, fallback = DieChoice.ONE)
 }
 
 private fun wasTargetedLastRound(public: PublicRoundInfo, myId: Int): Boolean {
@@ -189,6 +206,7 @@ private fun baselineBraveryDie(public: PublicRoundInfo, allowZeroThisRound: Bool
  * - Action: pass rounds 1-3. From round 4+ target someone who chose 3 last round, guess 3.
  */
 class Teacher : Archetype {
+    override val isAggressiveInHardMode = true
     override val code = "A"
     override val displayName = "Teacher"
 
@@ -227,6 +245,7 @@ class Teacher : Archetype {
  *      round 4/8/12... target someone who chose 1 last round, guess 1
  */
 class Strobe : Archetype {
+    override val isAggressiveInHardMode = true
     override val code = "B"
     override val displayName = "Strobe"
 
@@ -305,6 +324,7 @@ class ChaosGrandma : Archetype {
  * - Guess: always 3.
  */
 class ThreePusher : Archetype {
+    override val isAggressiveInHardMode = true
     override val code = "D"
     override val displayName = "Three-Pusher"
 
@@ -381,6 +401,7 @@ class Opportunist : Archetype {
  *   - Guess: mirror their last-round choice when possible, else 3.
  */
 class Avenger : Archetype {
+    override val isAggressiveInHardMode = true
     override val code = "F"
     override val displayName = "Avenger"
 
@@ -425,6 +446,7 @@ class Avenger : Archetype {
  * - Then: always targets grudge (if available) and always guesses 3.
  */
 class SpitePlayer : Archetype {
+    override val isAggressiveInHardMode = true
     override val code = "G"
     override val displayName = "Spite Player"
 
@@ -470,6 +492,7 @@ class SpitePlayer : Archetype {
  * - Round 5+: target someone who chose 3 last round and guess 3 (else pass).
  */
 class Accretion : Archetype {
+    override val isAggressiveInHardMode = true
     override val code = "H"
     override val displayName = "Accretion"
 
@@ -543,6 +566,7 @@ class Colluder(
     override val displayName: String,
     private val partnerId: Int
 ) : Archetype {
+    override val isAggressiveInHardMode = true
 
     override fun chooseDie(public: PublicRoundInfo, mem: BotMemory): DieChoice {
         rememberLastRoundChoices(public, mem)
@@ -666,6 +690,7 @@ class Limper : Archetype {
  *     Guess matches that (3 or 1).
  */
 class Scout : Archetype {
+    override val isAggressiveInHardMode = true
     override val code = "M"
     override val displayName = "Scout"
 
@@ -712,6 +737,7 @@ class Scout : Archetype {
  *   - Guess: defaults to 3 (hat-chasing / chaos), but you can tweak later.
  */
 class HatFarmer : Archetype {
+    override val isAggressiveInHardMode = true
     override val code = "N"
     override val displayName = "Hat Farmer"
 

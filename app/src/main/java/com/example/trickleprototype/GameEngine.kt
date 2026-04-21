@@ -99,6 +99,7 @@ class GameEngine(
 
     private val selectionsThisRound = mutableMapOf<Int, Int>()
     private val revealedThisRound = mutableMapOf<Int, Int>()
+    private val revealedScoresThisRound = mutableMapOf<Int, Int>()
     private val targetedThisRound = mutableSetOf<Int>()
     private val attacksThisRound = mutableMapOf<Int, Int>()
 
@@ -202,6 +203,7 @@ class GameEngine(
 
         selectionsThisRound.clear()
         revealedThisRound.clear()
+        revealedScoresThisRound.clear()
         targetedThisRound.clear()
         attacksThisRound.clear()
         currentWeatherCard = null
@@ -641,6 +643,7 @@ class GameEngine(
 
         selectionsThisRound.clear()
         revealedThisRound.clear()
+        revealedScoresThisRound.clear()
         targetedThisRound.clear()
         attacksThisRound.clear()
         bannerText = null
@@ -691,6 +694,7 @@ class GameEngine(
                 startingPlayerId = starterId,
                 hatHolderId = hatHolderId,
                 revealedThisRound = emptyMap(),
+                revealedScoresThisRound = emptyMap(),
                 targetedThisRound = emptySet(),
                 lastRoundChoices = lastRoundChoices,
                 lastRoundAttacks = lastRoundAttacks,
@@ -825,14 +829,44 @@ class GameEngine(
         return stepInternalOrSnapshot()
     }
 
+    private fun visibleScoresThisRoundForBots(): Map<Int, Int> {
+        return if (difficulty == Difficulty.HARD) revealedScoresThisRound.toMap() else emptyMap()
+    }
+
+    private fun pickHardModePressureTarget(
+        arch: Archetype,
+        pub: PublicRoundInfo,
+        legalTargets: List<Int>
+    ): Pair<Int, Int>? {
+        if (difficulty != Difficulty.HARD) return null
+        if (!arch.isAggressiveInHardMode) return null
+        if (actorNeedsTwoTargetsIfTargeting()) return null
+
+        val highestVisibleThreat = pub.revealedScoresThisRound
+            .filterKeys { it in legalTargets }
+            .filterValues { it >= 10 }
+
+        if (highestVisibleThreat.isEmpty()) return null
+
+        val bestScore = highestVisibleThreat.values.maxOrNull() ?: return null
+        val candidates = highestVisibleThreat
+            .filterValues { it == bestScore }
+            .keys
+            .toList()
+
+        if (candidates.isEmpty()) return null
+
+        val targetId = candidates.random(rng)
+        val guess = guessFromVisibleReveal(pub, targetId, defaultGuess = DieChoice.THREE)?.v ?: return null
+        return targetId to guess
+    }
+
     private fun queueBotTurn(actorId: Int) {
         val starterId = players[starterIndex].id
         val arch = archetypeById[actorId]!!
         val mem = memById.getOrPut(actorId) { BotMemory() }
 
-        val playerMarbles = if (difficulty == Difficulty.HARD) players.first { it.id == HUMAN_ID }.marbles else null
         val legalTargets = legalTargetIdsForActor(actorId)
-        val humanTargetable = HUMAN_ID in legalTargets
 
         if (currentWeatherId() == "drought") {
             if (arch !is HatFarmer) {
@@ -855,18 +889,6 @@ class GameEngine(
             return
         }
 
-        if (
-            difficulty == Difficulty.HARD &&
-            playerMarbles != null &&
-            playerMarbles >= 10 &&
-            humanTargetable &&
-            !actorNeedsTwoTargetsIfTargeting()
-        ) {
-            queueGuessAction(actorId = actorId, targetIds = listOf(HUMAN_ID), guess = 3)
-            passStreaks[actorId] = 0
-            return
-        }
-
         val weatherBlockedTargets = activePlayerIds()
             .filter { it != actorId }
             .filter { isUntargetableFromWeather(it) }
@@ -877,6 +899,7 @@ class GameEngine(
             startingPlayerId = starterId,
             hatHolderId = hatHolderId,
             revealedThisRound = revealedThisRound.toMap(),
+            revealedScoresThisRound = visibleScoresThisRoundForBots(),
             targetedThisRound = (targetedThisRound + weatherBlockedTargets).toSet(),
             lastRoundChoices = lastRoundChoices,
             lastRoundAttacks = lastRoundAttacks,
@@ -884,8 +907,14 @@ class GameEngine(
             myId = actorId,
             playersAlive = activePlayerIds(),
             rng = rng,
-            humanMarbles = playerMarbles
+            humanMarbles = if (difficulty == Difficulty.HARD) players.first { it.id == HUMAN_ID }.marbles else null
         )
+
+        pickHardModePressureTarget(arch, pub, legalTargets)?.let { (targetId, guess) ->
+            queueGuessAction(actorId = actorId, targetIds = listOf(targetId), guess = guess)
+            passStreaks[actorId] = 0
+            return
+        }
 
         when (val decision = arch.takeTurn(pub, mem)) {
             is TurnDecision.Pass -> {
