@@ -109,7 +109,9 @@ object WeatherAchievements {
         WeatherAchievementDef("stormfront_cut_off", "Cut Off", "Trigger the target limit during Stormfront"),
         WeatherAchievementDef("cold_rain_shared_storm", "Shared Storm", "Receive marbles from the Cold Rain redistribution"),
         WeatherAchievementDef("thunderhead_top_of_the_storm", "Top of the Storm", "Be among the top scorers during Thunderhead"),
-        WeatherAchievementDef("cool_breeze_quiet_advantage", "Quiet Advantage", "Be among the lowest positive scorers during Cool Breeze")
+        WeatherAchievementDef("cool_breeze_quiet_advantage", "Quiet Advantage", "Be among the lowest positive scorers during Cool Breeze"),
+        WeatherAchievementDef("snow_fresh_powder", "Fresh Powder", "Complete a Snow round"),
+        WeatherAchievementDef("smog_smoke_screen", "Smoke Screen", "Be revealed by Smog")
     )
 
     const val STORM_CHASER_ID = "storm_chaser"

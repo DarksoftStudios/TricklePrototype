@@ -328,6 +328,8 @@ class GameEngine(
                 "cold_rain" -> "cold_rain_shared_storm"
                 "thunderhead" -> "thunderhead_top_of_the_storm"
                 "cool_breeze" -> "cool_breeze_quiet_advantage"
+                "snow" -> "snow_fresh_powder"
+                "smog" -> "smog_smoke_screen"
                 else -> return
             }
         }
@@ -385,7 +387,7 @@ class GameEngine(
 
             if (!s.stormChaser && combinedSeen.containsAll(WeatherAchievements.allWeatherIds)) {
                 s.stormChaser = true
-                log += RoundLogEvent("*** Achievement Unlocked: Storm Chaser - Experience every weather card across completed games! ***")
+                log += RoundLogEvent("*** Achievement Unlocked: Storm Chaser - Experience every unique weather across completed games! ***")
             }
 
             store.save(s)
@@ -752,7 +754,12 @@ class GameEngine(
         players.forEach { it.revealedChoice = null }
 
         drawWeatherForRound()
-        currentWeatherId()?.let { gameSeenWeatherIds += it }
+        currentWeatherId()?.let {
+            gameSeenWeatherIds += it
+            when (it) {
+                "drizzle", "snow" -> unlockCurrentWeatherIf(it)
+            }
+        }
 
         hatStartOfRoundHolderId = hatHolderId
 

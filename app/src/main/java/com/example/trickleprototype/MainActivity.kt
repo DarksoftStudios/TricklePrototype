@@ -4838,7 +4838,7 @@ private fun AchievementsText(stats: PlayerStats) {
         AchievementRow(
             unlocked = stats.stormChaser,
             title = "Storm Chaser",
-            desc = "Experience every weather card across completed games",
+            desc = "Experience every unique weather across completed games",
             progress = "${stats.seenWeatherIds.intersect(WeatherAchievements.allWeatherIds).size}/${WeatherAchievements.allWeatherIds.size}"
         )
     }
