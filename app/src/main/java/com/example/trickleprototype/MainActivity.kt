@@ -3001,9 +3001,9 @@ private fun PlayerStatusStack(
 
         Text(
             text = "Score: $playerScore/${GameEngine.WIN_SCORE}",
-            color = Color(0xFFFFF59D),
-            fontWeight = FontWeight.SemiBold,
-            fontSize = 13.sp,
+            color = Color(0xFF2F38CE),
+            fontWeight = FontWeight.Bold,
+            fontSize = 16.sp,
             maxLines = 1
         )
     }
