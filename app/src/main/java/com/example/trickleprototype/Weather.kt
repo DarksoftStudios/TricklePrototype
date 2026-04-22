@@ -87,7 +87,7 @@ object Weather {
             ruleText = "Use base Trickle rules with no modifications.",
             category = WeatherCategory.BASELINE,
             complexity = WeatherComplexity.EASY,
-            copies = 4,
+            copies = 3,
             enabled = true,
             effectTags = setOf(WeatherEffectTag.NO_OP)
         ),
@@ -99,7 +99,7 @@ object Weather {
             ruleText = "During Trickling, if a player was not targeted and their selection is 1, award 2 instead of 1. Before trickling, if a player who chose 1 is guessed incorrectly, they are awarded 2 instead of 1. If a player guesses another player's 1 correctly, the guesser is awarded 2 instead of 1.",
             category = WeatherCategory.SCORING,
             complexity = WeatherComplexity.EASY,
-            copies = 3,
+            copies = 4,
             enabled = true,
             effectTags = setOf(WeatherEffectTag.SCORE_ONES_AS_TWO)
         ),
@@ -111,7 +111,7 @@ object Weather {
             ruleText = "After all players secretly choose and the weather is revealed, immediately reveal every player who selected 1 in the log. Any player revealed this way is untargetable for Step 2 targeting this round.",
             category = WeatherCategory.REVEAL,
             complexity = WeatherComplexity.EASY,
-            copies = 3,
+            copies = 2,
             enabled = true,
             effectTags = setOf(WeatherEffectTag.REVEAL_ONES)
         ),
@@ -123,7 +123,7 @@ object Weather {
             ruleText = "After all players secretly choose and the weather is revealed, immediately reveal every player who selected 3 in the log. Any player revealed this way is untargetable for Step 2 targeting this round.",
             category = WeatherCategory.REVEAL,
             complexity = WeatherComplexity.EASY,
-            copies = 3,
+            copies = 2,
             enabled = true,
             effectTags = setOf(WeatherEffectTag.REVEAL_THREES)
         ),
@@ -135,7 +135,7 @@ object Weather {
             ruleText = "Once the first targeting action with a guess occurs, store that guessed value. For the rest of the round, any later player who targets must use that same guess value. They cannot choose the other guess.",
             category = WeatherCategory.TARGETING,
             complexity = WeatherComplexity.MEDIUM,
-            copies = 3,
+            copies = 2,
             enabled = true,
             effectTags = setOf(WeatherEffectTag.LOCK_GUESSES_SAME_AS_FIRST)
         ),
@@ -147,7 +147,7 @@ object Weather {
             ruleText = "Once the first targeting action with a guess occurs, store that guessed value. For the rest of the round, any later player who targets must guess the other value: if the first guess was 1, later guessers must guess 3; if the first guess was 3, later guessers must guess 1.",
             category = WeatherCategory.TARGETING,
             complexity = WeatherComplexity.MEDIUM,
-            copies = 3,
+            copies = 2,
             enabled = true,
             effectTags = setOf(WeatherEffectTag.LOCK_GUESSES_OPPOSITE_OF_FIRST)
         ),
@@ -186,7 +186,7 @@ object Weather {
             ruleText = "If a players choice is untargeted, they get points from the bowl like usual. If a player guesses another player wrong, the target takes their choice from the guesser's total instead of the bowl. If a player has their choice guessed correctly, they give that many marbles from their total to the guesser. If a player guesses wrong and the right answer was a 0, the guesser gives 1 marble to the target instead of back to the bowl. If the amount of marbles that need to transfer is greater than those that can be removed from a player, take as many as will leave that player at 0 and then stop. Players can not have negative marbles.",
             category = WeatherCategory.ECONOMY,
             complexity = WeatherComplexity.HARD,
-            copies = 2,
+            copies = 1,
             enabled = true,
             effectTags = setOf(WeatherEffectTag.USE_CUP_TO_CUP_TRANSFERS)
         ),
@@ -222,7 +222,7 @@ object Weather {
             ruleText = "The first time in the round that a player guesses wrong and the target actually chose 0, that guesser gains 3 marbles instead of losing 1. The Hat still moves to that guesser. Any later wrong-on-0 events in the same round resolve normally unless otherwise specified.",
             category = WeatherCategory.RISK,
             complexity = WeatherComplexity.MEDIUM,
-            copies = 1,
+            copies = 2,
             enabled = true,
             effectTags = setOf(WeatherEffectTag.FIRST_WRONG_ZERO_GIVES_THREE)
         ),
@@ -246,7 +246,7 @@ object Weather {
             ruleText = "During Trickling, if a player was not targeted and their selection is 3, award 4 instead of 3. Before trickling, if a player who chose 3 is guessed incorrectly, they are awarded 4 instead of 3. If a player guesses another player's 3 correctly, the guesser is awarded 4 instead of 3.",
             category = WeatherCategory.SCORING,
             complexity = WeatherComplexity.EASY,
-            copies = 1,
+            copies = 3,
             enabled = true,
             effectTags = setOf(WeatherEffectTag.SCORE_THREES_AS_FOUR)
         ),
@@ -258,7 +258,7 @@ object Weather {
             ruleText = "During Trickling, if a player chose 0 and was not targeted and guessed as a 0, award them 1 marble.",
             category = WeatherCategory.ECONOMY,
             complexity = WeatherComplexity.EASY,
-            copies = 1,
+            copies = 2,
             enabled = true,
             effectTags = setOf(WeatherEffectTag.UNTARGETED_ZERO_TRICKLES_FOR_ONE)
         ),
@@ -270,7 +270,7 @@ object Weather {
             ruleText = "If a guesser guesses wrong and the target actually chose 0, add 1 marble to the guesser instead of subtracting 1. Then move the Jester Hat to the guesser.",
             category = WeatherCategory.RISK,
             complexity = WeatherComplexity.EASY,
-            copies = 1,
+            copies = 2,
             enabled = true,
             effectTags = setOf(WeatherEffectTag.WRONG_ZERO_GIVES_ONE)
         ),
