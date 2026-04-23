@@ -17,7 +17,7 @@ data class BotMemory(
     // For patterns / alternating
     var lastChosen: DieChoice? = null,
 
-    // Keep 2-round memory for archetypes that need it (e.g., Opportunist)
+    // Keep 2-round memory for archetypes that need it (e.g., Lurker)
     var lastRoundChoicesSeen: Map<Int, Int> = emptyMap(),
     var twoRoundsAgoChoicesSeen: Map<Int, Int> = emptyMap()
 )
@@ -290,15 +290,15 @@ class Strobe : Archetype {
 }
 
 /**
- * C: Chaos Grandma (UPDATED CANON)
+ * C: Chaso (UPDATED CANON)
  * - Die: 33/33/33 each round (0/1/3).
  * - Action: 50% pass, 50% target (no revenge behavior).
  * - Target: random valid.
  * - Guess: 50/50 between 1 and 3.
  */
-class ChaosGrandma : Archetype {
+class Chaso : Archetype {
     override val code = "C"
-    override val displayName = "Chaos Grandma"
+    override val displayName = "Chaso"
 
     override fun chooseDie(public: PublicRoundInfo, mem: BotMemory): DieChoice {
         rememberLastRoundChoices(public, mem)
@@ -331,16 +331,16 @@ class ChaosGrandma : Archetype {
 }
 
 /**
- * D: Three-Pusher (UPDATED CANON)
+ * D: Glutton (UPDATED CANON)
  * - Die: always 3.
  * - Action: round 1 pass. round 2+ always target.
  * - Target: someone who chose 3 last round; else any valid.
  * - Guess: always 3.
  */
-class ThreePusher : Archetype {
+class Glutton : Archetype {
     override val isAggressiveInHardMode = true
     override val code = "D"
-    override val displayName = "Three-Pusher"
+    override val displayName = "Glutton"
 
     override fun chooseDie(public: PublicRoundInfo, mem: BotMemory): DieChoice {
         rememberLastRoundChoices(public, mem)
@@ -361,16 +361,16 @@ class ThreePusher : Archetype {
 }
 
 /**
- * E: Opportunist (UPDATED CANON)
+ * E: Lurker (UPDATED CANON)
  * - Die: usually 1 (we keep it as ALWAYS 1 here, since this file doesn't know its exact marbles).
  * - Action: pass rounds 1 and 2.
  * - Round 3+: targets players who chose 3 for TWO rounds in a row (needs 2-round memory).
  *   If no such target exists, pass.
  * - Guess: 3.
  */
-class Opportunist : Archetype {
+class Lurker : Archetype {
     override val code = "E"
-    override val displayName = "Opportunist"
+    override val displayName = "Lurker"
 
     override fun chooseDie(public: PublicRoundInfo, mem: BotMemory): DieChoice {
         rememberLastRoundChoices(public, mem)
@@ -454,16 +454,16 @@ class Avenger : Archetype {
 }
 
 /**
- * G: Spite Player (UPDATED CANON)
+ * G: Nemesis (UPDATED CANON)
  * - Die: 50/50 between 1 and 3.
  * - Action: passes until someone attacks them.
  * - Grudge: the FIRST player to attack them becomes grudgeTargetId forever.
  * - Then: always targets grudge (if available) and always guesses 3.
  */
-class SpitePlayer : Archetype {
+class Nemesis : Archetype {
     override val isAggressiveInHardMode = true
     override val code = "G"
-    override val displayName = "Spite Player"
+    override val displayName = "Nemesis"
 
     override fun chooseDie(public: PublicRoundInfo, mem: BotMemory): DieChoice {
         rememberLastRoundChoices(public, mem)
@@ -749,7 +749,7 @@ class Scout : Archetype {
 }
 
 /**
- * N: Hat Farmer (NEW)
+ * N: Jester (NEW)
  * - Die: "normal" 50/50 1/3.
  * - Action:
  *   - Round 1: pass.
@@ -757,10 +757,10 @@ class Scout : Archetype {
  *     If multiple, pick random among valid targets.
  *   - Guess: defaults to 3 (hat-chasing / chaos), but you can tweak later.
  */
-class HatFarmer : Archetype {
+class Jester : Archetype {
     override val isAggressiveInHardMode = true
     override val code = "N"
-    override val displayName = "Hat Farmer"
+    override val displayName = "Jester"
 
     override fun chooseDie(public: PublicRoundInfo, mem: BotMemory): DieChoice {
         rememberLastRoundChoices(public, mem)
@@ -882,13 +882,13 @@ class Pitfall : Archetype {
 }
 
 /**
- * O: Pacifist Collector (NEW)
+ * O: Pacifist
  * - Die: always 3.
  * - Action: always pass.
  */
-class PacifistCollector : Archetype {
+class Pacifist : Archetype {
     override val code = "O"
-    override val displayName = "Pacifist Collector"
+    override val displayName = "Pacifist"
 
     override fun chooseDie(public: PublicRoundInfo, mem: BotMemory): DieChoice {
         rememberLastRoundChoices(public, mem)

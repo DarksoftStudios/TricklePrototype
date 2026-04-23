@@ -191,13 +191,13 @@ private enum class TargetVisualState {
 }
 
 private val TAGGABLE_ARCHETYPE_NAMES = listOf(
-    "Chaos Grandma",
+    "Chaos",
     "Strobe",
-    "Three-Pusher",
-    "Spite Player",
+    "Glutton",
+    "Nemesis",
     "Limper",
     "Scout",
-    "Pacifist Collector",
+    "Pacifist",
     "Bully",
     "Cynic",
     "Pitfall"
@@ -4433,10 +4433,6 @@ private fun AdvancedTipsText() {
 @Composable
 private fun ArchetypesText() {
     Text(
-        "Accretion:\n" +
-                "- Starts slow, but ramps up fast\n" +
-                "- Chooses: 1, 1, 3, 3, 3...\n" +
-                "- Targeting Behavior: Passes until the very last moment\n\n" +
                 "Avenger:\n" +
                 "- Retaliates against attackers, even if they didn't attack him\n" +
                 "- Chooses: 1 or 3\n" +
@@ -4445,15 +4441,15 @@ private fun ArchetypesText() {
                 "- Hates wallflowers. Targets anyone who passes too much\n" +
                 "- Chooses: 1 or 3.\n" +
                 "- Targeting Behavior: Passes rounds 1 and 2, targets pass-streak players after.\n\n" +
-                "Chaos Grandma:\n" +
-                "- The Matriarch of Chaos. All random everything\n" +
+                "Chaos:\n" +
+                "- The Matriarch of RNG. All random everything\n" +
                 "- Chooses: Random (0/1/3 evenly)\n" +
                 "- Targeting Behavior: 50/50 pass vs target\n\n" +
-                "Hat Farmer:\n" +
+                "Jester:\n" +
                 "- Will gladly pay a marble to snag the Jester's Hat\n" +
                 "- Chooses: Baseline behavior.\n" +
                 "- Targeting Behavior: Passes first; then targets recently guessed players\n\n" +
-                "Juliet (Colluder):\n" +
+                "Juliet:\n" +
                 "- She's in it to win it, or at least watch Romeo win\n" +
                 "- Chooses: 1 or 3\n" +
                 "- Targeting Behavior: Anyone but Romeo\n\n" +
@@ -4465,15 +4461,15 @@ private fun ArchetypesText() {
                 "- Seems like maybe they don't want to play\n" +
                 "- Chooses: 1 (0 if attacked and defending).\n" +
                 "- Targeting Behavior: Always passes\n\n" +
-                "Opportunist:\n" +
+                "Lurker:\n" +
                 "- Waits, watches, then punishes repeated 3 behavior\n" +
                 "- Chooses: 1 (unless close to winning)\n" +
                 "- Targeting Behavior: Passes for 3 rounds, then targets repeat-3 players\n\n" +
-                "Pacifist Collector:\n" +
+                "Pacifist:\n" +
                 "- Greedy but peaceful. Tries to win by Trickle alone\n" +
                 "- Chooses: 3\n" +
                 "- Targeting Behavior: Always passes\n\n" +
-                "Romeo (Colluder):\n" +
+                "Romeo:\n" +
                 "- His eyes are on the prize(and on Juliet, of course)\n" +
                 "- Chooses: 1 or 3\n" +
                 "- Targeting Behavior: Juliet is safe, everyone else is a target\n\n" +
@@ -4481,7 +4477,7 @@ private fun ArchetypesText() {
                 "- Will gladly be the first to act\n" +
                 "- Chooses: 1 or 3.\n" +
                 "- Targeting Behavior: Always targets, even on round 1\n\n" +
-                "Spite Player:\n" +
+                "Nemesis:\n" +
                 "- Cut this guy off and he is tailgating you to your house\n" +
                 "- Chooses: 1 or 3.\n" +
                 "- Targeting Behavior: Passes until attacked; then relentlessly seeks revenge\n\n" +
@@ -4489,11 +4485,7 @@ private fun ArchetypesText() {
                 "- Alternates like a metronome and attacks in a repeating rhythm.\n" +
                 "- Chooses: Alternates 1,3,1,3...\n" +
                 "- Targeting Behavior: Alternates pass/target with pattern-based guesses.\n\n" +
-                "Teacher:\n" +
-                "- Lets others learn the game, then shows them how to lose.\n" +
-                "- Chooses: 1, 1, 1, 3, 3...\n" +
-                "- Targeting Behavior: Passes for 3 rounds, then targets known 3-choosers.\n\n" +
-                "Three-Pusher:\n" +
+                "Glutton:\n" +
                 "- Bigger number better number, right?\n" +
                 "- Chooses: Always 3.\n" +
                 "- Targeting Behavior: Targets from round 2 onward, always guessing 3.\n\n"
@@ -4763,7 +4755,7 @@ private fun AchievementsText(stats: PlayerStats) {
         AchievementRow(stats.dumbLuck, "Dumb Luck", "Correctly guess a 3 in round 1")
         AchievementRow(stats.hatFinisher, "Hat Trick", "Win after starting because you had the Hat")
         AchievementRow(stats.caughtTheStrobe, "Caught the Strobe", "Correctly guess Strobe's 3 twice in one game")
-        AchievementRow(stats.pushover, "Pushover", "Correctly guess Three-Pusher's 3 four times in one game")
+        AchievementRow(stats.dieting, "dieting", "Correctly guess Glutton's 3 four times in one game")
 
         Spacer(Modifier.height(14.dp))
         AchievementSectionHeader("Zero")

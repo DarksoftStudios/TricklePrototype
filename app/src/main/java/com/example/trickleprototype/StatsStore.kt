@@ -70,7 +70,7 @@ data class PlayerStats(
     var dumbLuck: Boolean = false,              // correctly guess a 3 in round 1
     var hatFinisher: Boolean = false,           // win in a round where you start because you have the Hat
     var caughtTheStrobe: Boolean = false,       // correctly guess Strobe's 3 twice in one game
-    var pushover: Boolean = false,              // correctly guess the Three-Pusher's 3 four times in one game
+    var dieting: Boolean = false,              // correctly guess the Glutton's 3 four times in one game
 
     // Weather achievements
     var unlockedWeatherAchievements: Set<String> = emptySet(),
@@ -207,7 +207,7 @@ class StatsStore(context: Context) {
             dumbLuck = prefs.getBoolean("dumbLuck", false),
             hatFinisher = prefs.getBoolean("hatFinisher", false),
             caughtTheStrobe = prefs.getBoolean("caughtTheStrobe", false),
-            pushover = prefs.getBoolean("pushover", false),
+            dieting = prefs.getBoolean("dieting", false),
 
             unlockedWeatherAchievements = prefs.getStringSet("unlockedWeatherAchievements", emptySet())?.toSet() ?: emptySet(),
             seenWeatherIds = prefs.getStringSet("seenWeatherIds", emptySet())?.toSet() ?: emptySet(),
@@ -274,7 +274,7 @@ class StatsStore(context: Context) {
             .putBoolean("dumbLuck", stats.dumbLuck)
             .putBoolean("hatFinisher", stats.hatFinisher)
             .putBoolean("caughtTheStrobe", stats.caughtTheStrobe)
-            .putBoolean("pushover", stats.pushover)
+            .putBoolean("dieting", stats.dieting)
 
             .putStringSet("unlockedWeatherAchievements", stats.unlockedWeatherAchievements)
             .putStringSet("seenWeatherIds", stats.seenWeatherIds)

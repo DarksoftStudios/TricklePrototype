@@ -143,7 +143,7 @@ class GameEngine(
 
     private var startedRoundBecauseHat: Boolean = false // computed at startRound
     private var strobeCorrect3Count: Int = 0
-    private var threePusherCorrect3Count: Int = 0
+    private var gluttonCorrect3Count: Int = 0
 
     // weather achievements
     private val gameSeenWeatherIds = mutableSetOf<String>()
@@ -268,7 +268,7 @@ class GameEngine(
         unlockedDumbLuckThisGame = false
         startedRoundBecauseHat = false
         strobeCorrect3Count = 0
-        threePusherCorrect3Count = 0
+        gluttonCorrect3Count = 0
         gameSeenWeatherIds.clear()
         gameUnlockedWeatherAchievementIds.clear()
         humanOriginalChoiceThisRound = null
@@ -967,7 +967,7 @@ class GameEngine(
         val legalTargets = legalTargetIdsForActor(actorId)
 
         if (currentWeatherId() == "drought") {
-            if (arch !is HatFarmer) {
+            if (arch !is Jester) {
                 queuePass(actorId)
                 return
             }
@@ -1285,7 +1285,7 @@ class GameEngine(
                 val targArch = archetypeById[targetId]
                 if (guess == 3 && actual == 3) {
                     if (targArch is Strobe) strobeCorrect3Count += 1
-                    if (targArch is ThreePusher) threePusherCorrect3Count += 1
+                    if (targArch is Glutton) gluttonCorrect3Count += 1
                 }
             }
 
@@ -1661,9 +1661,9 @@ class GameEngine(
                                 log += RoundLogEvent("*** Achievement Unlocked: Caught the Strobe - Correctly guess Strobe's 3 twice in one game! ***")
                             }
 
-                            if (!s.pushover && threePusherCorrect3Count >= 4) {
-                                s.pushover = true
-                                log += RoundLogEvent("*** Achievement Unlocked: Pushover - Correctly guess Three-Pusher's 3 four times in one game! ***")
+                            if (!s.dieting && gluttonCorrect3Count >= 4) {
+                                s.dieting = true
+                                log += RoundLogEvent("*** Achievement Unlocked: dieting - Correctly guess Glutton's 3 four times in one game! ***")
                             }
 
                             when (difficulty) {
@@ -1985,9 +1985,9 @@ class GameEngine(
         memById.clear()
 
         val nonColluderPool: MutableList<Archetype> = mutableListOf(
-            Teacher(), Strobe(), ChaosGrandma(), ThreePusher(), Opportunist(),
-            Avenger(), SpitePlayer(), Accretion(), Auditor(), Kingmaker(),
-            Limper(), Scout(), HatFarmer(), PacifistCollector(), Bully(),
+            Teacher(), Strobe(), Chaso(), Glutton(), Lurker(),
+            Avenger(), Nemesis(), Accretion(), Auditor(), Kingmaker(),
+            Limper(), Scout(), Jester(), Pacifist(), Bully(),
             Cynic(), Pitfall()
         )
 
