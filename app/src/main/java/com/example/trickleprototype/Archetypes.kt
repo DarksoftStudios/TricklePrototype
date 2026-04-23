@@ -170,6 +170,19 @@ private fun bestTargetForGuess(
     } ?: pickAnyTarget(public, forbid)
 }
 
+private fun roundOneGuessOrPass(
+    public: PublicRoundInfo,
+    preferred: DieChoice,
+    fallback: DieChoice? = null
+): TurnDecision {
+    if (!public.rng.nextBoolean()) return TurnDecision.Pass
+
+    val guess = weatherAdjustedGuess(public, preferred, fallback = fallback)
+        ?: return TurnDecision.Pass
+    val targetId = bestTargetForGuess(public, guess) ?: return TurnDecision.Pass
+    return TurnDecision.Guess(targetId, guess)
+}
+
 // A lightweight "baseline" chooser (for Romeo/Juliet), matching the bravery ramp you specified.
 // NOTE: This does NOT implement the full core-bot guardrails (revenge/learning/endgame) - that belongs in GameEngine.
 // This just gives them a consistent "human-ish" distribution if you keep them as archetypes.
@@ -226,6 +239,7 @@ class Teacher : Archetype {
     override fun takeTurn(public: PublicRoundInfo, mem: BotMemory): TurnDecision {
         rememberLastRoundChoices(public, mem)
 
+        if (public.roundIndex == 1) return roundOneGuessOrPass(public, DieChoice.THREE, fallback = DieChoice.ONE)
         if (public.roundIndex <= 3) return TurnDecision.Pass
 
         val guess = weatherAdjustedGuess(public, DieChoice.THREE, fallback = DieChoice.ONE)
@@ -264,7 +278,7 @@ class Strobe : Archetype {
     override fun takeTurn(public: PublicRoundInfo, mem: BotMemory): TurnDecision {
         rememberLastRoundChoices(public, mem)
 
-        if (public.roundIndex == 1) return TurnDecision.Pass
+        if (public.roundIndex == 1) return roundOneGuessOrPass(public, DieChoice.THREE, fallback = DieChoice.ONE)
         if (public.roundIndex % 2 == 1) return TurnDecision.Pass // odd rounds pass (3,5,7,...)
 
         val desired = if (((public.roundIndex / 2) % 2) == 1) DieChoice.THREE else DieChoice.ONE
@@ -337,7 +351,7 @@ class ThreePusher : Archetype {
     override fun takeTurn(public: PublicRoundInfo, mem: BotMemory): TurnDecision {
         rememberLastRoundChoices(public, mem)
 
-        if (public.roundIndex == 1) return TurnDecision.Pass
+        if (public.roundIndex == 1) return roundOneGuessOrPass(public, DieChoice.THREE, fallback = DieChoice.ONE)
 
         val guess = weatherAdjustedGuess(public, DieChoice.THREE, fallback = DieChoice.ONE)
             ?: return TurnDecision.Pass
@@ -367,6 +381,7 @@ class Opportunist : Archetype {
     override fun takeTurn(public: PublicRoundInfo, mem: BotMemory): TurnDecision {
         rememberLastRoundChoices(public, mem)
 
+        if (public.roundIndex == 1) return roundOneGuessOrPass(public, DieChoice.THREE, fallback = DieChoice.ONE)
         if (public.roundIndex <= 2) return TurnDecision.Pass
 
         val targets = candidateTargets(public)
@@ -416,7 +431,7 @@ class Avenger : Archetype {
     override fun takeTurn(public: PublicRoundInfo, mem: BotMemory): TurnDecision {
         rememberLastRoundChoices(public, mem)
 
-        if (public.roundIndex == 1) return TurnDecision.Pass
+        if (public.roundIndex == 1) return roundOneGuessOrPass(public, DieChoice.THREE, fallback = DieChoice.ONE)
 
         val targets = candidateTargets(public)
         if (targets.isEmpty()) return TurnDecision.Pass
@@ -460,6 +475,8 @@ class SpitePlayer : Archetype {
 
     override fun takeTurn(public: PublicRoundInfo, mem: BotMemory): TurnDecision {
         rememberLastRoundChoices(public, mem)
+
+        if (public.roundIndex == 1) return roundOneGuessOrPass(public, DieChoice.THREE, fallback = DieChoice.ONE)
 
         val targets = candidateTargets(public)
         if (targets.isEmpty()) return TurnDecision.Pass
@@ -507,6 +524,7 @@ class Accretion : Archetype {
     override fun takeTurn(public: PublicRoundInfo, mem: BotMemory): TurnDecision {
         rememberLastRoundChoices(public, mem)
 
+        if (public.roundIndex == 1) return roundOneGuessOrPass(public, DieChoice.THREE, fallback = DieChoice.ONE)
         if (public.roundIndex <= 4) return TurnDecision.Pass
 
         val guess = weatherAdjustedGuess(public, DieChoice.THREE, fallback = DieChoice.ONE)
@@ -538,6 +556,7 @@ class Auditor : Archetype {
     override fun takeTurn(public: PublicRoundInfo, mem: BotMemory): TurnDecision {
         rememberLastRoundChoices(public, mem)
 
+        if (public.roundIndex == 1) return roundOneGuessOrPass(public, DieChoice.THREE, fallback = DieChoice.ONE)
         if (public.roundIndex <= 2) return TurnDecision.Pass
 
         val targets = candidateTargets(public)
@@ -635,6 +654,8 @@ class Kingmaker : Archetype {
             val opts = public.playersAlive.filter { it != public.myId }
             if (opts.isNotEmpty()) mem.protectedId = opts.random(public.rng)
         }
+
+        if (public.roundIndex == 1) return roundOneGuessOrPass(public, DieChoice.THREE, fallback = DieChoice.ONE)
 
         val kingId = mem.protectedId ?: return TurnDecision.Pass
 
@@ -751,7 +772,7 @@ class HatFarmer : Archetype {
     override fun takeTurn(public: PublicRoundInfo, mem: BotMemory): TurnDecision {
         rememberLastRoundChoices(public, mem)
 
-        if (public.roundIndex == 1) return TurnDecision.Pass
+        if (public.roundIndex == 1) return roundOneGuessOrPass(public, DieChoice.THREE, fallback = DieChoice.ONE)
 
         val targets = candidateTargets(public)
         if (targets.isEmpty()) return TurnDecision.Pass
@@ -771,6 +792,92 @@ class HatFarmer : Archetype {
             ?: return TurnDecision.Pass
 
         return TurnDecision.Guess(t, guess)
+    }
+}
+
+
+/**
+ * P: Bully (NEW)
+ * - Die: always 3.
+ * - Action: 50% chance to guess on round 1, always guessing 1.
+ *   From round 2+ targets someone who chose 1 last round, guessing 1.
+ */
+class Bully : Archetype {
+    override val isAggressiveInHardMode = true
+    override val code = "P"
+    override val displayName = "Bully"
+
+    override fun chooseDie(public: PublicRoundInfo, mem: BotMemory): DieChoice {
+        rememberLastRoundChoices(public, mem)
+        mem.lastChosen = DieChoice.THREE
+        return DieChoice.THREE
+    }
+
+    override fun takeTurn(public: PublicRoundInfo, mem: BotMemory): TurnDecision {
+        rememberLastRoundChoices(public, mem)
+
+        if (public.roundIndex == 1) return roundOneGuessOrPass(public, DieChoice.ONE, fallback = DieChoice.THREE)
+
+        val guess = weatherAdjustedGuess(public, DieChoice.ONE, fallback = DieChoice.THREE)
+            ?: return TurnDecision.Pass
+        val targetId = bestTargetForGuess(public, guess) ?: return TurnDecision.Pass
+        return TurnDecision.Guess(targetId, guess)
+    }
+}
+
+/**
+ * Q: Cynic (NEW)
+ * - Die: always 1.
+ * - Action: 50% chance to guess on round 1, always guessing 3.
+ *   From round 2+ targets someone who chose 3 last round, guessing 3.
+ */
+class Cynic : Archetype {
+    override val isAggressiveInHardMode = true
+    override val code = "Q"
+    override val displayName = "Cynic"
+
+    override fun chooseDie(public: PublicRoundInfo, mem: BotMemory): DieChoice {
+        rememberLastRoundChoices(public, mem)
+        mem.lastChosen = DieChoice.ONE
+        return DieChoice.ONE
+    }
+
+    override fun takeTurn(public: PublicRoundInfo, mem: BotMemory): TurnDecision {
+        rememberLastRoundChoices(public, mem)
+
+        if (public.roundIndex == 1) return roundOneGuessOrPass(public, DieChoice.THREE, fallback = DieChoice.ONE)
+
+        val guess = weatherAdjustedGuess(public, DieChoice.THREE, fallback = DieChoice.ONE)
+            ?: return TurnDecision.Pass
+        val targetId = bestTargetForGuess(public, guess) ?: return TurnDecision.Pass
+        return TurnDecision.Guess(targetId, guess)
+    }
+}
+
+/**
+ * T: Pitfall (NEW)
+ * - Die: round 1 chooses 3, round 2 chooses 0, round 3+ chooses 1 or 3 at random.
+ * - Action: never targets unless forced; currently always passes.
+ */
+class Pitfall : Archetype {
+    override val code = "T"
+    override val displayName = "Pitfall"
+
+    override fun chooseDie(public: PublicRoundInfo, mem: BotMemory): DieChoice {
+        rememberLastRoundChoices(public, mem)
+
+        val choice = when (public.roundIndex) {
+            1 -> DieChoice.THREE
+            2 -> DieChoice.ZERO
+            else -> if (public.rng.nextBoolean()) DieChoice.ONE else DieChoice.THREE
+        }
+        mem.lastChosen = choice
+        return choice
+    }
+
+    override fun takeTurn(public: PublicRoundInfo, mem: BotMemory): TurnDecision {
+        rememberLastRoundChoices(public, mem)
+        return TurnDecision.Pass
     }
 }
 

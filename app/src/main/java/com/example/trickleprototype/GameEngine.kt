@@ -1987,7 +1987,8 @@ class GameEngine(
         val nonColluderPool: MutableList<Archetype> = mutableListOf(
             Teacher(), Strobe(), ChaosGrandma(), ThreePusher(), Opportunist(),
             Avenger(), SpitePlayer(), Accretion(), Auditor(), Kingmaker(),
-            Limper(), Scout(), HatFarmer(), PacifistCollector()
+            Limper(), Scout(), HatFarmer(), PacifistCollector(), Bully(),
+            Cynic(), Pitfall()
         )
 
         val roll = rng.nextInt(100)

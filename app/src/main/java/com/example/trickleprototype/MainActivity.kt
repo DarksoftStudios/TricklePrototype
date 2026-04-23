@@ -197,7 +197,10 @@ private val TAGGABLE_ARCHETYPE_NAMES = listOf(
     "Spite Player",
     "Limper",
     "Scout",
-    "Pacifist Collector"
+    "Pacifist Collector",
+    "Bully",
+    "Cynic",
+    "Pitfall"
 )
 
 
