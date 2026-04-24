@@ -211,43 +211,6 @@ private fun baselineBraveryDie(public: PublicRoundInfo, allowZeroThisRound: Bool
 
 // ---------- Archetypes ----------
 
-/**
- * A: Teacher (UPDATED CANON)
- * - Die: rounds 1-3 choose 1.
- * - If targeted last round: next round choose 0.
- * - Otherwise follow: 1,1,1,3,3 (repeat 3s after that).
- * - Action: pass rounds 1-3. From round 4+ target someone who chose 3 last round, guess 3.
- */
-class Teacher : Archetype {
-    override val isAggressiveInHardMode = true
-    override val code = "A"
-    override val displayName = "Teacher"
-
-    override fun chooseDie(public: PublicRoundInfo, mem: BotMemory): DieChoice {
-        rememberLastRoundChoices(public, mem)
-
-        val targetedLast = wasTargetedLastRound(public, public.myId)
-        val c = when {
-            targetedLast -> DieChoice.ZERO
-            public.roundIndex <= 3 -> DieChoice.ONE
-            else -> DieChoice.THREE
-        }
-        mem.lastChosen = c
-        return c
-    }
-
-    override fun takeTurn(public: PublicRoundInfo, mem: BotMemory): TurnDecision {
-        rememberLastRoundChoices(public, mem)
-
-        if (public.roundIndex == 1) return roundOneGuessOrPass(public, DieChoice.THREE, fallback = DieChoice.ONE)
-        if (public.roundIndex <= 3) return TurnDecision.Pass
-
-        val guess = weatherAdjustedGuess(public, DieChoice.THREE, fallback = DieChoice.ONE)
-            ?: return TurnDecision.Pass
-        val t = bestTargetForGuess(public, guess) ?: return TurnDecision.Pass
-        return TurnDecision.Guess(t, guess)
-    }
-}
 
 /**
  * B: Strobe (UPDATED CANON)

@@ -1985,7 +1985,7 @@ class GameEngine(
         memById.clear()
 
         val nonColluderPool: MutableList<Archetype> = mutableListOf(
-            Teacher(), Strobe(), Chaso(), Glutton(), Lurker(),
+            Strobe(), Chaos(), Glutton(), Lurker(),
             Avenger(), Nemesis(), Auditor(), Kingmaker(),
             Limper(), Scout(), Jester(), Pacifist(), Bully(),
             Cynic(), Pitfall()

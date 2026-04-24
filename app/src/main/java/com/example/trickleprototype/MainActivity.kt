@@ -1,6 +1,7 @@
 package com.example.trickleprototype
 
 import android.app.Activity
+import android.graphics.BitmapFactory
 import android.media.MediaPlayer
 import android.net.Uri
 import android.os.Bundle
@@ -90,11 +91,13 @@ import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.painter.BitmapPainter
@@ -191,17 +194,84 @@ private enum class TargetVisualState {
 }
 
 private val TAGGABLE_ARCHETYPE_NAMES = listOf(
-    "Chaos",
-    "Strobe",
     "Glutton",
-    "Nemesis",
+    "Pacifist",
+    "Chaos",
     "Limper",
     "Scout",
-    "Pacifist",
+    "Strobe",
+    "Nemesis",
     "Bully",
     "Cynic",
     "Pitfall"
 )
+
+private fun cleanArchetypeNameForAvatar(name: String?): String? {
+    val cleaned = name
+        ?.replace("(?)", "")
+        ?.trim()
+        ?.lowercase()
+        ?: return null
+
+    return cleaned.ifBlank { null }
+}
+
+private fun botAvatarResourceNameForArchetype(name: String?): String? {
+    return when (cleanArchetypeNameForAvatar(name)) {
+        "auditor" -> "auditor"
+        "avenger" -> "avenger"
+        "bully" -> "bully"
+        "chaos" -> "chaos"
+        "cynic" -> "cynic"
+        "glutton" -> "glutton"
+        "jester" -> "jester"
+        "juliet" -> "juliet"
+        "kingmaker" -> "kingmaker"
+        "limper" -> "limper"
+        "lurker" -> "lurker"
+        "nemesis" -> "nemesis"
+        "pacifist" -> "pacifist"
+        "pitfall" -> "pitfall"
+        "romeo" -> "romeo"
+        "scout" -> "scout"
+        "strobe" -> "strobe"
+        else -> null
+    }
+}
+
+private fun botAvatarStaticDrawableResourceId(resourceName: String?): Int {
+    return when (resourceName) {
+        "auditor" -> R.drawable.auditor
+        "avenger" -> R.drawable.avenger
+        "bully" -> R.drawable.bully
+        "chaos" -> R.drawable.chaos
+        "cynic" -> R.drawable.cynic
+        "glutton" -> R.drawable.glutton
+        "jester" -> R.drawable.jester
+        "juliet" -> R.drawable.juliet
+        "kingmaker" -> R.drawable.kingmaker
+        "limper" -> R.drawable.limper
+        "lurker" -> R.drawable.lurker
+        "nemesis" -> R.drawable.nemesis
+        "pacifist" -> R.drawable.pacifist
+        "pitfall" -> R.drawable.pitfall
+        "romeo" -> R.drawable.romeo
+        "scout" -> R.drawable.scout
+        "strobe" -> R.drawable.strobe
+        else -> 0
+    }
+}
+
+private fun botAvatarResourceNameForBotName(name: String?): String? {
+    val cleaned = name
+        ?.trim()
+        ?.lowercase()
+        ?.replace(Regex("[^a-z0-9]+"), "_")
+        ?.trim('_')
+        ?: return null
+
+    return cleaned.ifBlank { null }
+}
 
 
 @Immutable
@@ -761,6 +831,18 @@ private fun TrickleApp() {
         revealArchetypes = revealArchetypesActive,
         botTags = botTagSnapshot
     )
+    val botAvatarResourceNamesByPlayerId = buildBotAvatarResourceNamesByPlayerId(
+        players = basePlayers,
+        result = lastResult,
+        difficulty = difficulty,
+        revealArchetypes = revealArchetypesActive,
+        botTags = botTagSnapshot
+    )
+    val botTaggedAvatarIds = if (difficulty == Difficulty.EASY || revealArchetypesActive) {
+        emptySet()
+    } else {
+        botTagSnapshot.keys
+    }
     val currentActorId = lastResult?.currentActorId
     val currentWeatherName = lastResult?.currentWeatherName
     val currentWeatherEffect = lastResult?.currentWeatherEffect
@@ -1229,7 +1311,7 @@ private fun TrickleApp() {
                 }
             }
 
-            Spacer(Modifier.height(4.dp))
+            Spacer(Modifier.height(2.dp))
 
             when (screen) {
                 AppScreen.SPLASH -> {
@@ -1359,13 +1441,13 @@ private fun TrickleApp() {
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
                         MenuLinkButton(text = "PLAY") { screen = AppScreen.PLAY }
-                        Spacer(Modifier.height(4.dp))
+                        Spacer(Modifier.height(2.dp))
                         MenuLinkButton(text = "RULES") { screen = AppScreen.RULES }
-                        Spacer(Modifier.height(4.dp))
+                        Spacer(Modifier.height(2.dp))
                         MenuLinkButton(text = "PROFILE") { screen = AppScreen.PROFILE }
-                        Spacer(Modifier.height(4.dp))
+                        Spacer(Modifier.height(2.dp))
                         MenuLinkButton(text = "SETTINGS") { screen = AppScreen.SETTINGS }
-                        Spacer(Modifier.height(4.dp))
+                        Spacer(Modifier.height(2.dp))
                         MenuLinkButton(text = "QUIT") { activity?.finish() }
 
                         Spacer(Modifier.height(28.dp))
@@ -1409,10 +1491,10 @@ private fun TrickleApp() {
                                 }
                             }
 
-                            Spacer(Modifier.height(4.dp))
+                            Spacer(Modifier.height(2.dp))
                             MenuLinkButton(text = "EASY") { startGame(Difficulty.EASY) }
 
-                            Spacer(Modifier.height(4.dp))
+                            Spacer(Modifier.height(2.dp))
                             MenuLinkButton(
                                 text = if (normalUnlocked) "NORMAL" else "NORMAL (LOCKED)"
                             ) {
@@ -1423,7 +1505,7 @@ private fun TrickleApp() {
                                 }
                             }
 
-                            Spacer(Modifier.height(4.dp))
+                            Spacer(Modifier.height(2.dp))
                             MenuLinkButton(
                                 text = if (hardUnlocked) "HARD" else "HARD (LOCKED)"
                             ) {
@@ -1434,7 +1516,7 @@ private fun TrickleApp() {
                                 }
                             }
 
-                            Spacer(Modifier.height(4.dp))
+                            Spacer(Modifier.height(2.dp))
                             MenuLinkButton(text = "BACK") { screen = AppScreen.MAIN_MENU }
 
                             Spacer(Modifier.height(16.dp))
@@ -1452,9 +1534,9 @@ private fun TrickleApp() {
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
                         MenuLinkButton(text = "HOW TO PLAY") { showHowToPlay = true }
-                        Spacer(Modifier.height(4.dp))
+                        Spacer(Modifier.height(2.dp))
                         MenuLinkButton(text = "ADVANCED TIPS") { showTips = true }
-                        Spacer(Modifier.height(4.dp))
+                        Spacer(Modifier.height(2.dp))
                         MenuLinkButton(text = "ARCHETYPES") { showArchetypes = true }
 
                         Spacer(Modifier.height(16.dp))
@@ -1474,9 +1556,9 @@ private fun TrickleApp() {
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
                         MenuLinkButton(text = "STATS") { showStats = true }
-                        Spacer(Modifier.height(4.dp))
+                        Spacer(Modifier.height(2.dp))
                         MenuLinkButton(text = "ACHIEVEMENTS") { showAchievements = true }
-                        Spacer(Modifier.height(4.dp))
+                        Spacer(Modifier.height(2.dp))
                         MenuLinkButton(text = "CUSTOMIZE") { screen = AppScreen.CUSTOMIZE }
 
                         Spacer(Modifier.height(16.dp))
@@ -1573,7 +1655,7 @@ private fun TrickleApp() {
                                 splashSoundPlayer = null
                             }
                         }
-                        Spacer(Modifier.height(4.dp))
+                        Spacer(Modifier.height(2.dp))
                         MenuLinkButton(
                             text = if (musicEnabled) "MUSIC: ON" else "MUSIC: OFF"
                         ) {
@@ -1587,13 +1669,13 @@ private fun TrickleApp() {
                                 }
                             }
                         }
-                        Spacer(Modifier.height(4.dp))
+                        Spacer(Modifier.height(2.dp))
                         MenuLinkButton(
                             text = if (passTargetConfirmEnabled) "PASS CONFIRM: ON" else "PASS CONFIRM: OFF"
                         ) {
                             passTargetConfirmEnabled = !passTargetConfirmEnabled
                         }
-                        Spacer(Modifier.height(4.dp))
+                        Spacer(Modifier.height(2.dp))
                         MenuLinkButton(text = "RESET STATS") {
                             showResetStatsConfirm = true
                         }
@@ -1886,6 +1968,8 @@ private fun TrickleApp() {
                             showMarbleCounts = difficulty == Difficulty.EASY,
                             playersWithForcedMarbleCounts = smogVisibleBotIds,
                             taggingEnabled = difficulty != Difficulty.EASY && !revealArchetypesActive,
+                            avatarResourceNameForBot = { botId -> botAvatarResourceNamesByPlayerId[botId] },
+                            avatarGreyedOutForBot = { botId -> botId in botTaggedAvatarIds },
                             targetVisualStateForBot = { botId -> visualStateForTargetablePlayer(botId) },
                             onBotClicked = { botId -> handleTargetSeatClick(botId) },
                             onBotNameClicked = { botId -> tagMenuBotId = botId },
@@ -1896,7 +1980,7 @@ private fun TrickleApp() {
                             modifier = Modifier
                                 .align(Alignment.CenterStart)
                                 .fillMaxHeight()
-                                .padding(start = 0.dp, top = 0.dp, bottom = 8.dp)
+                                .padding(start = 0.dp, top = 0.dp, bottom = 0.dp)
                         )
 
                         BotCupColumn(
@@ -1908,6 +1992,8 @@ private fun TrickleApp() {
                             showMarbleCounts = difficulty == Difficulty.EASY,
                             playersWithForcedMarbleCounts = smogVisibleBotIds,
                             taggingEnabled = difficulty != Difficulty.EASY && !revealArchetypesActive,
+                            avatarResourceNameForBot = { botId -> botAvatarResourceNamesByPlayerId[botId] },
+                            avatarGreyedOutForBot = { botId -> botId in botTaggedAvatarIds },
                             targetVisualStateForBot = { botId -> visualStateForTargetablePlayer(botId) },
                             onBotClicked = { botId -> handleTargetSeatClick(botId) },
                             onBotNameClicked = { botId -> tagMenuBotId = botId },
@@ -1918,14 +2004,15 @@ private fun TrickleApp() {
                             modifier = Modifier
                                 .align(Alignment.CenterEnd)
                                 .fillMaxHeight()
-                                .padding(end = 0.dp, top = 0.dp, bottom = 8.dp)
+                                .padding(end = 0.dp, top = 0.dp, bottom = 0.dp)
                         )
 
                         TableActionPanel(
                             modifier = Modifier
                                 .align(Alignment.TopCenter)
-                                .fillMaxWidth(0.50f)
-                                .padding(top = 18.dp),
+                                .widthIn(min = 132.dp, max = 210.dp)
+                                .wrapContentHeight()
+                                .padding(top = 10.dp),
                             choice = choice,
                             onChoiceSelected = { choice = it },
                             choiceEnabled = !gameOver && !startLocked && (phase == EnginePhase.SELECT || phase == EnginePhase.ROUND_END),
@@ -3036,20 +3123,24 @@ private fun formatBotCupLabel(label: String): String {
             }
         }
 
-        return words.take(bestSplitIndex).joinToString(" ") + "" + words.drop(bestSplitIndex).joinToString(" ")
+        return words.take(bestSplitIndex).joinToString(" ") + "\n" + words.drop(bestSplitIndex).joinToString(" ")
     }
 
-    return trimmed
+    return if (trimmed.length >= 9) {
+        trimmed.dropLast(1) + "\n" + trimmed.takeLast(1)
+    } else {
+        trimmed
+    }
 }
 
 private fun botCupLabelFontSize(label: String): TextUnit {
     val longestLineLength = formatBotCupLabel(label)
-        .split("")
+        .split("\n")
         .maxOfOrNull { it.length }
         ?: 0
 
     return when {
-        longestLineLength <= 9 -> 13.sp
+        longestLineLength <= 8 -> 13.sp
         longestLineLength <= 10 -> 12.sp
         longestLineLength <= 11 -> 11.sp
         else -> 10.sp
@@ -3075,6 +3166,8 @@ private fun BotCupColumn(
     showMarbleCounts: Boolean,
     playersWithForcedMarbleCounts: Set<Int> = emptySet(),
     taggingEnabled: Boolean,
+    avatarResourceNameForBot: (Int) -> String?,
+    avatarGreyedOutForBot: (Int) -> Boolean,
     targetVisualStateForBot: (Int) -> TargetVisualState,
     onBotClicked: (Int) -> Unit,
     onBotNameClicked: (Int) -> Unit,
@@ -3084,7 +3177,7 @@ private fun BotCupColumn(
 ) {
     Column(
         modifier = modifier,
-        verticalArrangement = Arrangement.spacedBy(0.dp, Alignment.Top),
+        verticalArrangement = Arrangement.SpaceEvenly,
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         bots.forEach { bot ->
@@ -3103,29 +3196,54 @@ private fun BotCupColumn(
                 modifier = Modifier.alpha(contentAlpha),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                TableCup(
-                    label = bot.baseName.take(1).uppercase(),
-                    onClick = if (
-                        targetVisualState == TargetVisualState.SELECTABLE ||
-                        targetVisualState == TargetVisualState.SELECTED
-                    ) {
-                        { onBotClicked(bot.id) }
-                    } else {
-                        null
-                    },
-                    highlighted = false,
-                    isCurrentTurn = currentActorId == bot.id,
-                    indicator = indicators[bot.id],
-                    hasHat = hatHolderId == bot.id,
-                    isStarter = starterId == bot.id,
-                    displayedChoice = bot.revealedChoice,
-                    marbleCountText = if (showMarbleCounts || bot.id in playersWithForcedMarbleCounts) bot.marbles.toString() else null,
-                    targetVisualState = targetVisualState,
-                    indicatorPlacement = indicatorPlacement,
-                    onCupAnchorMeasured = { measuredAnchor ->
-                        onCupAnchorMeasured(bot.id, measuredAnchor)
+                val avatarResourceName = avatarResourceNameForBot(bot.id)
+                val avatarGreyedOut = avatarGreyedOutForBot(bot.id)
+                val cupClick = if (
+                    targetVisualState == TargetVisualState.SELECTABLE ||
+                    targetVisualState == TargetVisualState.SELECTED
+                ) {
+                    { onBotClicked(bot.id) }
+                } else {
+                    null
+                }
+
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.Center
+                ) {
+                    if (indicatorPlacement == SeatIndicatorPlacement.INSIDE_RIGHT) {
+                        BotAvatarIcon(
+                            resourceName = avatarResourceName,
+                            greyedOut = avatarGreyedOut,
+                            modifier = Modifier.padding(end = 4.dp)
+                        )
                     }
-                )
+
+                    TableCup(
+                        label = bot.baseName.take(1).uppercase(),
+                        onClick = cupClick,
+                        highlighted = false,
+                        isCurrentTurn = currentActorId == bot.id,
+                        indicator = indicators[bot.id],
+                        hasHat = hatHolderId == bot.id,
+                        isStarter = starterId == bot.id,
+                        displayedChoice = bot.revealedChoice,
+                        marbleCountText = if (showMarbleCounts || bot.id in playersWithForcedMarbleCounts) bot.marbles.toString() else null,
+                        targetVisualState = targetVisualState,
+                        indicatorPlacement = indicatorPlacement,
+                        onCupAnchorMeasured = { measuredAnchor ->
+                            onCupAnchorMeasured(bot.id, measuredAnchor)
+                        }
+                    )
+
+                    if (indicatorPlacement == SeatIndicatorPlacement.INSIDE_LEFT) {
+                        BotAvatarIcon(
+                            resourceName = avatarResourceName,
+                            greyedOut = avatarGreyedOut,
+                            modifier = Modifier.padding(start = 4.dp)
+                        )
+                    }
+                }
 
                 val formattedLabel = formatBotCupLabel(bot.baseName)
                 val labelFontSize = botCupLabelFontSize(bot.baseName)
@@ -3139,8 +3257,8 @@ private fun BotCupColumn(
                     softWrap = true,
                     textAlign = TextAlign.Center,
                     modifier = Modifier
-                        .width(54.dp)
-                        .heightIn(min = 28.dp)
+                        .width(66.dp)
+                        .heightIn(min = 24.dp)
                         .then(
                             if (taggingEnabled) {
                                 Modifier.clickable { onBotNameClicked(bot.id) }
@@ -3149,7 +3267,107 @@ private fun BotCupColumn(
                             }
                         )
                 )
-                Spacer(Modifier.height(4.dp))
+                Spacer(Modifier.height(2.dp))
+            }
+        }
+    }
+}
+
+private fun botAvatarDrawableResourceId(
+    context: android.content.Context,
+    resourceName: String?
+): Int {
+    if (resourceName.isNullOrBlank()) return 0
+
+    val staticResourceId = botAvatarStaticDrawableResourceId(resourceName)
+    if (staticResourceId != 0) return staticResourceId
+
+    val candidateNames = listOf(
+        resourceName,
+        "${resourceName}_avatar",
+        "avatar_$resourceName",
+        "bot_$resourceName",
+        "icon_$resourceName"
+    )
+
+    return candidateNames
+        .asSequence()
+        .map { candidateName ->
+            context.resources.getIdentifier(candidateName, "drawable", context.packageName)
+        }
+        .firstOrNull { resourceId -> resourceId != 0 }
+        ?: 0
+}
+
+private fun loadBotAvatarAsset(
+    context: android.content.Context,
+    resourceName: String?
+): ImageBitmap? {
+    if (resourceName.isNullOrBlank()) return null
+
+    val candidatePaths = listOf(
+        "icons/$resourceName.png",
+        "icons/$resourceName.jpg",
+        "icons/$resourceName.webp",
+        "$resourceName.png",
+        "$resourceName.jpg",
+        "$resourceName.webp"
+    )
+
+    return candidatePaths.firstNotNullOfOrNull { candidatePath ->
+        runCatching {
+            context.assets.open(candidatePath).use { input ->
+                BitmapFactory.decodeStream(input)?.asImageBitmap()
+            }
+        }.getOrNull()
+    }
+}
+
+@Composable
+private fun BotAvatarIcon(
+    resourceName: String?,
+    greyedOut: Boolean,
+    modifier: Modifier = Modifier
+) {
+    val context = LocalContext.current
+    val resourceId = remember(resourceName) {
+        botAvatarDrawableResourceId(context, resourceName)
+    }
+    val assetBitmap = remember(resourceName, resourceId) {
+        if (resourceId == 0) {
+            loadBotAvatarAsset(context, resourceName)
+        } else {
+            null
+        }
+    }
+
+    Box(
+        modifier = modifier.size(58.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        when {
+            resourceId != 0 -> {
+                Image(
+                    painter = painterResource(id = resourceId),
+                    contentDescription = null,
+                    contentScale = ContentScale.Fit,
+                    colorFilter = if (greyedOut) ColorFilter.tint(Color(0xFF9E9E9E)) else null,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .alpha(if (greyedOut) 0.62f else 1f)
+                )
+            }
+
+            assetBitmap != null -> {
+                Image(
+                    bitmap = assetBitmap,
+                    contentDescription = null,
+                    contentScale = ContentScale.Fit,
+                    colorFilter = if (greyedOut) ColorFilter.tint(Color(0xFF9E9E9E)) else null,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .alpha(if (greyedOut) 0.62f else 1f)
+                )
             }
         }
     }
@@ -3815,31 +4033,37 @@ private fun TableActionPanel(
         border = BorderStroke(2.dp, Color(0x66FFFFFF))
     ) {
         Column(
-            modifier = Modifier.padding(12.dp),
+            modifier = Modifier.padding(horizontal = 5.dp, vertical = 5.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             if (showChoiceButtons) {
                 Text("Choose 0, 1, or 3.", color = Color.White, fontWeight = FontWeight.Bold)
-                Spacer(Modifier.height(8.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Spacer(Modifier.height(5.dp))
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
                     SmallChoiceButton("0", selected = choice == 0, enabled = choiceEnabled) { onChoiceSelected(0) }
                     SmallChoiceButton("1", selected = choice == 1, enabled = choiceEnabled) { onChoiceSelected(1) }
                     SmallChoiceButton("3", selected = choice == 3, enabled = choiceEnabled) { onChoiceSelected(3) }
                 }
-                Spacer(Modifier.height(12.dp))
+                Spacer(Modifier.height(7.dp))
             }
 
             if (showActionButtons) {
                 Column(
                     horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                    verticalArrangement = Arrangement.spacedBy(5.dp)
                 ) {
                     when {
                         canPass && dropdownOptions.isNotEmpty() -> {
                             Button(
                                 onClick = onPassSelected,
                                 enabled = inputsEnabled,
-                                modifier = Modifier.fillMaxWidth(),
+                                modifier = Modifier
+                                    .widthIn(min = 96.dp)
+                                    .heightIn(min = 34.dp),
+                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp),
                                 colors = ButtonDefaults.buttonColors(
                                     containerColor = Color(0xFF546E7A),
                                     contentColor = Color.White
@@ -3849,7 +4073,10 @@ private fun TableActionPanel(
                             Button(
                                 onClick = onTargetSelected,
                                 enabled = inputsEnabled,
-                                modifier = Modifier.fillMaxWidth(),
+                                modifier = Modifier
+                                    .widthIn(min = 96.dp)
+                                    .heightIn(min = 34.dp),
+                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp),
                                 colors = ButtonDefaults.buttonColors(
                                     containerColor = Color(0xFF8D6E63),
                                     contentColor = Color.White
@@ -3861,7 +4088,10 @@ private fun TableActionPanel(
                             Button(
                                 onClick = onPassSelected,
                                 enabled = inputsEnabled,
-                                modifier = Modifier.fillMaxWidth(),
+                                modifier = Modifier
+                                    .widthIn(min = 96.dp)
+                                    .heightIn(min = 34.dp),
+                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp),
                                 colors = ButtonDefaults.buttonColors(
                                     containerColor = Color(0xFF546E7A),
                                     contentColor = Color.White
@@ -3873,7 +4103,10 @@ private fun TableActionPanel(
                             Button(
                                 onClick = onTargetSelected,
                                 enabled = inputsEnabled,
-                                modifier = Modifier.fillMaxWidth(),
+                                modifier = Modifier
+                                    .widthIn(min = 96.dp)
+                                    .heightIn(min = 34.dp),
+                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp),
                                 colors = ButtonDefaults.buttonColors(
                                     containerColor = Color(0xFF8D6E63),
                                     contentColor = Color.White
@@ -3882,18 +4115,21 @@ private fun TableActionPanel(
                         }
                     }
                 }
-                Spacer(Modifier.height(12.dp))
+                Spacer(Modifier.height(7.dp))
             }
 
             if (showPassConfirmButtons) {
                 Column(
                     horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                    verticalArrangement = Arrangement.spacedBy(5.dp)
                 ) {
                     Button(
                         onClick = onConfirmPass,
                         enabled = inputsEnabled,
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier
+                            .widthIn(min = 96.dp)
+                            .heightIn(min = 34.dp),
+                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp),
                         colors = ButtonDefaults.buttonColors(
                             containerColor = Color(0xFF546E7A),
                             contentColor = Color.White
@@ -3903,14 +4139,17 @@ private fun TableActionPanel(
                     Button(
                         onClick = onTargetInstead,
                         enabled = inputsEnabled && dropdownOptions.isNotEmpty(),
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier
+                            .widthIn(min = 96.dp)
+                            .heightIn(min = 34.dp),
+                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp),
                         colors = ButtonDefaults.buttonColors(
                             containerColor = Color(0xFF8D6E63),
                             contentColor = Color.White
                         )
                     ) { OneLineButtonText("Target Instead") }
                 }
-                Spacer(Modifier.height(12.dp))
+                Spacer(Modifier.height(7.dp))
             }
 
             if (showTargeting) {
@@ -3918,25 +4157,28 @@ private fun TableActionPanel(
                     Button(
                         onClick = onPassInstead,
                         enabled = inputsEnabled,
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier
+                            .widthIn(min = 96.dp)
+                            .heightIn(min = 34.dp),
+                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp),
                         colors = ButtonDefaults.buttonColors(
                             containerColor = Color(0xFF546E7A),
                             contentColor = Color.White
                         )
                     ) { OneLineButtonText("Pass Instead") }
 
-                    Spacer(Modifier.height(8.dp))
+                    Spacer(Modifier.height(5.dp))
                 }
 
                 val targetPrompt = when {
                     needsSecondTarget && selectedTargetId == null ->
-                        "Click a cup or name to pick your first target."
+                        "Click a cup to pick your first target."
                     needsSecondTarget && selectedSecondTargetId == null ->
-                        "Click a second cup or name."
+                        "Click a second cup."
                     needsSecondTarget ->
                         ""
                     selectedTargetId == null ->
-                        "Click a cup or name to pick your target."
+                        "Click a cup to pick your target."
                     else ->
                         ""
                 }
@@ -3950,7 +4192,7 @@ private fun TableActionPanel(
                 )
 
                 if (selectedTargetId != null) {
-                    Spacer(Modifier.height(8.dp))
+                    Spacer(Modifier.height(5.dp))
 
                     fun selectedTargetName(playerId: Int?): String {
                         return (dropdownOptions + secondDropdownOptions)
@@ -3977,13 +4219,16 @@ private fun TableActionPanel(
 
                 }
 
-                Spacer(Modifier.height(12.dp))
+                Spacer(Modifier.height(7.dp))
             }
 
             if (showGuessButtons) {
                 Text("Choose their number", color = Color.White, fontWeight = FontWeight.Bold)
-                Spacer(Modifier.height(8.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Spacer(Modifier.height(5.dp))
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
                     if (zeroGuessUnlocked) {
                         SmallChoiceButton(
                             "0",
@@ -4002,14 +4247,17 @@ private fun TableActionPanel(
                         enabled = forcedGuess == null || forcedGuess == 3
                     ) { onGuessSelected(3) }
                 }
-                Spacer(Modifier.height(12.dp))
+                Spacer(Modifier.height(7.dp))
             }
 
             if (showSubmitButton) {
                 Button(
                     onClick = onSubmit,
                     enabled = submitEnabled,
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = 34.dp),
+                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp),
                     colors = ButtonDefaults.buttonColors(
                         containerColor = Color(0xFF263238),
                         contentColor = Color.White
@@ -4234,6 +4482,40 @@ private fun DifficultyEntryTransitionOverlay(
                 }
         )
     }
+}
+
+private fun buildBotAvatarResourceNamesByPlayerId(
+    players: List<PlayerState>,
+    result: RoundResult?,
+    difficulty: Difficulty?,
+    revealArchetypes: Boolean,
+    botTags: Map<Int, String>
+): Map<Int, String> {
+    val visibleArchetypeNames = result?.botArchetypeNamesByPlayerId.orEmpty()
+
+    return players
+        .filter { player -> player.id != GameEngine.HUMAN_ID }
+        .mapNotNull { player ->
+            val taggedArchetypeName = botTags[player.id]
+            val resourceName = when {
+                difficulty == Difficulty.EASY || revealArchetypes -> {
+                    botAvatarResourceNameForArchetype(
+                        visibleArchetypeNames[player.id] ?: player.baseName
+                    )
+                }
+
+                taggedArchetypeName != null -> {
+                    botAvatarResourceNameForArchetype(taggedArchetypeName)
+                }
+
+                else -> {
+                    botAvatarResourceNameForBotName(player.baseName)
+                }
+            } ?: return@mapNotNull null
+
+            player.id to resourceName
+        }
+        .toMap()
 }
 
 private fun applyArchetypeRevealToPlayers(
@@ -4707,7 +4989,7 @@ private fun AchievementUnlockOverlay(
                             fontSize = 36.sp,
                             color = Color(0xFFEAFDFF)
                         )
-                        Spacer(Modifier.height(4.dp))
+                        Spacer(Modifier.height(2.dp))
                         Text(
                             text = popup.title,
                             color = Color.White,
@@ -4741,7 +5023,7 @@ private fun AchievementsText(stats: PlayerStats) {
     Column {
         Spacer(Modifier.height(16.dp))
         Text("(Unlock on Normal or Hard)", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-        Spacer(Modifier.height(4.dp))
+        Spacer(Modifier.height(2.dp))
 
         AchievementSectionHeader("Core")
         AchievementRow(stats.firstPerfectWin, "Perfect Puddler", "Win with 0 wrong guesses")
@@ -4927,8 +5209,10 @@ private fun SmallChoiceButton(
     Button(
         onClick = onClick,
         enabled = enabled,
-        modifier = Modifier.heightIn(min = 44.dp),
-        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 10.dp),
+        modifier = Modifier
+            .heightIn(min = 36.dp)
+            .widthIn(min = 40.dp),
+        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp),
         colors = ButtonDefaults.buttonColors(
             containerColor = container,
             contentColor = content,
@@ -4939,7 +5223,8 @@ private fun SmallChoiceButton(
         Text(
             text = label,
             maxLines = 1,
-            softWrap = false
+            softWrap = false,
+            fontSize = 13.sp
         )
     }
 }
