@@ -92,6 +92,7 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.ColorMatrix
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.StrokeCap
@@ -3109,28 +3110,22 @@ private fun formatBotCupLabel(label: String): String {
     }
 
     val words = trimmed.split(Regex("\\s+")).filter { it.isNotEmpty() }
-    if (words.size >= 2) {
-        var bestSplitIndex = 1
-        var smallestDifference = Int.MAX_VALUE
+    if (words.size <= 1) return trimmed
 
-        for (index in 1 until words.size) {
-            val firstLine = words.take(index).joinToString(" ")
-            val secondLine = words.drop(index).joinToString(" ")
-            val difference = kotlin.math.abs(firstLine.length - secondLine.length)
-            if (difference < smallestDifference) {
-                smallestDifference = difference
-                bestSplitIndex = index
-            }
+    var bestSplitIndex = 1
+    var smallestDifference = Int.MAX_VALUE
+
+    for (index in 1 until words.size) {
+        val firstLine = words.take(index).joinToString(" ")
+        val secondLine = words.drop(index).joinToString(" ")
+        val difference = kotlin.math.abs(firstLine.length - secondLine.length)
+        if (difference < smallestDifference) {
+            smallestDifference = difference
+            bestSplitIndex = index
         }
-
-        return words.take(bestSplitIndex).joinToString(" ") + "\n" + words.drop(bestSplitIndex).joinToString(" ")
     }
 
-    return if (trimmed.length >= 9) {
-        trimmed.dropLast(1) + "\n" + trimmed.takeLast(1)
-    } else {
-        trimmed
-    }
+    return words.take(bestSplitIndex).joinToString(" ") + "\n" + words.drop(bestSplitIndex).joinToString(" ")
 }
 
 private fun botCupLabelFontSize(label: String): TextUnit {
@@ -3198,6 +3193,8 @@ private fun BotCupColumn(
             ) {
                 val avatarResourceName = avatarResourceNameForBot(bot.id)
                 val avatarGreyedOut = avatarGreyedOutForBot(bot.id)
+                val formattedLabel = formatBotCupLabel(bot.baseName)
+                val labelFontSize = botCupLabelFontSize(bot.baseName)
                 val cupClick = if (
                     targetVisualState == TargetVisualState.SELECTABLE ||
                     targetVisualState == TargetVisualState.SELECTED
@@ -3212,11 +3209,37 @@ private fun BotCupColumn(
                     horizontalArrangement = Arrangement.Center
                 ) {
                     if (indicatorPlacement == SeatIndicatorPlacement.INSIDE_RIGHT) {
-                        BotAvatarIcon(
-                            resourceName = avatarResourceName,
-                            greyedOut = avatarGreyedOut,
-                            modifier = Modifier.padding(end = 4.dp)
-                        )
+                        Column(
+                            modifier = Modifier
+                                .width(66.dp)
+                                .padding(end = 4.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            BotAvatarIcon(
+                                resourceName = avatarResourceName,
+                                greyedOut = avatarGreyedOut
+                            )
+
+                            Text(
+                                text = formattedLabel,
+                                color = nameColor,
+                                fontSize = labelFontSize,
+                                lineHeight = botCupLabelLineHeight(labelFontSize),
+                                maxLines = 2,
+                                softWrap = true,
+                                textAlign = TextAlign.Center,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .heightIn(min = 24.dp)
+                                    .then(
+                                        if (taggingEnabled) {
+                                            Modifier.clickable { onBotNameClicked(bot.id) }
+                                        } else {
+                                            Modifier
+                                        }
+                                    )
+                            )
+                        }
                     }
 
                     TableCup(
@@ -3237,36 +3260,40 @@ private fun BotCupColumn(
                     )
 
                     if (indicatorPlacement == SeatIndicatorPlacement.INSIDE_LEFT) {
-                        BotAvatarIcon(
-                            resourceName = avatarResourceName,
-                            greyedOut = avatarGreyedOut,
-                            modifier = Modifier.padding(start = 4.dp)
-                        )
+                        Column(
+                            modifier = Modifier
+                                .width(66.dp)
+                                .padding(start = 4.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            BotAvatarIcon(
+                                resourceName = avatarResourceName,
+                                greyedOut = avatarGreyedOut
+                            )
+
+                            Text(
+                                text = formattedLabel,
+                                color = nameColor,
+                                fontSize = labelFontSize,
+                                lineHeight = botCupLabelLineHeight(labelFontSize),
+                                maxLines = 2,
+                                softWrap = true,
+                                textAlign = TextAlign.Center,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .heightIn(min = 24.dp)
+                                    .then(
+                                        if (taggingEnabled) {
+                                            Modifier.clickable { onBotNameClicked(bot.id) }
+                                        } else {
+                                            Modifier
+                                        }
+                                    )
+                            )
+                        }
                     }
                 }
 
-                val formattedLabel = formatBotCupLabel(bot.baseName)
-                val labelFontSize = botCupLabelFontSize(bot.baseName)
-
-                Text(
-                    text = formattedLabel,
-                    color = nameColor,
-                    fontSize = labelFontSize,
-                    lineHeight = botCupLabelLineHeight(labelFontSize),
-                    maxLines = 2,
-                    softWrap = true,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier
-                        .width(66.dp)
-                        .heightIn(min = 24.dp)
-                        .then(
-                            if (taggingEnabled) {
-                                Modifier.clickable { onBotNameClicked(bot.id) }
-                            } else {
-                                Modifier
-                            }
-                        )
-                )
                 Spacer(Modifier.height(2.dp))
             }
         }
@@ -3323,6 +3350,27 @@ private fun loadBotAvatarAsset(
     }
 }
 
+private fun greyedOutAvatarResourceNames(resourceName: String?): List<String> {
+    if (resourceName.isNullOrBlank()) return emptyList()
+
+    return listOf(
+        "${resourceName}_grey",
+        "${resourceName}_gray",
+        "${resourceName}_greyed",
+        "${resourceName}_grayed",
+        "${resourceName}_greyed_out",
+        "${resourceName}_grayed_out",
+        "grey_$resourceName",
+        "gray_$resourceName"
+    )
+}
+
+private fun greyedOutAvatarFilter(): ColorFilter {
+    val matrix = ColorMatrix()
+    matrix.setToSaturation(0f)
+    return ColorFilter.colorMatrix(matrix)
+}
+
 @Composable
 private fun BotAvatarIcon(
     resourceName: String?,
@@ -3330,15 +3378,42 @@ private fun BotAvatarIcon(
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
-    val resourceId = remember(resourceName) {
+    val displayResourceName = remember(resourceName, greyedOut) {
+        if (greyedOut) {
+            greyedOutAvatarResourceNames(resourceName)
+        } else {
+            emptyList()
+        }
+    }
+    val displayResourceId = remember(resourceName, greyedOut) {
+        displayResourceName
+            .asSequence()
+            .map { candidateName -> botAvatarDrawableResourceId(context, candidateName) }
+            .firstOrNull { resourceId -> resourceId != 0 }
+            ?: 0
+    }
+    val normalResourceId = remember(resourceName) {
         botAvatarDrawableResourceId(context, resourceName)
     }
-    val assetBitmap = remember(resourceName, resourceId) {
+    val resourceId = if (displayResourceId != 0) displayResourceId else normalResourceId
+    val assetBitmap = remember(resourceName, displayResourceName, resourceId) {
         if (resourceId == 0) {
-            loadBotAvatarAsset(context, resourceName)
+            val greyedAsset = if (greyedOut) {
+                displayResourceName.firstNotNullOfOrNull { candidateName ->
+                    loadBotAvatarAsset(context, candidateName)
+                }
+            } else {
+                null
+            }
+
+            greyedAsset ?: loadBotAvatarAsset(context, resourceName)
         } else {
             null
         }
+    }
+    val useGeneratedGreyFilter = greyedOut && displayResourceId == 0
+    val greyFilter = remember(useGeneratedGreyFilter) {
+        if (useGeneratedGreyFilter) greyedOutAvatarFilter() else null
     }
 
     Box(
@@ -3351,10 +3426,10 @@ private fun BotAvatarIcon(
                     painter = painterResource(id = resourceId),
                     contentDescription = null,
                     contentScale = ContentScale.Fit,
-                    colorFilter = if (greyedOut) ColorFilter.tint(Color(0xFF9E9E9E)) else null,
+                    colorFilter = greyFilter,
                     modifier = Modifier
-                        .fillMaxSize()
-                        .alpha(if (greyedOut) 0.62f else 1f)
+                        .size(96.dp)
+                        .alpha(if (useGeneratedGreyFilter) 0.72f else 1f)
                 )
             }
 
@@ -3363,10 +3438,10 @@ private fun BotAvatarIcon(
                     bitmap = assetBitmap,
                     contentDescription = null,
                     contentScale = ContentScale.Fit,
-                    colorFilter = if (greyedOut) ColorFilter.tint(Color(0xFF9E9E9E)) else null,
+                    colorFilter = greyFilter,
                     modifier = Modifier
-                        .fillMaxSize()
-                        .alpha(if (greyedOut) 0.62f else 1f)
+                        .size(96.dp)
+                        .alpha(if (useGeneratedGreyFilter) 0.72f else 1f)
                 )
             }
         }
