@@ -290,15 +290,15 @@ class Strobe : Archetype {
 }
 
 /**
- * C: Chaso (UPDATED CANON)
+ * C: Chaos (UPDATED CANON)
  * - Die: 33/33/33 each round (0/1/3).
  * - Action: 50% pass, 50% target (no revenge behavior).
  * - Target: random valid.
  * - Guess: 50/50 between 1 and 3.
  */
-class Chaso : Archetype {
+class Chaos : Archetype {
     override val code = "C"
-    override val displayName = "Chaso"
+    override val displayName = "Chaos"
 
     override fun chooseDie(public: PublicRoundInfo, mem: BotMemory): DieChoice {
         rememberLastRoundChoices(public, mem)
@@ -499,38 +499,6 @@ class Nemesis : Archetype {
             ?: return TurnDecision.Pass
 
         return TurnDecision.Guess(grudge, guess)
-    }
-}
-
-/**
- * H: Accretion (UPDATED CANON)
- * - Die: rounds 1-2 choose 1; rounds 3+ choose 3.
- * - Action: pass rounds 1-4.
- * - Round 5+: target someone who chose 3 last round and guess 3 (else pass).
- */
-class Accretion : Archetype {
-    override val isAggressiveInHardMode = true
-    override val code = "H"
-    override val displayName = "Accretion"
-
-    override fun chooseDie(public: PublicRoundInfo, mem: BotMemory): DieChoice {
-        rememberLastRoundChoices(public, mem)
-
-        val c = if (public.roundIndex <= 2) DieChoice.ONE else DieChoice.THREE
-        mem.lastChosen = c
-        return c
-    }
-
-    override fun takeTurn(public: PublicRoundInfo, mem: BotMemory): TurnDecision {
-        rememberLastRoundChoices(public, mem)
-
-        if (public.roundIndex == 1) return roundOneGuessOrPass(public, DieChoice.THREE, fallback = DieChoice.ONE)
-        if (public.roundIndex <= 4) return TurnDecision.Pass
-
-        val guess = weatherAdjustedGuess(public, DieChoice.THREE, fallback = DieChoice.ONE)
-            ?: return TurnDecision.Pass
-        val t = bestTargetForGuess(public, guess) ?: return TurnDecision.Pass
-        return TurnDecision.Guess(t, guess)
     }
 }
 
@@ -856,7 +824,7 @@ class Cynic : Archetype {
 
 /**
  * T: Pitfall (NEW)
- * - Die: round 1 chooses 3, round 2 chooses 0, round 3+ chooses 1 or 3 at random.
+ * - Die: round 1 chooses 3, round 2 chooses 0, round 3+ chooses 0 or 3 at random.
  * - Action: never targets unless forced; currently always passes.
  */
 class Pitfall : Archetype {
@@ -869,7 +837,7 @@ class Pitfall : Archetype {
         val choice = when (public.roundIndex) {
             1 -> DieChoice.THREE
             2 -> DieChoice.ZERO
-            else -> if (public.rng.nextBoolean()) DieChoice.ONE else DieChoice.THREE
+            else -> if (public.rng.nextBoolean()) DieChoice.ZERO else DieChoice.THREE
         }
         mem.lastChosen = choice
         return choice
