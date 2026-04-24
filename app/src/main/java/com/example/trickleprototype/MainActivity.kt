@@ -4223,7 +4223,13 @@ private fun TableActionPanel(
             }
 
             if (showGuessButtons) {
-                Text("Choose their number", color = Color.White, fontWeight = FontWeight.Bold)
+                Text(
+                    text = "Choose their number",
+                    color = Color.White,
+                    fontWeight = FontWeight.Bold,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth()
+                )
                 Spacer(Modifier.height(5.dp))
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(4.dp),
