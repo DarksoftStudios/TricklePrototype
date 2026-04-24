@@ -2010,9 +2010,9 @@ private fun TrickleApp() {
                         TableActionPanel(
                             modifier = Modifier
                                 .align(Alignment.TopCenter)
-                                .widthIn(min = 132.dp, max = 210.dp)
+                                .width(148.dp)
                                 .wrapContentHeight()
-                                .padding(top = 10.dp),
+                                .padding(top = 96.dp),
                             choice = choice,
                             onChoiceSelected = { choice = it },
                             choiceEnabled = !gameOver && !startLocked && (phase == EnginePhase.SELECT || phase == EnginePhase.ROUND_END),
