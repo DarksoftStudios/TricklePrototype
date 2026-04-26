@@ -30,7 +30,7 @@ data class MarbleTransferEvent(
 enum class LogEventKind { PASS, OTHER }
 
 enum class EnginePhase {
-    SETUP, SELECT, BOT_TURN, PLAYER_TURN, ROUND_END, GAME_OVER
+    SETUP, SELECT, BOT_TURN, PLAYER_TURN, TIEBREAKER_CHOICE, ROUND_END, GAME_OVER
 }
 
 data class RoundResult(
@@ -115,6 +115,11 @@ class GameEngine(
     private var tiebreakerStageIndex: Int = -1
     private var tiebreakerRoundsRemaining: Int = 0
     private var gameEndedInBotTie: Boolean = false
+
+    private var pendingTiebreakerChooserId: Int? = null
+    private var pendingTiebreakerGuesserId: Int? = null
+    private var pendingTiebreakerHumanIsChooser: Boolean = false
+    private var pendingTiebreakerBotValue: Int? = null
 
     // stats: per-game trackers
     private var gameWrongGuesses: Int = 0
@@ -243,6 +248,7 @@ class GameEngine(
         log.clear()
         bannerText = null
         winnerIds = emptyList()
+        clearPendingTiebreakerDuel()
 
         pending.clear()
         lastEventKind = null
@@ -722,6 +728,42 @@ class GameEngine(
                 }
             }
         }
+    }
+
+
+    fun submitTiebreakerChoice(choice: Int): RoundResult {
+        clearLatestMarbleTransfers()
+        if (phase != EnginePhase.TIEBREAKER_CHOICE) return snapshot()
+        if (choice != 1 && choice != 3) {
+            bannerText = "Choose 1 or 3 for the tiebreaker."
+            return snapshot()
+        }
+
+        val chooserId = pendingTiebreakerChooserId ?: return snapshot()
+        val guesserId = pendingTiebreakerGuesserId ?: return snapshot()
+        val botValue = pendingTiebreakerBotValue ?: return snapshot()
+
+        val chooserPick: Int
+        val guesserGuess: Int
+
+        if (pendingTiebreakerHumanIsChooser) {
+            chooserPick = choice
+            guesserGuess = botValue
+        } else {
+            chooserPick = botValue
+            guesserGuess = choice
+        }
+
+        finishTwoPlayerTiebreaker(
+            chooserId = chooserId,
+            guesserId = guesserId,
+            chooserPick = chooserPick,
+            guesserGuess = guesserGuess
+        )
+        clearPendingTiebreakerDuel()
+        phase = EnginePhase.GAME_OVER
+        finalizeGameOverIfNeeded()
+        return snapshot()
     }
 
     fun startRound(humanChoice: Int): RoundResult {
@@ -1489,228 +1531,13 @@ class GameEngine(
 
             winnerIds = resolveWinnersAfterRound()
 
-            if (phase == EnginePhase.GAME_OVER) {
-                if (gameEndedInBotTie) {
-                    log += RoundLogEvent("")
-                    log += RoundLogEvent("GAME OVER --------------------------------------")
-                    log += RoundLogEvent("TIE GAME BETWEEN BOTS")
-                    log += RoundLogEvent("-----------------------------------------------")
-                    log += RoundLogEvent("")
-                } else if (winnerIds.isNotEmpty()) {
-                    val winnersText = winnerIds.joinToString(", ") { displayNameFor(it) }
-                    val top = players.first { it.id == winnerIds.first() }.marbles
-
-                    log += RoundLogEvent("")
-                    log += RoundLogEvent("GAME OVER --------------------------------------")
-                    log += RoundLogEvent("WINNER: $winnersText with $top")
-                    log += RoundLogEvent("-----------------------------------------------")
-                    log += RoundLogEvent("")
-                }
-
-                finalizeWeatherAchievementsAtGameEnd()
-
-                statsStore?.let { store ->
-                    val s = store.load()
-                    val humanFinal = players.first { it.id == HUMAN_ID }.marbles
-                    val humanWon = winnerIds.contains(HUMAN_ID)
-
-                    // Always count Easy games so Normal mode unlocks after playing Easy
-                    when (difficulty) {
-                        Difficulty.EASY -> {
-                            s.easyGames += 1
-                            if (humanWon) s.easyWins += 1
-                        }
-
-                        Difficulty.NORMAL -> {
-                            s.normalGames += 1
-                            if (humanWon) s.normalWins += 1
-                        }
-
-                        Difficulty.HARD -> {
-                            s.hardGames += 1
-                            if (humanWon) s.hardWins += 1
-                        }
-                    }
-
-// Easy mode only gets these two achievements
-                    if (difficulty == Difficulty.EASY) {
-                        if (!s.firstGameCompleted) {
-                            s.firstGameCompleted = true
-                            log += RoundLogEvent("*** Achievement Unlocked: First Drip - Completed a game! ***")
-                        }
-                        if (humanWon && !s.wonEasy) {
-                            s.wonEasy = true
-                            log += RoundLogEvent("*** Achievement Unlocked: Comp Stomp - Won on Easy! ***")
-                        }
-                    }
-// Normal and Hard get all other achievements
-                    else {
-                        s.totalGames += 1
-                        s.totalMarblesAcrossGames += humanFinal.toLong()
-                        if (humanWon) {
-                            s.totalWins += 1
-                        }
-
-                        if (!s.has113MarblesTotal && s.totalMarblesAcrossGames >= 113L) {
-                            s.has113MarblesTotal = true
-                            log += RoundLogEvent("*** Achievement Unlocked: Bucket Filler - Gain 113 marbles across games! ***")
-                        }
-
-                        if (!s.has1113MarblesTotal && s.totalMarblesAcrossGames >= 1113L) {
-                            s.has1113MarblesTotal = true
-                            log += RoundLogEvent("*** Achievement Unlocked: Tub Filler - Gain 1,113 marbles across games! ***")
-                        }
-
-                        if (!s.has11113MarblesTotal && s.totalMarblesAcrossGames >= 11113L) {
-                            s.has11113MarblesTotal = true
-                            log += RoundLogEvent("*** Achievement Unlocked: Pool Filler - Gain 11,113 marbles across games! ***")
-                        }
-
-                        // All other achievements (Perfect Puddler, Dumb Luck, On a Roll, etc.) stay here
-                        if (!s.pacifistGame && !gameHumanMadeGuess) {
-                            s.pacifistGame = true
-                            log += RoundLogEvent("*** Achievement Unlocked: Pacifist (Game) - Finished a game without guessing! ***")
-                        }
-
-                        if (!s.reachedRound6 && gameRoundReached >= 6) {
-                            s.reachedRound6 = true
-                            log += RoundLogEvent("*** Achievement Unlocked: Idle Hands - Reached round 6! ***")
-                        }
-
-                        if (!s.firstTheFool && gameHumanWasTrickedByZero) {
-                            s.firstTheFool = true
-                            log += RoundLogEvent("*** Achievement Unlocked: The Fool - Get tricked by a 0! ***")
-                        }
-
-                        if (!s.firstZeroTrap && gameHumanTrickedBotWithZero) {
-                            s.firstZeroTrap = true
-                            log += RoundLogEvent("*** Achievement Unlocked: Zero Trap - Trick someone with a 0! ***")
-                        }
-
-                        if (!s.zeroHeroUnlocked && s.firstTheFool && s.firstZeroTrap) {
-                            s.zeroHeroUnlocked = true
-                            log += RoundLogEvent("*** Achievement Unlocked: Zero Hero - Experience both sides of the 0! ***")
-                        }
-
-                        if (!s.dumbLuck && unlockedDumbLuckThisGame) {
-                            s.dumbLuck = true
-                            log += RoundLogEvent("*** Achievement Unlocked: Dumb Luck - Correctly guessed a 3 in round 1! ***")
-                        }
-
-                        if (!s.onARoll && unlockedOnARollThisGame) {
-                            s.onARoll = true
-                            log += RoundLogEvent("*** Achievement Unlocked: On a Roll - Get 3 correct guesses in a row in one game! ***")
-                        }
-
-                        if (!s.justPressEverything &&
-                            gameHumanPassedAtLeastOnce &&
-                            gameHumanChoicesUsed.containsAll(setOf(0, 1, 3)) &&
-                            gameHumanGuessesUsed.containsAll(setOf(1, 3))
-                        ) {
-                            s.justPressEverything = true
-                            log += RoundLogEvent("*** Achievement Unlocked: Just Press Everything - Do every action possible in a game ***")
-                        }
-
-                        if (!s.playedAllDifficulties && s.normalGames > 0 && s.hardGames > 0) {
-                            s.playedAllDifficulties = true
-                            log += RoundLogEvent("*** Achievement Unlocked: Tourist - Played on Normal and Hard! ***")
-                        }
-
-                        if (humanWon) {
-
-                            if (!humanMadeWrongGuessThisGame) {
-                                s.perfectGames += 1
-                                if (!s.firstPerfectWin) {
-                                    s.firstPerfectWin = true
-                                    log += RoundLogEvent("*** Achievement Unlocked: Perfect Puddler - Win without a wrong guess! ***")
-                                }
-                            }
-
-                            if (!s.wonWith18Marbles && humanFinal >= 18) {
-                                s.wonWith18Marbles = true
-                                log += RoundLogEvent("*** Achievement Unlocked: Is That Legal? - Win with 18+ marbles! ***")
-                            }
-
-                            if (!s.pacifistWin && !gameHumanMadeGuess) {
-                                s.pacifistWin = true
-                                log += RoundLogEvent("*** Achievement Unlocked: Pacifist - Win without guessing! ***")
-                            }
-
-                            if (!s.shakespeareWin && gameHumanCorrectRomeo && gameHumanCorrectJuliet) {
-                                s.shakespeareWin = true
-                                log += RoundLogEvent("*** Achievement Unlocked: Wherefore Art Thou - Win after correctly guessing Romeo and Juliet! ***")
-                            }
-
-                            if (!s.drySeasonWin && !gameHumanEverChose3) {
-                                s.drySeasonWin = true
-                                log += RoundLogEvent("*** Achievement Unlocked: Dry Season - Win without ever choosing 3! ***")
-                            }
-
-                            if (!s.ghostCupWin && !gameHumanWasTargeted) {
-                                s.ghostCupWin = true
-                                log += RoundLogEvent("*** Achievement Unlocked: Ghost Cup - Win without being targeted! ***")
-                            }
-
-                            if (!s.hatFinisher && startedRoundBecauseHat) {
-                                s.hatFinisher = true
-                                log += RoundLogEvent("*** Achievement Unlocked: Hat Trick - Win after starting because you had the Hat! ***")
-                            }
-
-                            if (!s.caughtTheStrobe && strobeCorrect3Count >= 2) {
-                                s.caughtTheStrobe = true
-                                log += RoundLogEvent("*** Achievement Unlocked: Caught the Strobe - Correctly guess Strobe's 3 twice in one game! ***")
-                            }
-
-                            if (!s.dieting && gluttonCorrect3Count >= 4) {
-                                s.dieting = true
-                                log += RoundLogEvent("*** Achievement Unlocked: dieting - Correctly guess Glutton's 3 four times in one game! ***")
-                            }
-
-                            when (difficulty) {
-                                Difficulty.NORMAL -> {
-                                    if (!s.wonNormal) {
-                                        s.wonNormal = true
-                                        log += RoundLogEvent("*** Achievement Unlocked: Pattern Finder - Won on Normal! ***")
-                                    }
-                                    s.normalWins += 1
-                                }
-
-                                Difficulty.HARD -> {
-                                    if (!s.wonHard) {
-                                        s.wonHard = true
-                                        log += RoundLogEvent("*** Achievement Unlocked: TR1CKL3! - Won on Hard and unlocked Weather! ***")
-                                    }
-                                    s.hardWins += 1
-                                }
-
-                                Difficulty.EASY -> Unit
-                            }
-
-                            if (!s.won13thGame && s.totalWins >= 13) {
-                                s.won13thGame = true
-                                log += RoundLogEvent("*** Achievement Unlocked: Trickle Pro - Won 13 games! ***")
-                            }
-
-                            if (!s.won113thGame && s.totalWins >= 113) {
-                                s.won113thGame = true
-                                log += RoundLogEvent("*** Achievement Unlocked: Trickle Champion - Won 113 games! ***")
-                            }
-                            if (!s.won1113thGame && s.totalWins >= 1113) {
-                                s.won1113thGame = true
-                                log += RoundLogEvent("*** Achievement Unlocked: Trickle God - Won 1113 games! ***")
-                            }
-                        }
-                    }
-
-                    store.save(s)
-                }
-            }
+            finalizeGameOverIfNeeded()
 
             val startHolder = hatStartOfRoundHolderId
             val endHolder = hatHolderId
             val overrideEligible = (startHolder != endHolder) && (endHolder != null)
 
-            if (phase != EnginePhase.GAME_OVER) {
+            if (phase != EnginePhase.GAME_OVER && phase != EnginePhase.TIEBREAKER_CHOICE) {
                 roundNumber += 1
                 starterIndex = if (overrideEligible) {
                     indexOfId(endHolder!!)
@@ -1730,7 +1557,7 @@ class GameEngine(
             playersWithPositiveScoringEventThisRound.clear()
             roundStartMarbles.clear()
 
-            if (phase != EnginePhase.GAME_OVER) {
+            if (phase != EnginePhase.GAME_OVER && phase != EnginePhase.TIEBREAKER_CHOICE) {
                 phase = EnginePhase.SELECT
             }
 
@@ -1740,6 +1567,227 @@ class GameEngine(
         }
     }
 
+
+
+    private fun finalizeGameOverIfNeeded() {
+        if (phase == EnginePhase.GAME_OVER) {
+            if (gameEndedInBotTie) {
+                log += RoundLogEvent("")
+                log += RoundLogEvent("GAME OVER --------------------------------------")
+                log += RoundLogEvent("TIE GAME BETWEEN BOTS")
+                log += RoundLogEvent("-----------------------------------------------")
+                log += RoundLogEvent("")
+            } else if (winnerIds.isNotEmpty()) {
+                val winnersText = winnerIds.joinToString(", ") { displayNameFor(it) }
+                val top = players.first { it.id == winnerIds.first() }.marbles
+
+                log += RoundLogEvent("")
+                log += RoundLogEvent("GAME OVER --------------------------------------")
+                log += RoundLogEvent("WINNER: $winnersText with $top")
+                log += RoundLogEvent("-----------------------------------------------")
+                log += RoundLogEvent("")
+            }
+
+            finalizeWeatherAchievementsAtGameEnd()
+
+            statsStore?.let { store ->
+                val s = store.load()
+                val humanFinal = players.first { it.id == HUMAN_ID }.marbles
+                val humanWon = winnerIds.contains(HUMAN_ID)
+
+                // Always count Easy games so Normal mode unlocks after playing Easy
+                when (difficulty) {
+                    Difficulty.EASY -> {
+                        s.easyGames += 1
+                        if (humanWon) s.easyWins += 1
+                    }
+
+                    Difficulty.NORMAL -> {
+                        s.normalGames += 1
+                        if (humanWon) s.normalWins += 1
+                    }
+
+                    Difficulty.HARD -> {
+                        s.hardGames += 1
+                        if (humanWon) s.hardWins += 1
+                    }
+                }
+
+// Easy mode only gets these two achievements
+                if (difficulty == Difficulty.EASY) {
+                    if (!s.firstGameCompleted) {
+                        s.firstGameCompleted = true
+                        log += RoundLogEvent("*** Achievement Unlocked: First Drip - Completed a game! ***")
+                    }
+                    if (humanWon && !s.wonEasy) {
+                        s.wonEasy = true
+                        log += RoundLogEvent("*** Achievement Unlocked: Comp Stomp - Won on Easy! ***")
+                    }
+                }
+// Normal and Hard get all other achievements
+                else {
+                    s.totalGames += 1
+                    s.totalMarblesAcrossGames += humanFinal.toLong()
+                    if (humanWon) {
+                        s.totalWins += 1
+                    }
+
+                    if (!s.has113MarblesTotal && s.totalMarblesAcrossGames >= 113L) {
+                        s.has113MarblesTotal = true
+                        log += RoundLogEvent("*** Achievement Unlocked: Bucket Filler - Gain 113 marbles across games! ***")
+                    }
+
+                    if (!s.has1113MarblesTotal && s.totalMarblesAcrossGames >= 1113L) {
+                        s.has1113MarblesTotal = true
+                        log += RoundLogEvent("*** Achievement Unlocked: Tub Filler - Gain 1,113 marbles across games! ***")
+                    }
+
+                    if (!s.has11113MarblesTotal && s.totalMarblesAcrossGames >= 11113L) {
+                        s.has11113MarblesTotal = true
+                        log += RoundLogEvent("*** Achievement Unlocked: Pool Filler - Gain 11,113 marbles across games! ***")
+                    }
+
+                    // All other achievements (Perfect Puddler, Dumb Luck, On a Roll, etc.) stay here
+                    if (!s.pacifistGame && !gameHumanMadeGuess) {
+                        s.pacifistGame = true
+                        log += RoundLogEvent("*** Achievement Unlocked: Pacifist (Game) - Finished a game without guessing! ***")
+                    }
+
+                    if (!s.reachedRound6 && gameRoundReached >= 6) {
+                        s.reachedRound6 = true
+                        log += RoundLogEvent("*** Achievement Unlocked: Idle Hands - Reached round 6! ***")
+                    }
+
+                    if (!s.firstTheFool && gameHumanWasTrickedByZero) {
+                        s.firstTheFool = true
+                        log += RoundLogEvent("*** Achievement Unlocked: The Fool - Get tricked by a 0! ***")
+                    }
+
+                    if (!s.firstZeroTrap && gameHumanTrickedBotWithZero) {
+                        s.firstZeroTrap = true
+                        log += RoundLogEvent("*** Achievement Unlocked: Zero Trap - Trick someone with a 0! ***")
+                    }
+
+                    if (!s.zeroHeroUnlocked && s.firstTheFool && s.firstZeroTrap) {
+                        s.zeroHeroUnlocked = true
+                        log += RoundLogEvent("*** Achievement Unlocked: Zero Hero - Experience both sides of the 0! ***")
+                    }
+
+                    if (!s.dumbLuck && unlockedDumbLuckThisGame) {
+                        s.dumbLuck = true
+                        log += RoundLogEvent("*** Achievement Unlocked: Dumb Luck - Correctly guessed a 3 in round 1! ***")
+                    }
+
+                    if (!s.onARoll && unlockedOnARollThisGame) {
+                        s.onARoll = true
+                        log += RoundLogEvent("*** Achievement Unlocked: On a Roll - Get 3 correct guesses in a row in one game! ***")
+                    }
+
+                    if (!s.justPressEverything &&
+                        gameHumanPassedAtLeastOnce &&
+                        gameHumanChoicesUsed.containsAll(setOf(0, 1, 3)) &&
+                        gameHumanGuessesUsed.containsAll(setOf(1, 3))
+                    ) {
+                        s.justPressEverything = true
+                        log += RoundLogEvent("*** Achievement Unlocked: Just Press Everything - Do every action possible in a game ***")
+                    }
+
+                    if (!s.playedAllDifficulties && s.normalGames > 0 && s.hardGames > 0) {
+                        s.playedAllDifficulties = true
+                        log += RoundLogEvent("*** Achievement Unlocked: Tourist - Played on Normal and Hard! ***")
+                    }
+
+                    if (humanWon) {
+
+                        if (!humanMadeWrongGuessThisGame) {
+                            s.perfectGames += 1
+                            if (!s.firstPerfectWin) {
+                                s.firstPerfectWin = true
+                                log += RoundLogEvent("*** Achievement Unlocked: Perfect Puddler - Win without a wrong guess! ***")
+                            }
+                        }
+
+                        if (!s.wonWith18Marbles && humanFinal >= 18) {
+                            s.wonWith18Marbles = true
+                            log += RoundLogEvent("*** Achievement Unlocked: Is That Legal? - Win with 18+ marbles! ***")
+                        }
+
+                        if (!s.pacifistWin && !gameHumanMadeGuess) {
+                            s.pacifistWin = true
+                            log += RoundLogEvent("*** Achievement Unlocked: Pacifist - Win without guessing! ***")
+                        }
+
+                        if (!s.shakespeareWin && gameHumanCorrectRomeo && gameHumanCorrectJuliet) {
+                            s.shakespeareWin = true
+                            log += RoundLogEvent("*** Achievement Unlocked: Wherefore Art Thou - Win after correctly guessing Romeo and Juliet! ***")
+                        }
+
+                        if (!s.drySeasonWin && !gameHumanEverChose3) {
+                            s.drySeasonWin = true
+                            log += RoundLogEvent("*** Achievement Unlocked: Dry Season - Win without ever choosing 3! ***")
+                        }
+
+                        if (!s.ghostCupWin && !gameHumanWasTargeted) {
+                            s.ghostCupWin = true
+                            log += RoundLogEvent("*** Achievement Unlocked: Ghost Cup - Win without being targeted! ***")
+                        }
+
+                        if (!s.hatFinisher && startedRoundBecauseHat) {
+                            s.hatFinisher = true
+                            log += RoundLogEvent("*** Achievement Unlocked: Hat Trick - Win after starting because you had the Hat! ***")
+                        }
+
+                        if (!s.caughtTheStrobe && strobeCorrect3Count >= 2) {
+                            s.caughtTheStrobe = true
+                            log += RoundLogEvent("*** Achievement Unlocked: Caught the Strobe - Correctly guess Strobe's 3 twice in one game! ***")
+                        }
+
+                        if (!s.dieting && gluttonCorrect3Count >= 4) {
+                            s.dieting = true
+                            log += RoundLogEvent("*** Achievement Unlocked: dieting - Correctly guess Glutton's 3 four times in one game! ***")
+                        }
+
+                        when (difficulty) {
+                            Difficulty.NORMAL -> {
+                                if (!s.wonNormal) {
+                                    s.wonNormal = true
+                                    log += RoundLogEvent("*** Achievement Unlocked: Pattern Finder - Won on Normal! ***")
+                                }
+                                s.normalWins += 1
+                            }
+
+                            Difficulty.HARD -> {
+                                if (!s.wonHard) {
+                                    s.wonHard = true
+                                    log += RoundLogEvent("*** Achievement Unlocked: TR1CKL3! - Won on Hard and unlocked Weather! ***")
+                                }
+                                s.hardWins += 1
+                            }
+
+                            Difficulty.EASY -> Unit
+                        }
+
+                        if (!s.won13thGame && s.totalWins >= 13) {
+                            s.won13thGame = true
+                            log += RoundLogEvent("*** Achievement Unlocked: Trickle Pro - Won 13 games! ***")
+                        }
+
+                        if (!s.won113thGame && s.totalWins >= 113) {
+                            s.won113thGame = true
+                            log += RoundLogEvent("*** Achievement Unlocked: Trickle Champion - Won 113 games! ***")
+                        }
+                        if (!s.won1113thGame && s.totalWins >= 1113) {
+                            s.won1113thGame = true
+                            log += RoundLogEvent("*** Achievement Unlocked: Trickle God - Won 1113 games! ***")
+                        }
+                    }
+                }
+
+                store.save(s)
+            }
+        }
+
+    }
 
     private fun applyPostRoundWeatherResolution() {
         val activeIds = activePlayerIds()
@@ -1889,7 +1937,6 @@ class GameEngine(
         }
 
         if (leaders.size == 2) {
-            phase = EnginePhase.GAME_OVER
             return resolveTwoPlayerTiebreaker(leaders[0].id, leaders[1].id)
         }
 
@@ -1947,14 +1994,39 @@ class GameEngine(
             guesserId = firstId
         }
 
+        if (chooserId == HUMAN_ID || guesserId == HUMAN_ID) {
+            pendingTiebreakerChooserId = chooserId
+            pendingTiebreakerGuesserId = guesserId
+            pendingTiebreakerHumanIsChooser = chooserId == HUMAN_ID
+            pendingTiebreakerBotValue = if (rng.nextBoolean()) 1 else 3
+            phase = EnginePhase.TIEBREAKER_CHOICE
+            log += RoundLogEvent("${displayNameFor(chooserId)} had the lower roll and secretly chooses between 1 and 3.")
+            return emptyList()
+        }
+
         val chooserPick = if (rng.nextBoolean()) 1 else 3
         val guesserGuess = if (rng.nextBoolean()) 1 else 3
 
-        log += RoundLogEvent("${displayNameFor(chooserId)} had the lower roll and secretly chooses between 1 and 3.")
+        finishTwoPlayerTiebreaker(
+            chooserId = chooserId,
+            guesserId = guesserId,
+            chooserPick = chooserPick,
+            guesserGuess = guesserGuess
+        )
+        phase = EnginePhase.GAME_OVER
+        return winnerIds
+    }
+
+    private fun finishTwoPlayerTiebreaker(
+        chooserId: Int,
+        guesserId: Int,
+        chooserPick: Int,
+        guesserGuess: Int
+    ) {
         log += RoundLogEvent("${displayNameFor(guesserId)} guesses $guesserGuess.")
         log += RoundLogEvent("${displayNameFor(chooserId)} chose $chooserPick.")
 
-        return if (guesserGuess == chooserPick) {
+        winnerIds = if (guesserGuess == chooserPick) {
             log += RoundLogEvent("${displayNameFor(guesserId)} is correct and wins the tiebreaker.")
             listOf(guesserId)
         } else {
@@ -1969,10 +2041,18 @@ class GameEngine(
         }
     }
 
+    private fun clearPendingTiebreakerDuel() {
+        pendingTiebreakerChooserId = null
+        pendingTiebreakerGuesserId = null
+        pendingTiebreakerHumanIsChooser = false
+        pendingTiebreakerBotValue = null
+    }
+
     private fun clearTiebreakerState() {
         tiebreakerParticipantIds = null
         tiebreakerStageIndex = -1
         tiebreakerRoundsRemaining = 0
+        clearPendingTiebreakerDuel()
     }
 
     private fun enqueueOther(block: () -> Unit) {

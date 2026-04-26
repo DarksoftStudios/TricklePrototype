@@ -2016,7 +2016,9 @@ private fun TrickleApp() {
                                 .padding(top = 96.dp),
                             choice = choice,
                             onChoiceSelected = { choice = it },
-                            choiceEnabled = !gameOver && !startLocked && (phase == EnginePhase.SELECT || phase == EnginePhase.ROUND_END),
+                            choiceOptions = if (phase == EnginePhase.TIEBREAKER_CHOICE) listOf(1, 3) else listOf(0, 1, 3),
+                            choicePrompt = if (phase == EnginePhase.TIEBREAKER_CHOICE) "Choose the number" else "Choose 0, 1, or 3.",
+                            choiceEnabled = !gameOver && !startLocked && (phase == EnginePhase.SELECT || phase == EnginePhase.ROUND_END || phase == EnginePhase.TIEBREAKER_CHOICE),
                             inputsEnabled = inputsEnabled,
                             pendingHumanAction = pendingHumanAction,
                             canPass = canPassThisTurn,
@@ -2107,6 +2109,7 @@ private fun TrickleApp() {
                             submitLabel = when (phase) {
                                 EnginePhase.SELECT, EnginePhase.ROUND_END -> "Start Round->"
                                 EnginePhase.PLAYER_TURN -> "Submit Guess->"
+                                EnginePhase.TIEBREAKER_CHOICE -> "Submit Choice->"
                                 EnginePhase.BOT_TURN -> "Bots Acting..."
                                 EnginePhase.GAME_OVER -> "Play Again"
                                 EnginePhase.SETUP -> "Setup..."
@@ -2120,6 +2123,7 @@ private fun TrickleApp() {
                                                 targetId != null &&
                                                 (!needsSecondTarget || secondTargetId != null)
                                         )
+                                EnginePhase.TIEBREAKER_CHOICE -> !gameOver && !startLocked && (choice == 1 || choice == 3)
                                 EnginePhase.GAME_OVER -> difficulty != null
                                 else -> false
                             },
@@ -2149,6 +2153,18 @@ private fun TrickleApp() {
                                             selectedTargetId = targetId,
                                             selectedGuess = guess,
                                             selectedSecondTargetId = secondTargetId
+                                        )
+                                    }
+
+                                    EnginePhase.TIEBREAKER_CHOICE -> {
+                                        startLocked = true
+                                        val result = engine.submitTiebreakerChoice(choice)
+                                        lastResult = result
+                                        logText = buildLogText(
+                                            result = result,
+                                            difficulty = difficulty!!,
+                                            revealArchetypes = revealArchetypesPostGame && result.phase == EnginePhase.GAME_OVER,
+                                            botTags = botTags.toMap()
                                         )
                                     }
 
@@ -2379,6 +2395,7 @@ private fun phaseBadgeText(
 
     val instruction = when (enginePhase) {
         EnginePhase.SELECT, EnginePhase.ROUND_END -> "Choose 0, 1, or 3."
+        EnginePhase.TIEBREAKER_CHOICE -> "Choose 1 or 3."
         EnginePhase.BOT_TURN -> {
             if (isTrickling) {
                 "Trickling"
@@ -2428,6 +2445,7 @@ private fun phaseBadgeText(
             }
         }
         EnginePhase.PLAYER_TURN -> 2
+        EnginePhase.TIEBREAKER_CHOICE -> 3
         EnginePhase.GAME_OVER -> 3
     }
 
@@ -3211,8 +3229,8 @@ private fun BotCupColumn(
                     if (indicatorPlacement == SeatIndicatorPlacement.INSIDE_RIGHT) {
                         Column(
                             modifier = Modifier
-                                .width(66.dp)
-                                .padding(end = 4.dp),
+                                .width(78.dp)
+                                .padding(end = 2.dp),
                             horizontalAlignment = Alignment.CenterHorizontally
                         ) {
                             BotAvatarIcon(
@@ -3262,8 +3280,8 @@ private fun BotCupColumn(
                     if (indicatorPlacement == SeatIndicatorPlacement.INSIDE_LEFT) {
                         Column(
                             modifier = Modifier
-                                .width(66.dp)
-                                .padding(start = 4.dp),
+                                .width(78.dp)
+                                .padding(start = 2.dp),
                             horizontalAlignment = Alignment.CenterHorizontally
                         ) {
                             BotAvatarIcon(
@@ -3417,7 +3435,7 @@ private fun BotAvatarIcon(
     }
 
     Box(
-        modifier = modifier.size(58.dp),
+        modifier = modifier.size(66.dp),
         contentAlignment = Alignment.Center
     ) {
         when {
@@ -3428,7 +3446,7 @@ private fun BotAvatarIcon(
                     contentScale = ContentScale.Fit,
                     colorFilter = greyFilter,
                     modifier = Modifier
-                        .size(96.dp)
+                        .size(110.dp)
                         .alpha(if (useGeneratedGreyFilter) 0.72f else 1f)
                 )
             }
@@ -3440,7 +3458,7 @@ private fun BotAvatarIcon(
                     contentScale = ContentScale.Fit,
                     colorFilter = greyFilter,
                     modifier = Modifier
-                        .size(96.dp)
+                        .size(110.dp)
                         .alpha(if (useGeneratedGreyFilter) 0.72f else 1f)
                 )
             }
@@ -4069,6 +4087,8 @@ private fun TableActionPanel(
     modifier: Modifier = Modifier,
     choice: Int,
     onChoiceSelected: (Int) -> Unit,
+    choiceOptions: List<Int>,
+    choicePrompt: String,
     choiceEnabled: Boolean,
     inputsEnabled: Boolean,
     pendingHumanAction: PendingHumanAction,
@@ -4112,15 +4132,21 @@ private fun TableActionPanel(
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             if (showChoiceButtons) {
-                Text("Choose 0, 1, or 3.", color = Color.White, fontWeight = FontWeight.Bold)
+                Text(choicePrompt, color = Color.White, fontWeight = FontWeight.Bold)
                 Spacer(Modifier.height(5.dp))
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(4.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    SmallChoiceButton("0", selected = choice == 0, enabled = choiceEnabled) { onChoiceSelected(0) }
-                    SmallChoiceButton("1", selected = choice == 1, enabled = choiceEnabled) { onChoiceSelected(1) }
-                    SmallChoiceButton("3", selected = choice == 3, enabled = choiceEnabled) { onChoiceSelected(3) }
+                    if (0 in choiceOptions) {
+                        SmallChoiceButton("0", selected = choice == 0, enabled = choiceEnabled) { onChoiceSelected(0) }
+                    }
+                    if (1 in choiceOptions) {
+                        SmallChoiceButton("1", selected = choice == 1, enabled = choiceEnabled) { onChoiceSelected(1) }
+                    }
+                    if (3 in choiceOptions) {
+                        SmallChoiceButton("3", selected = choice == 3, enabled = choiceEnabled) { onChoiceSelected(3) }
+                    }
                 }
                 Spacer(Modifier.height(7.dp))
             }
