@@ -12,7 +12,7 @@ sealed class TurnDecision {
 data class BotMemory(
     // Spite: first attacker forever
     var grudgeTargetId: Int? = null,
-    // Kingmaker: chosen king (protected player)
+    // cabal: chosen king (protected player)
     var protectedId: Int? = null,
     // For patterns / alternating
     var lastChosen: DieChoice? = null,
@@ -559,15 +559,15 @@ class Colluder(
 }
 
 /**
- * K: Kingmaker (UPDATED CANON)
+ * K: cabal (UPDATED CANON)
  * - Die: 50% 1, 50% 3.
  * - Round 1: pick a random KING (protectedId) (not self).
  * - Action: usually pass.
  * - Only targets someone who targeted their KING last round (never targets king).
  */
-class Kingmaker : Archetype {
+class Cabal : Archetype {
     override val code = "K"
-    override val displayName = "Kingmaker"
+    override val displayName = "Cabal"
 
     override fun chooseDie(public: PublicRoundInfo, mem: BotMemory): DieChoice {
         rememberLastRoundChoices(public, mem)

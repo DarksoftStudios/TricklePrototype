@@ -227,7 +227,7 @@ private fun botAvatarResourceNameForArchetype(name: String?): String? {
         "glutton" -> "glutton"
         "jester" -> "jester"
         "juliet" -> "juliet"
-        "kingmaker" -> "kingmaker"
+        "cabal" -> "cabal"
         "limper" -> "limper"
         "lurker" -> "lurker"
         "nemesis" -> "nemesis"
@@ -250,7 +250,7 @@ private fun botAvatarStaticDrawableResourceId(resourceName: String?): Int {
         "glutton" -> R.drawable.glutton
         "jester" -> R.drawable.jester
         "juliet" -> R.drawable.juliet
-        "kingmaker" -> R.drawable.kingmaker
+        "cabal" -> R.drawable.cabal
         "limper" -> R.drawable.limper
         "lurker" -> R.drawable.lurker
         "nemesis" -> R.drawable.nemesis
@@ -656,6 +656,7 @@ private fun TrickleApp() {
     var nextIndicatorToken by remember { mutableStateOf(1L) }
     var marbleFlights by remember { mutableStateOf<List<MarbleFlightVisual>>(emptyList()) }
     var activeTargetArrow by remember { mutableStateOf<TargetArrowVisual?>(null) }
+    var fadingTargetArrow by remember { mutableStateOf<TargetArrowVisual?>(null) }
     var nextMarbleFlightId by remember { mutableLongStateOf(1L) }
     var bowlSpawnPoint by remember { mutableStateOf<TablePoint?>(null) }
     val cupCenters = remember { mutableStateMapOf<Int, TablePoint>() }
@@ -851,10 +852,15 @@ private fun TrickleApp() {
     val forcedGuess = lastResult?.forcedGuessForHuman
     val mustTarget = lastResult?.mustTargetForHuman == true
     val needsSecondTarget = lastResult?.requiresSecondTargetForHuman == true
-    val activeTargetArrowFromResult = lastResult?.activeTargetArrowActorId?.let { actorId ->
-        val targetIds = lastResult?.activeTargetArrowTargetIds.orEmpty()
-        if (targetIds.isEmpty()) null else TargetArrowVisual(actorId = actorId, targetIds = targetIds)
-    }
+    val activeTargetArrowFromResult =
+        if (phase == EnginePhase.BOT_TURN || phase == EnginePhase.PLAYER_TURN) {
+            lastResult?.activeTargetArrowActorId?.let { actorId ->
+                val targetIds = lastResult?.activeTargetArrowTargetIds.orEmpty()
+                if (targetIds.isEmpty()) null else TargetArrowVisual(actorId = actorId, targetIds = targetIds)
+            }
+        } else {
+            null
+        }
 
     val scrollState = rememberScrollState()
     LaunchedEffect(logText) { scrollState.scrollTo(0) }
@@ -1106,10 +1112,15 @@ private fun TrickleApp() {
                     revealArchetypes = revealArchetypesPostGame && result.phase == EnginePhase.GAME_OVER,
                     botTags = botTags.toMap()
                 )
-                activeTargetArrow = result.activeTargetArrowActorId?.let { actorId ->
-                    val targetIds = result.activeTargetArrowTargetIds
-                    if (targetIds.isEmpty()) null else TargetArrowVisual(actorId = actorId, targetIds = targetIds)
-                }
+                activeTargetArrow =
+                    if (result.phase == EnginePhase.BOT_TURN || result.phase == EnginePhase.PLAYER_TURN) {
+                        result.activeTargetArrowActorId?.let { actorId ->
+                            val targetIds = result.activeTargetArrowTargetIds
+                            if (targetIds.isEmpty()) null else TargetArrowVisual(actorId = actorId, targetIds = targetIds)
+                        }
+                    } else {
+                        null
+                    }
 
                 if (result.phase == EnginePhase.BOT_TURN) {
                     val base = if (result.lastEventKind == LogEventKind.PASS) 300L else 1000L
@@ -1126,6 +1137,9 @@ private fun TrickleApp() {
             }
         }
 
+        if (phase == EnginePhase.ROUND_END || phase == EnginePhase.GAME_OVER) {
+            activeTargetArrow = null
+        }
         if (phase != EnginePhase.PLAYER_TURN) humanActionLocked = false
         if (phase != EnginePhase.SELECT && phase != EnginePhase.ROUND_END) startLocked = false
     }
@@ -1787,6 +1801,23 @@ private fun TrickleApp() {
                 }
                 else -> activeTargetArrow ?: activeTargetArrowFromResult
             }
+            val targetArrowCanShow = phase == EnginePhase.BOT_TURN || phase == EnginePhase.PLAYER_TURN
+            val targetArrowShouldShow = displayTargetArrow != null && targetArrowCanShow
+            LaunchedEffect(displayTargetArrow, targetArrowShouldShow) {
+                if (targetArrowShouldShow && displayTargetArrow != null) {
+                    fadingTargetArrow = displayTargetArrow
+                }
+            }
+            val targetArrowAlpha by animateFloatAsState(
+                targetValue = if (targetArrowShouldShow) 1f else 0f,
+                animationSpec = tween(durationMillis = 220),
+                finishedListener = { alpha ->
+                    if (alpha == 0f) {
+                        fadingTargetArrow = null
+                    }
+                },
+                label = "targetArrowAlpha"
+            )
 
             val zeroGuessUnlocked = statsStore.load().zeroHeroUnlocked
 
@@ -1843,10 +1874,15 @@ private fun TrickleApp() {
                     revealArchetypes = revealArchetypesPostGame && result.phase == EnginePhase.GAME_OVER,
                     botTags = botTags.toMap()
                 )
-                activeTargetArrow = result.activeTargetArrowActorId?.let { actorId ->
-                    val targetIds = result.activeTargetArrowTargetIds
-                    if (targetIds.isEmpty()) null else TargetArrowVisual(actorId = actorId, targetIds = targetIds)
-                }
+                activeTargetArrow =
+                    if (result.phase == EnginePhase.BOT_TURN || result.phase == EnginePhase.PLAYER_TURN) {
+                        result.activeTargetArrowActorId?.let { actorId ->
+                            val targetIds = result.activeTargetArrowTargetIds
+                            if (targetIds.isEmpty()) null else TargetArrowVisual(actorId = actorId, targetIds = targetIds)
+                        }
+                    } else {
+                        null
+                    }
 
                 if (result.phase == EnginePhase.PLAYER_TURN) {
                     humanActionLocked = false
@@ -2140,10 +2176,15 @@ private fun TrickleApp() {
                                             revealArchetypes = revealArchetypesPostGame && result.phase == EnginePhase.GAME_OVER,
                                             botTags = botTags.toMap()
                                         )
-                                        activeTargetArrow = result.activeTargetArrowActorId?.let { actorId ->
-                                            val targetIds = result.activeTargetArrowTargetIds
-                                            if (targetIds.isEmpty()) null else TargetArrowVisual(actorId = actorId, targetIds = targetIds)
-                                        }
+                                        activeTargetArrow =
+                                            if (result.phase == EnginePhase.BOT_TURN || result.phase == EnginePhase.PLAYER_TURN) {
+                                                result.activeTargetArrowActorId?.let { actorId ->
+                                                    val targetIds = result.activeTargetArrowTargetIds
+                                                    if (targetIds.isEmpty()) null else TargetArrowVisual(actorId = actorId, targetIds = targetIds)
+                                                }
+                                            } else {
+                                                null
+                                            }
                                         targetId = null
                                         secondTargetId = null
                                     }
@@ -2243,12 +2284,13 @@ private fun TrickleApp() {
                         .zIndex(5f)
                 )
 
-                displayTargetArrow?.let { arrow ->
+                fadingTargetArrow?.let { arrow ->
                     TargetArrowOverlay(
                         arrow = arrow,
                         cupCenters = cupCenters,
                         modifier = Modifier
                             .matchParentSize()
+                            .alpha(targetArrowAlpha)
                             .zIndex(5.5f)
                     )
                 }
@@ -4882,8 +4924,8 @@ private fun ArchetypesText() {
         )
 
         ArchetypeRuleEntry(
-            resourceName = "kingmaker",
-            text = "Kingmaker:\n" +
+            resourceName = "cabal",
+            text = "cabal:\n" +
                     "- Picks a 'King' and only attacks people who attack that King\n" +
                     "- Chooses: 1 or 3\n" +
                     "- Targeting Behavior: Usually passes; targets only to avenge their king\n\n"
@@ -5246,7 +5288,7 @@ private fun AchievementsText(stats: PlayerStats) {
         AchievementRow(stats.dumbLuck, "Dumb Luck", "Correctly guess a 3 in round 1")
         AchievementRow(stats.hatFinisher, "Hat Trick", "Win after starting because you had the Hat")
         AchievementRow(stats.caughtTheStrobe, "Caught the Strobe", "Correctly guess Strobe's 3 twice in one game")
-        AchievementRow(stats.dieting, "dieting", "Correctly guess Glutton's 3 four times in one game")
+        AchievementRow(stats.dieting, "Dieting", "Correctly guess Glutton's 3 four times in one game")
 
         Spacer(Modifier.height(14.dp))
         AchievementSectionHeader("Zero")

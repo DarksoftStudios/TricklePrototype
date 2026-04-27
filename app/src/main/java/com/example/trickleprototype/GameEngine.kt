@@ -2066,7 +2066,7 @@ class GameEngine(
 
         val nonColluderPool: MutableList<Archetype> = mutableListOf(
             Strobe(), Chaos(), Glutton(), Lurker(),
-            Avenger(), Nemesis(), Auditor(), Kingmaker(),
+            Avenger(), Nemesis(), Auditor(), Cabal(),
             Limper(), Scout(), Jester(), Pacifist(), Bully(),
             Cynic(), Pitfall()
         )
