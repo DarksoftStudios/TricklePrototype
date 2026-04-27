@@ -28,6 +28,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.DialogProperties
+import androidx.compose.foundation.Image
+import androidx.compose.ui.graphics.TransformOrigin
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
 
 @Composable
 fun MainMenuScreen(
@@ -291,5 +296,43 @@ fun SettingsMenuScreen(
         MenuLinkButton(text = "BACK") { onBack() }
 
         Spacer(Modifier.height(24.dp))
+    }
+}
+
+
+@Composable
+fun DifficultyEntryTransitionOverlay(
+    zoom: Float,
+    nextImageAlpha: Float,
+    currentImageRes: Int,
+    nextImageRes: Int
+) {
+    val doorTransformOrigin = TransformOrigin(pivotFractionX = 0.52f, pivotFractionY = 0.56f)
+
+    Box(modifier = Modifier.fillMaxSize()) {
+        Image(
+            painter = painterResource(id = currentImageRes),
+            contentDescription = null,
+            contentScale = ContentScale.Crop,
+            modifier = Modifier
+                .fillMaxSize()
+                .graphicsLayer {
+                    transformOrigin = doorTransformOrigin
+                    scaleX = zoom
+                    scaleY = zoom
+                    alpha = 1f - nextImageAlpha
+                }
+        )
+
+        Image(
+            painter = painterResource(id = nextImageRes),
+            contentDescription = null,
+            contentScale = ContentScale.Crop,
+            modifier = Modifier
+                .fillMaxSize()
+                .graphicsLayer {
+                    alpha = nextImageAlpha
+                }
+        )
     }
 }
