@@ -54,7 +54,12 @@ data class RoundResult(
     val activeTargetArrowTargetIds: List<Int>,
     val marbleTransfers: List<MarbleTransferEvent>,
     val botArchetypeNamesByPlayerId: Map<Int, String>,
-    val smogRevealedPlayerIds: Set<Int>
+    val smogRevealedPlayerIds: Set<Int>,
+    val humanHeldHatThisGame: Boolean,
+    val humanCorrectGuessesThisGame: Int,
+    val humanSubmittedTargetThisGame: Boolean,
+    val humanStartedAnyRoundThisGame: Boolean,
+    val humanPerfectBonusIntact: Boolean
 )
 
 class GameEngine(
@@ -141,6 +146,11 @@ class GameEngine(
     // NEW per-game trackers for new achievements
     private var gameHumanWasTargeted: Boolean = false
     private var gameHumanEverChose3: Boolean = false
+    private var gameHumanHeldHat: Boolean = false
+    private var gameHumanCorrectGuesses: Int = 0
+    private var gameHumanSubmittedTarget: Boolean = false
+    private var gameHumanStartedAnyRound: Boolean = false
+    private var gameHumanPerfectBonusBroken: Boolean = false
 
     private var humanCorrectGuessStreak: Int = 0
     private var unlockedOnARollThisGame: Boolean = false
@@ -232,7 +242,7 @@ class GameEngine(
         turnOrder = emptyList()
         turnCursor = 0
 
-        hatHolderId = null
+        setHatHolder(null)
         hatStartOfRoundHolderId = null
         tiebreakerParticipantIds = null
         tiebreakerStageIndex = -1
@@ -269,6 +279,11 @@ class GameEngine(
 
         gameHumanWasTargeted = false
         gameHumanEverChose3 = false
+        gameHumanHeldHat = false
+        gameHumanCorrectGuesses = 0
+        gameHumanSubmittedTarget = false
+        gameHumanStartedAnyRound = false
+        gameHumanPerfectBonusBroken = false
         humanCorrectGuessStreak = 0
         unlockedOnARollThisGame = false
         unlockedDumbLuckThisGame = false
@@ -305,6 +320,13 @@ class GameEngine(
 
     private fun unlockWeatherAchievement(id: String) {
         gameUnlockedWeatherAchievementIds += id
+    }
+
+    private fun setHatHolder(id: Int?) {
+        hatHolderId = id
+        if (id == HUMAN_ID) {
+            gameHumanHeldHat = true
+        }
     }
 
     private fun unlockCurrentWeatherIf(id: String) {
@@ -795,6 +817,10 @@ class GameEngine(
         roundStartMarbles.clear()
         players.forEach { it.revealedChoice = null }
 
+        if (players.getOrNull(starterIndex)?.id == HUMAN_ID) {
+            gameHumanStartedAnyRound = true
+        }
+
         drawWeatherForRound()
         currentWeatherId()?.let {
             gameSeenWeatherIds += it
@@ -897,6 +923,9 @@ class GameEngine(
                 bannerText = "Tornado is active. You must target if any legal target exists."
                 return snapshot()
             }
+            if (validTargets.isNotEmpty()) {
+                gameHumanPerfectBonusBroken = true
+            }
             gameHumanPassedAtLeastOnce = true
             queuePass(actorId = HUMAN_ID)
         } else {
@@ -924,6 +953,7 @@ class GameEngine(
             }
 
             gameHumanMadeGuess = true
+            gameHumanSubmittedTarget = true
             gameHumanGuessesUsed += g
 
             queueGuessAction(actorId = HUMAN_ID, targetIds = selectedTargets, guess = g)
@@ -1266,7 +1296,7 @@ class GameEngine(
         if (guess == actual) {
             currentRoundCorrectlyGuessedTargetIds += targetId
             if (guess == 0) {
-                hatHolderId = actorId
+                setHatHolder(actorId)
                 if (actorId == HUMAN_ID && currentWeatherId() == "drought") {
                     unlockWeatherAchievement("drought_dry_spell")
                 }
@@ -1306,6 +1336,7 @@ class GameEngine(
             }
 
             if (actorId == HUMAN_ID) {
+                gameHumanCorrectGuesses += 1
                 humanCorrectGuessStreak += 1
 
                 if (!unlockedDumbLuckThisGame && roundNumber == 1 && guess == 3) {
@@ -1336,6 +1367,7 @@ class GameEngine(
 
         if (actorId == HUMAN_ID) {
             humanCorrectGuessStreak = 0
+            gameHumanPerfectBonusBroken = true
         }
 
         if (actual == 0) {
@@ -1344,7 +1376,7 @@ class GameEngine(
                 penalty < 0 -> {
                     if (weatherHas(WeatherEffectTag.USE_CUP_TO_CUP_TRANSFERS)) {
                         val moved = transferMarbles(from = actor, to = target, amount = -penalty)
-                        hatHolderId = actorId
+                        setHatHolder(actorId)
                         if (actorId == HUMAN_ID && currentWeatherId() == "drought") {
                             unlockWeatherAchievement("drought_dry_spell")
                         }
@@ -1357,7 +1389,7 @@ class GameEngine(
                         )
                     } else {
                         val lost = removeMarblesToBowl(actor, -penalty)
-                        hatHolderId = actorId
+                        setHatHolder(actorId)
                         if (actorId == HUMAN_ID && currentWeatherId() == "drought") {
                             unlockWeatherAchievement("drought_dry_spell")
                         }
@@ -1373,7 +1405,7 @@ class GameEngine(
 
                 penalty > 0 -> {
                     val awarded = applyPositiveGain(actor, reduceTargetedGain(penalty))
-                    hatHolderId = actorId
+                    setHatHolder(actorId)
                     if (actorId == HUMAN_ID) {
                         when (currentWeatherId()) {
                             "rainbow" -> if (awarded > 0) unlockWeatherAchievement("rainbow_silver_lining")
@@ -1394,7 +1426,7 @@ class GameEngine(
                 }
 
                 else -> {
-                    hatHolderId = actorId
+                    setHatHolder(actorId)
                     if (actorId == HUMAN_ID && currentWeatherId() == "drought") {
                         unlockWeatherAchievement("drought_dry_spell")
                     }
@@ -2190,7 +2222,12 @@ class GameEngine(
                     }
                 }
                 .toMap(),
-            smogRevealedPlayerIds = smogRevealedPlayerIds
+            smogRevealedPlayerIds = smogRevealedPlayerIds,
+            humanHeldHatThisGame = gameHumanHeldHat,
+            humanCorrectGuessesThisGame = gameHumanCorrectGuesses,
+            humanSubmittedTargetThisGame = gameHumanSubmittedTarget,
+            humanStartedAnyRoundThisGame = gameHumanStartedAnyRound,
+            humanPerfectBonusIntact = !gameHumanPerfectBonusBroken
         )
     }
 }

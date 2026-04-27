@@ -7,6 +7,8 @@ data class PlayerStats(
     var totalWins: Int = 0,
     // Can grow large over time -> keep Long to be safe
     var totalMarblesAcrossGames: Long = 0L,
+    var lifetimeMarblesEarned: Long = 0L,
+    var vaultMarbles: Long = 0L,
 
     var totalGuesses: Int = 0,
     var correctGuesses: Int = 0,
@@ -153,6 +155,8 @@ class StatsStore(context: Context) {
             totalGames = prefs.getInt("totalGames", 0),
             totalWins = prefs.getInt("totalWins", 0),
             totalMarblesAcrossGames = prefs.getLong("totalMarblesAcrossGames", 0L),
+            lifetimeMarblesEarned = prefs.getLong("lifetimeMarblesEarned", prefs.getLong("totalMarblesAcrossGames", 0L)),
+            vaultMarbles = prefs.getLong("vaultMarbles", 0L),
 
             totalGuesses = prefs.getInt("totalGuesses", 0),
             correctGuesses = prefs.getInt("correctGuesses", 0),
@@ -215,11 +219,21 @@ class StatsStore(context: Context) {
         )
     }
 
+    fun addEarnedMarbles(amount: Long) {
+        if (amount <= 0L) return
+        val s = load()
+        s.lifetimeMarblesEarned += amount
+        s.vaultMarbles += amount
+        save(s)
+    }
+
     fun save(stats: PlayerStats) {
         prefs.edit()
             .putInt("totalGames", stats.totalGames)
             .putInt("totalWins", stats.totalWins)
             .putLong("totalMarblesAcrossGames", stats.totalMarblesAcrossGames)
+            .putLong("lifetimeMarblesEarned", stats.lifetimeMarblesEarned)
+            .putLong("vaultMarbles", stats.vaultMarbles)
 
             .putInt("totalGuesses", stats.totalGuesses)
             .putInt("correctGuesses", stats.correctGuesses)

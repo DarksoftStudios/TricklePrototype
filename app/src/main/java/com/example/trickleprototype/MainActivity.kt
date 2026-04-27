@@ -282,6 +282,17 @@ private data class FloatingIndicator(
     val tone: IndicatorTone
 )
 
+private data class BonusMarbleRow(
+    val label: String,
+    val amount: Int
+)
+
+private data class BonusMarblePayout(
+    val rows: List<BonusMarbleRow>
+) {
+    val total: Int = rows.sumOf { it.amount }
+}
+
 private enum class TableSeatSlot {
     PLAYER_HEAD,
     LEFT_TOP,
@@ -577,6 +588,53 @@ private fun extractVisualIndicators(
     return emptyList()
 }
 
+
+private fun newlyUnlockedAchievementCount(result: RoundResult): Int {
+    return result.log.mapNotNull { parseAchievementPopup(it.text)?.title }.distinct().size
+}
+
+private fun uniqueCorrectArchetypeTagCount(
+    botTags: Map<Int, String>,
+    actualArchetypes: Map<Int, String>
+): Int {
+    val tagCounts = botTags.values.groupingBy { it }.eachCount()
+    return botTags.count { (botId, tag) ->
+        tagCounts[tag] == 1 && actualArchetypes[botId] == tag
+    }
+}
+
+private fun buildBonusMarblePayout(
+    result: RoundResult,
+    botTags: Map<Int, String>,
+    difficulty: Difficulty?
+): BonusMarblePayout {
+    val humanScore = result.players.firstOrNull { it.id == GameEngine.HUMAN_ID }?.marbles ?: 0
+    val rows = mutableListOf(BonusMarbleRow("Game Score", humanScore))
+
+    if (result.humanHeldHatThisGame) rows += BonusMarbleRow("Hat Holder", 1)
+    if (result.humanCorrectGuessesThisGame > 0) {
+        rows += BonusMarbleRow("Accuracy", result.humanCorrectGuessesThisGame)
+    }
+
+    val detectiveCount = uniqueCorrectArchetypeTagCount(botTags, result.botArchetypeNamesByPlayerId)
+    if (detectiveCount > 0) rows += BonusMarbleRow("Detective", detectiveCount)
+
+    if (!result.humanStartedAnyRoundThisGame) rows += BonusMarbleRow("Drafting", 2)
+    if (!result.humanSubmittedTargetThisGame) rows += BonusMarbleRow("Peacekeeper", 3)
+
+    val patienceAmount = maxOf(0, result.roundNumber - 5) * 4
+    if (patienceAmount > 0) rows += BonusMarbleRow("Patience", patienceAmount)
+
+    if (result.humanPerfectBonusIntact) rows += BonusMarbleRow("Perfection", 5)
+    if (difficulty == Difficulty.HARD) rows += BonusMarbleRow("Endeavor", 6)
+    if (result.winnerIds.contains(GameEngine.HUMAN_ID)) rows += BonusMarbleRow("Victory", 7)
+
+    val achievementAmount = newlyUnlockedAchievementCount(result) * 10
+    if (achievementAmount > 0) rows += BonusMarbleRow("Achievement", achievementAmount)
+
+    return BonusMarblePayout(rows)
+}
+
 private fun parseAchievementPopup(line: String): AchievementPopup? {
     val marker = "Achievement Unlocked:"
     val idx = line.indexOf(marker)
@@ -664,6 +722,8 @@ private fun TrickleApp() {
 
     var achievementQueue by remember { mutableStateOf<List<AchievementPopup>>(emptyList()) }
     var activeAchievement by remember { mutableStateOf<AchievementPopup?>(null) }
+    var bonusPayout by remember { mutableStateOf<BonusMarblePayout?>(null) }
+    var bonusPayoutAppliedKey by remember { mutableStateOf<String?>(null) }
     var splashSoundPlayer by remember { mutableStateOf<MediaPlayer?>(null) }
     var introVideoPlayer by remember { mutableStateOf<MediaPlayer?>(null) }
     var introVideoView by remember { mutableStateOf<VideoView?>(null) }
@@ -822,6 +882,26 @@ private fun TrickleApp() {
     val gameOver = (phase == EnginePhase.GAME_OVER)
     val revealArchetypesActive = revealArchetypesPostGame && gameOver
     val botTagSnapshot = botTags.toMap()
+
+    LaunchedEffect(lastResult, activeAchievement, achievementQueue, difficulty, botTagSnapshot) {
+        val result = lastResult ?: return@LaunchedEffect
+        if (result.phase != EnginePhase.GAME_OVER) return@LaunchedEffect
+        if (activeAchievement != null || achievementQueue.isNotEmpty()) return@LaunchedEffect
+
+        val gameKey = "${result.roundNumber}|${result.log.size}|${result.players.firstOrNull { it.id == GameEngine.HUMAN_ID }?.marbles ?: 0}"
+        if (bonusPayoutAppliedKey == gameKey) return@LaunchedEffect
+
+        delay(400)
+        val payout = buildBonusMarblePayout(
+            result = result,
+            botTags = botTagSnapshot,
+            difficulty = difficulty
+        )
+        statsStore.addEarnedMarbles(payout.total.toLong())
+        bonusPayout = payout
+        bonusPayoutAppliedKey = gameKey
+    }
+
     val revealedPlayers = applyArchetypeRevealToPlayers(
         players = basePlayers,
         result = lastResult,
@@ -913,6 +993,8 @@ private fun TrickleApp() {
         lastQueuedMarbleTransferSignature = ""
         achievementQueue = emptyList()
         activeAchievement = null
+        bonusPayout = null
+        bonusPayoutAppliedKey = null
         weatherBadgeCenter = null
         gameAreaCenter = null
         activeWeatherOverlayId = null
@@ -1182,6 +1264,14 @@ private fun TrickleApp() {
             onClose = { showAchievements = false },
             accentColor = Color(0xFF0ADAFF)
         ) { AchievementsText(statsStore.load()) }
+    }
+
+    bonusPayout?.let { payout ->
+        SimpleDialog(
+            title = "MARBLES GAINED",
+            onClose = { bonusPayout = null },
+            accentColor = Color(0xFF007AFF)
+        ) { BonusMarblesText(payout) }
     }
 
     fun finishSplashIntro() {
@@ -4591,7 +4681,12 @@ private fun engineSnapshot(engine: GameEngine): RoundResult {
         activeTargetArrowTargetIds = emptyList(),
         marbleTransfers = emptyList(),
         botArchetypeNamesByPlayerId = emptyMap(),
-        smogRevealedPlayerIds = emptySet()
+        smogRevealedPlayerIds = emptySet(),
+        humanHeldHatThisGame = false,
+        humanCorrectGuessesThisGame = 0,
+        humanSubmittedTargetThisGame = false,
+        humanStartedAnyRoundThisGame = false,
+        humanPerfectBonusIntact = true
     )
 }
 
@@ -5034,6 +5129,8 @@ private fun StatsText(stats: PlayerStats) {
         Text(
             "Total games: ${stats.totalGames}\n" +
                     "Wins: ${stats.totalWins}\n\n" +
+                    "Lifetime earned: ${stats.lifetimeMarblesEarned}\n" +
+                    "Vault: ${stats.vaultMarbles}\n\n" +
                     "Total marbles gained: ${stats.totalMarblesAcrossGames}\n\n" +
                     "Accuracy: $acc (${stats.correctGuesses}/${stats.totalGuesses})\n" +
                     "Tricked by 0: ${stats.timesTrickedByZero}\n" +
@@ -5043,6 +5140,29 @@ private fun StatsText(stats: PlayerStats) {
                     "Hard games: ${stats.hardGames} (wins ${stats.hardWins})\n\n" +
                     "(Stats do not track on Easy mode)",
             style = MaterialTheme.typography.bodyMedium
+        )
+    }
+}
+
+@Composable
+private fun BonusMarblesText(payout: BonusMarblePayout) {
+    Column {
+        payout.rows.forEach { row ->
+            Text(
+                text = "${row.label}: +${row.amount}",
+                style = MaterialTheme.typography.bodyMedium,
+                modifier = Modifier.fillMaxWidth()
+            )
+            Spacer(Modifier.height(4.dp))
+        }
+
+        Spacer(Modifier.height(8.dp))
+
+        Text(
+            text = "Total: +${payout.total}",
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Black,
+            modifier = Modifier.fillMaxWidth()
         )
     }
 }
