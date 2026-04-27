@@ -4811,7 +4811,8 @@ private fun AdvancedTipsText() {
                 "- Each game, bots are randomly assigned an Archetype.\n" +
                 "- On Easy mode, bots have their names replaced with their Archetype (and you can see their score totals).\n" +
                 "- On Normal mode, bots have their names and scores hidden.\n" +
-                "- On Hard mode, there is no Log to review, you must rely on your memory.\n\n" +
+                "- On Hard mode, there is no Log to review, you must rely on your memory.\n" +
+                "- Click on a bot's name to 'tag' them as the archetype you think they are.\n\n" +
                 "JESTER'S HAT RULE:\n" +
                 "- If you guess 1 or 3 on someone who actually chose 0, you lose 1 marble and take the Jester's Hat.\n" +
                 "- If you guess 0 on someone who chose 0, you lose 0 marbles and take the Jester's Hat.\n" +
@@ -4821,89 +4822,165 @@ private fun AdvancedTipsText() {
 
 @Composable
 private fun ArchetypesText() {
-    Text(
-        "Auditor:\n" +
-                "- Hates wallflowers. Targets anyone who passes too much\n" +
-                "- Chooses: 1 or 3\n" +
-                "- Targeting Behavior: Passes rounds 1 and 2, targets pass-streak players after\n\n" +
+    Column(
+        verticalArrangement = Arrangement.spacedBy(14.dp)
+    ) {
+        ArchetypeRuleEntry(
+            resourceName = "auditor",
+            text = "Auditor:\n" +
+                    "- Hates wallflowers. Targets anyone who passes too much\n" +
+                    "- Chooses: 1 or 3\n" +
+                    "- Targeting Behavior: Passes rounds 1 and 2, targets pass-streak players after\n\n"
+        )
 
-                "Avenger:\n" +
-                "- Retaliates against attackers, even if they didn't attack him\n" +
-                "- Chooses: 1 or 3\n" +
-                "- Targeting Behavior: Passes round 1; targets attackers from round 2 on\n\n" +
+        ArchetypeRuleEntry(
+            resourceName = "avenger",
+            text = "Avenger:\n" +
+                    "- Retaliates against attackers, even if they didn't attack him\n" +
+                    "- Chooses: 1 or 3\n" +
+                    "- Targeting Behavior: Passes round 1; targets attackers from round 2 on\n\n"
+        )
 
-                "Bully:\n" +
-                "- Pressures the table by always playing high and hunting the cautious\n" +
-                "- Chooses: 3\n" +
-                "- Targeting Behavior: 50% chance to target on round 1 (guessing 1); from round 2 on, targets players who chose 1 last round (guessing 1)\n\n" +
+        ArchetypeRuleEntry(
+            resourceName = "bully",
+            text = "Bully:\n" +
+                    "- Pressures the table by always playing high and hunting the cautious\n" +
+                    "- Chooses: 3\n" +
+                    "- Targeting Behavior: 50% chance to target on round 1 (guessing 1); from round 2 on, targets players who chose 1 last round (guessing 1)\n\n"
+        )
 
-                "Chaos:\n" +
-                "- The Matriarch of RNG. All random everything\n" +
-                "- Chooses: Random (0/1/3 evenly)\n" +
-                "- Targeting Behavior: 50/50 pass vs target\n\n" +
+        ArchetypeRuleEntry(
+            resourceName = "chaos",
+            text = "Chaos:\n" +
+                    "- The Matriarch of RNG. All random everything\n" +
+                    "- Chooses: Random (0/1/3 evenly)\n" +
+                    "- Targeting Behavior: 50/50 pass vs target\n\n"
+        )
 
-                "Cynic:\n" +
-                "- Assumes everyone is greedy and punishes it\n" +
-                "- Chooses: 1\n" +
-                "- Targeting Behavior: 50% chance to target on round 1 (guessing 3); from round 2 on, targets players who chose 3 last round (guessing 3)\n\n" +
+        ArchetypeRuleEntry(
+            resourceName = "cynic",
+            text = "Cynic:\n" +
+                    "- Assumes everyone is greedy and punishes it\n" +
+                    "- Chooses: 1\n" +
+                    "- Targeting Behavior: 50% chance to target on round 1 (guessing 3); from round 2 on, targets players who chose 3 last round (guessing 3)\n\n"
+        )
 
-                "Jester:\n" +
-                "- Will gladly pay a marble to snag the Jester's Hat\n" +
-                "- Chooses: 1 or 3\n" +
-                "- Targeting Behavior: Passes first; then targets recently guessed players\n\n" +
+        ArchetypeRuleEntry(
+            resourceName = "jester",
+            text = "Jester:\n" +
+                    "- Will gladly pay a marble to snag the Jester's Hat\n" +
+                    "- Chooses: 1 or 3\n" +
+                    "- Targeting Behavior: Passes first; then targets recently guessed players\n\n"
+        )
 
-                "Juliet:\n" +
-                "- She's in it to win it, or at least watch Romeo win\n" +
-                "- Chooses: 1 or 3\n" +
-                "- Targeting Behavior: Anyone but Romeo\n\n" +
+        ArchetypeRuleEntry(
+            resourceName = "juliet",
+            text = "Juliet:\n" +
+                    "- She's in it to win it, or at least watch Romeo win\n" +
+                    "- Chooses: 1 or 3\n" +
+                    "- Targeting Behavior: Anyone but Romeo\n\n"
+        )
 
-                "Kingmaker:\n" +
-                "- Picks a 'King' and only attacks people who attack that King\n" +
-                "- Chooses: 1 or 3\n" +
-                "- Targeting Behavior: Usually passes; targets only to avenge their king\n\n" +
+        ArchetypeRuleEntry(
+            resourceName = "kingmaker",
+            text = "Kingmaker:\n" +
+                    "- Picks a 'King' and only attacks people who attack that King\n" +
+                    "- Chooses: 1 or 3\n" +
+                    "- Targeting Behavior: Usually passes; targets only to avenge their king\n\n"
+        )
 
-                "Limper:\n" +
-                "- Seems like maybe they don't want to play\n" +
-                "- Chooses: 1 (0 if attacked and defending)\n" +
-                "- Targeting Behavior: Always passes\n\n" +
+        ArchetypeRuleEntry(
+            resourceName = "limper",
+            text = "Limper:\n" +
+                    "- Seems like maybe they don't want to play\n" +
+                    "- Chooses: 1 (0 if attacked and defending)\n" +
+                    "- Targeting Behavior: Always passes\n\n"
+        )
 
-                "Lurker:\n" +
-                "- Waits, watches, then punishes repeated 3 behavior\n" +
-                "- Chooses: 1 (unless close to winning)\n" +
-                "- Targeting Behavior: Passes for 3 rounds, then targets repeat-3 players\n\n" +
+        ArchetypeRuleEntry(
+            resourceName = "lurker",
+            text = "Lurker:\n" +
+                    "- Waits, watches, then punishes repeated 3 behavior\n" +
+                    "- Chooses: 1 (unless close to winning)\n" +
+                    "- Targeting Behavior: Passes for 3 rounds, then targets repeat-3 players\n\n"
+        )
 
-                "Nemesis:\n" +
-                "- Cut this guy off and he is tailgating you to your house\n" +
-                "- Chooses: 1 or 3\n" +
-                "- Targeting Behavior: Passes until attacked; then relentlessly seeks revenge\n\n" +
+        ArchetypeRuleEntry(
+            resourceName = "nemesis",
+            text = "Nemesis:\n" +
+                    "- Cut this guy off and he is tailgating you to your house\n" +
+                    "- Chooses: 1 or 3\n" +
+                    "- Targeting Behavior: Passes until attacked; then relentlessly seeks revenge\n\n"
+        )
 
-                "Pacifist:\n" +
-                "- Greedy but peaceful. Tries to win by Trickle alone\n" +
-                "- Chooses: 3\n" +
-                "- Targeting Behavior: Always passes\n\n" +
+        ArchetypeRuleEntry(
+            resourceName = "pacifist",
+            text = "Pacifist:\n" +
+                    "- Greedy but peaceful. Tries to win by Trickle alone\n" +
+                    "- Chooses: 3\n" +
+                    "- Targeting Behavior: Always passes\n\n"
+        )
 
-                "Pitfall:\n" +
-                "- Starts strong, stumbles, then becomes unpredictable\n" +
-                "- Chooses: 3 on round 1, 0 on round 2, then random between 0 and 3\n" +
-                "- Targeting Behavior: Always passes\n\n" +
+        ArchetypeRuleEntry(
+            resourceName = "pitfall",
+            text = "Pitfall:\n" +
+                    "- Starts strong, stumbles, then becomes unpredictable\n" +
+                    "- Chooses: 3 on round 1, 0 on round 2, then random between 0 and 3\n" +
+                    "- Targeting Behavior: Always passes\n\n"
+        )
 
-                "Romeo:\n" +
-                "- His eyes are on the prize(and on Juliet, of course)\n" +
-                "- Chooses: 1 or 3\n" +
-                "- Targeting Behavior: Juliet is safe, everyone else is a target\n\n" +
+        ArchetypeRuleEntry(
+            resourceName = "romeo",
+            text = "Romeo:\n" +
+                    "- His eyes are on the prize(and on Juliet, of course)\n" +
+                    "- Chooses: 1 or 3\n" +
+                    "- Targeting Behavior: Juliet is safe, everyone else is a target\n\n"
+        )
 
-                "Scout:\n" +
-                "- Will gladly be the first to act\n" +
-                "- Chooses: 1 or 3\n" +
-                "- Targeting Behavior: Always targets, even on round 1\n\n" +
+        ArchetypeRuleEntry(
+            resourceName = "scout",
+            text = "Scout:\n" +
+                    "- Will gladly be the first to act\n" +
+                    "- Chooses: 1 or 3\n" +
+                    "- Targeting Behavior: Always targets, even on round 1\n\n"
+        )
 
-                "Strobe:\n" +
-                "- Alternates like a metronome and attacks in a repeating rhythm.\n" +
-                "- Chooses: Alternates 1,3,1,3...\n" +
-                "- Targeting Behavior: Alternates pass/target with pattern-based guesses.\n\n"
+        ArchetypeRuleEntry(
+            resourceName = "strobe",
+            text = "Strobe:\n" +
+                    "- Alternates like a metronome and attacks in a repeating rhythm.\n" +
+                    "- Chooses: Alternates 1,3,1,3...\n" +
+                    "- Targeting Behavior: Alternates pass/target with pattern-based guesses.\n\n"
+        )
+    }
+}
 
+@Composable
+private fun ArchetypeRuleEntry(
+    resourceName: String,
+    text: String
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(bottom = 12.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        BotAvatarIcon(
+            resourceName = resourceName,
+            greyedOut = false,
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(120.dp)
+                .padding(bottom = 6.dp)
+        )
 
-    )
+        Text(
+            text = text,
+            style = MaterialTheme.typography.bodyMedium,
+            modifier = Modifier.fillMaxWidth()
+        )
+    }
 }
 
 @Composable
