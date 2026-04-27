@@ -158,7 +158,7 @@ private data class AchievementPopup(
     val desc: String
 )
 
-private enum class AppScreen {
+enum class AppScreen {
     SPLASH,
     MAIN_MENU,
     PLAY,
@@ -1538,220 +1538,72 @@ private fun TrickleApp() {
                 }
 
                 AppScreen.MAIN_MENU -> {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(top = 72.dp),
-                        verticalArrangement = Arrangement.spacedBy(35.dp, Alignment.CenterVertically),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        MenuLinkButton(text = "PLAY") { screen = AppScreen.PLAY }
-                        Spacer(Modifier.height(2.dp))
-                        MenuLinkButton(text = "RULES") { screen = AppScreen.RULES }
-                        Spacer(Modifier.height(2.dp))
-                        MenuLinkButton(text = "PROFILE") { screen = AppScreen.PROFILE }
-                        Spacer(Modifier.height(2.dp))
-                        MenuLinkButton(text = "SETTINGS") { screen = AppScreen.SETTINGS }
-                        Spacer(Modifier.height(2.dp))
-                        MenuLinkButton(text = "QUIT") { activity?.finish() }
-
-                        Spacer(Modifier.height(28.dp))
-                    }
+                    MainMenuScreen(
+                        activity = activity,
+                        onNavigate = { screen = it }
+                    )
                     return@Column
                 }
 
                 AppScreen.PLAY -> {
-                    val stats = statsStore.load()
-                    val normalUnlocked = stats.easyGames > 0
-                    val hardUnlocked = stats.normalWins > 0
-                    val weatherUnlocked = stats.wonHard
-
-                    fun startGame(picked: Difficulty) {
-                        startGameSession(picked = picked, animateEntry = true)
-                    }
-
-                    Box(
-                        modifier = Modifier.fillMaxSize()
-                    ) {
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .verticalScroll(rememberScrollState())
-                                .padding(top = 72.dp, bottom = 24.dp),
-                            verticalArrangement = Arrangement.spacedBy(35.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally
-                        ) {
-                            MenuLinkButton(
-                                text = when {
-                                    !weatherUnlocked -> "WEATHER:(LOCKED)"
-                                    weatherEnabled -> "WEATHER: ON"
-                                    else -> "WEATHER: OFF"
-                                }
-                            ) {
-                                if (weatherUnlocked) {
-                                    weatherEnabled = !weatherEnabled
-                                } else {
-                                    weatherEnabled = true
-                                    Toast.makeText(context, "Win on HARD to unlock WEATHER", Toast.LENGTH_SHORT).show()
-                                }
-                            }
-
-                            Spacer(Modifier.height(2.dp))
-                            MenuLinkButton(text = "EASY") { startGame(Difficulty.EASY) }
-
-                            Spacer(Modifier.height(2.dp))
-                            MenuLinkButton(
-                                text = if (normalUnlocked) "NORMAL" else "NORMAL (LOCKED)"
-                            ) {
-                                if (normalUnlocked) {
-                                    startGame(Difficulty.NORMAL)
-                                } else {
-                                    Toast.makeText(context, "Finish a game to unlock NORMAL", Toast.LENGTH_SHORT).show()
-                                }
-                            }
-
-                            Spacer(Modifier.height(2.dp))
-                            MenuLinkButton(
-                                text = if (hardUnlocked) "HARD" else "HARD (LOCKED)"
-                            ) {
-                                if (hardUnlocked) {
-                                    startGame(Difficulty.HARD)
-                                } else {
-                                    Toast.makeText(context, "Win a game on NORMAL to unlock HARD", Toast.LENGTH_SHORT).show()
-                                }
-                            }
-
-                            Spacer(Modifier.height(2.dp))
-                            MenuLinkButton(text = "BACK") { screen = AppScreen.MAIN_MENU }
-
-                            Spacer(Modifier.height(16.dp))
-                        }
-                    }
+                    PlayMenuScreen(
+                        stats = statsStore.load(),
+                        weatherEnabled = weatherEnabled,
+                        onWeatherEnabledChange = { weatherEnabled = it },
+                        onStartGame = { picked -> startGameSession(picked = picked, animateEntry = true) },
+                        onBack = { screen = AppScreen.MAIN_MENU }
+                    )
                     return@Column
                 }
 
                 AppScreen.RULES -> {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(top = 72.dp),
-                        verticalArrangement = Arrangement.spacedBy(35.dp, Alignment.CenterVertically),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        MenuLinkButton(text = "HOW TO PLAY") { showHowToPlay = true }
-                        Spacer(Modifier.height(2.dp))
-                        MenuLinkButton(text = "ADVANCED TIPS") { showTips = true }
-                        Spacer(Modifier.height(2.dp))
-                        MenuLinkButton(text = "ARCHETYPES") { showArchetypes = true }
-
-                        Spacer(Modifier.height(16.dp))
-                        MenuLinkButton(text = "BACK") { screen = AppScreen.MAIN_MENU }
-
-                        Spacer(Modifier.height(14.dp))
-                    }
+                    RulesMenuScreen(
+                        onHowToPlay = { showHowToPlay = true },
+                        onAdvancedTips = { showTips = true },
+                        onArchetypes = { showArchetypes = true },
+                        onBack = { screen = AppScreen.MAIN_MENU }
+                    )
                     return@Column
                 }
 
                 AppScreen.PROFILE -> {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(top = 72.dp),
-                        verticalArrangement = Arrangement.spacedBy(35.dp, Alignment.CenterVertically),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        MenuLinkButton(text = "STATS") { showStats = true }
-                        Spacer(Modifier.height(2.dp))
-                        MenuLinkButton(text = "ACHIEVEMENTS") { showAchievements = true }
-                        Spacer(Modifier.height(2.dp))
-                        MenuLinkButton(text = "CUSTOMIZE") { screen = AppScreen.CUSTOMIZE }
-
-                        Spacer(Modifier.height(16.dp))
-                        MenuLinkButton(text = "BACK") { screen = AppScreen.MAIN_MENU }
-
-                        Spacer(Modifier.height(24.dp))
-                    }
+                    ProfileMenuScreen(
+                        onStats = { showStats = true },
+                        onAchievements = { showAchievements = true },
+                        onCustomize = { screen = AppScreen.CUSTOMIZE },
+                        onBack = { screen = AppScreen.MAIN_MENU }
+                    )
                     return@Column
                 }
 
                 AppScreen.CUSTOMIZE -> {
-                    var draftName by remember(playerName) { mutableStateOf(playerName) }
-
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 18.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        Text("Change Name", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                        Spacer(Modifier.height(12.dp))
-
-                        OutlinedTextField(
-                            value = draftName,
-                            onValueChange = { draftName = it },
-                            singleLine = true,
-                            label = { Text("Name") },
-                            modifier = Modifier.fillMaxWidth()
-                        )
-
-                        Spacer(Modifier.height(12.dp))
-
-                        Button(
-                            onClick = {
-                                val cleaned = draftName.trim().take(18)
-                                statsStore.setPlayerName(cleaned)
-                                playerName = statsStore.getPlayerName()
-                                engine.setHumanName(playerName)
-                                screen = AppScreen.PROFILE
-                            },
-                            shape = RoundedCornerShape(16.dp)
-                        ) {
-                            Text("Save")
-                        }
-
-                        Spacer(Modifier.height(16.dp))
-                        MenuLinkButton(text = "BACK") { screen = AppScreen.PROFILE }
-
-                        Spacer(Modifier.height(24.dp))
-                    }
+                    CustomizeMenuScreen(
+                        playerName = playerName,
+                        onSaveName = { cleaned ->
+                            statsStore.setPlayerName(cleaned)
+                            playerName = statsStore.getPlayerName()
+                            engine.setHumanName(playerName)
+                            screen = AppScreen.PROFILE
+                        },
+                        onBack = { screen = AppScreen.PROFILE }
+                    )
                     return@Column
                 }
 
                 AppScreen.SETTINGS -> {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(top = 72.dp),
-                        verticalArrangement = Arrangement.spacedBy(35.dp, Alignment.CenterVertically),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        if (showResetStatsConfirm) {
-                            AlertDialog(
-                                onDismissRequest = { showResetStatsConfirm = false },
-                                title = { Text("ARE YOU SURE?") },
-                                text = { Text("This will reset all stats and unlocks.") },
-                                confirmButton = {
-                                    TextButton(
-                                        onClick = {
-                                            statsStore.resetAll()
-                                            playerName = statsStore.getPlayerName()
-                                            engine.setHumanName(playerName)
-                                            showResetStatsConfirm = false
-                                        }
-                                    ) { Text("RESET") }
-                                },
-                                dismissButton = {
-                                    TextButton(onClick = { showResetStatsConfirm = false }) {
-                                        Text("CANCEL")
-                                    }
-                                },
-                                properties = DialogProperties(dismissOnClickOutside = true)
-                            )
-                        }
-
-                        MenuLinkButton(
-                            text = if (soundEnabled) "SOUND: ON" else "SOUND: OFF"
-                        ) {
+                    SettingsMenuScreen(
+                        showResetStatsConfirm = showResetStatsConfirm,
+                        soundEnabled = soundEnabled,
+                        musicEnabled = musicEnabled,
+                        passTargetConfirmEnabled = passTargetConfirmEnabled,
+                        onDismissResetStatsConfirm = { showResetStatsConfirm = false },
+                        onConfirmResetStats = {
+                            statsStore.resetAll()
+                            playerName = statsStore.getPlayerName()
+                            engine.setHumanName(playerName)
+                            showResetStatsConfirm = false
+                        },
+                        onToggleSound = {
                             soundEnabled = !soundEnabled
 
                             if (!soundEnabled) {
@@ -1759,11 +1611,8 @@ private fun TrickleApp() {
                                 splashSoundPlayer?.release()
                                 splashSoundPlayer = null
                             }
-                        }
-                        Spacer(Modifier.height(2.dp))
-                        MenuLinkButton(
-                            text = if (musicEnabled) "MUSIC: ON" else "MUSIC: OFF"
-                        ) {
+                        },
+                        onToggleMusic = {
                             musicEnabled = !musicEnabled
 
                             if (!musicEnabled) {
@@ -1773,23 +1622,13 @@ private fun TrickleApp() {
                                     bgmPlayer?.start()
                                 }
                             }
-                        }
-                        Spacer(Modifier.height(2.dp))
-                        MenuLinkButton(
-                            text = if (passTargetConfirmEnabled) "PASS CONFIRM: ON" else "PASS CONFIRM: OFF"
-                        ) {
+                        },
+                        onTogglePassConfirm = {
                             passTargetConfirmEnabled = !passTargetConfirmEnabled
-                        }
-                        Spacer(Modifier.height(2.dp))
-                        MenuLinkButton(text = "RESET STATS") {
-                            showResetStatsConfirm = true
-                        }
-
-                        Spacer(Modifier.height(16.dp))
-                        MenuLinkButton(text = "BACK") { screen = AppScreen.MAIN_MENU }
-
-                        Spacer(Modifier.height(24.dp))
-                    }
+                        },
+                        onResetStats = { showResetStatsConfirm = true },
+                        onBack = { screen = AppScreen.MAIN_MENU }
+                    )
                     return@Column
                 }
 
