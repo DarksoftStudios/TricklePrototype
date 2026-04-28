@@ -255,6 +255,30 @@ fun ArchetypesText() {
                     "- Chooses: Alternates 1,3,1,3...\n" +
                     "- Targeting Behavior: Alternates pass/target with pattern-based guesses.\n\n"
         )
+
+        ArchetypeRuleEntry(
+            resourceName = "hunter",
+            text = "Hunter:\n" +
+                    "- Hard-mode boss. Fixates on the Player whenever possible\n" +
+                    "- Chooses: 3\n" +
+                    "- Targeting Behavior: Targets the Player and guesses 3; if the Player cannot be targeted, hunts known 3-choosers\n\n"
+        )
+
+        ArchetypeRuleEntry(
+            resourceName = "seer",
+            text = "Seer:\n" +
+                    "- Hard-mode boss. Sees hidden choices and score totals\n" +
+                    "- Chooses: 3\n" +
+                    "- Targeting Behavior: Targets the highest-scoring player who chose 3, then the highest-scoring player who chose 1; never targets a 0\n\n"
+        )
+
+        ArchetypeRuleEntry(
+            resourceName = "mirror",
+            text = "Mirror:\n" +
+                    "- Hard-mode boss. Copies the Player at the exact same time\n" +
+                    "- Chooses: Whatever the Player chose this round\n" +
+                    "- Targeting Behavior: Copies the Player's pass or target choice and looks for the same guess type\n\n"
+        )
     }
 }
 
