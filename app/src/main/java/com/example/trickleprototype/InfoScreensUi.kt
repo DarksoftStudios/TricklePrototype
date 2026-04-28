@@ -161,6 +161,14 @@ fun ArchetypesText() {
         )
 
         ArchetypeRuleEntry(
+            resourceName = "echo",
+            text = "Echo:\n" +
+                    "- Mirrors the Player one beat behind\n" +
+                    "- Chooses: 3 on round 1, then copies the Player's previous choice\n" +
+                    "- Targeting Behavior: Copies whether the Player passed or targeted, then looks for the same guessed number\n\n"
+        )
+
+        ArchetypeRuleEntry(
             resourceName = "jester",
             text = "Jester:\n" +
                     "- Will gladly pay a marble to snag the Jester's Hat\n" +

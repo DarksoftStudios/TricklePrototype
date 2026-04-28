@@ -107,6 +107,7 @@ class GameEngine(
     private val revealedScoresThisRound = mutableMapOf<Int, Int>()
     private val targetedThisRound = mutableSetOf<Int>()
     private val attacksThisRound = mutableMapOf<Int, Int>()
+    private val guessesThisRound = mutableMapOf<Int, Int>()
     private val weatherProtectedThisRound = mutableSetOf<Int>()
     private val smogRevealedPlayerIds = mutableSetOf<Int>()
 
@@ -167,6 +168,7 @@ class GameEngine(
 
     private var lastRoundChoices: Map<Int, Int> = emptyMap()
     private var lastRoundAttacks: Map<Int, Int> = emptyMap()
+    private var lastRoundGuesses: Map<Int, Int> = emptyMap()
     private var lastRoundCorrectlyGuessedTargetIds: Set<Int> = emptySet()
     private val currentRoundCorrectlyGuessedTargetIds = mutableSetOf<Int>()
     private val passStreaks = mutableMapOf<Int, Int>()
@@ -227,6 +229,7 @@ class GameEngine(
         revealedScoresThisRound.clear()
         targetedThisRound.clear()
         attacksThisRound.clear()
+        guessesThisRound.clear()
         weatherProtectedThisRound.clear()
         smogRevealedPlayerIds.clear()
         currentWeatherCard = null
@@ -251,6 +254,7 @@ class GameEngine(
 
         lastRoundChoices = emptyMap()
         lastRoundAttacks = emptyMap()
+        lastRoundGuesses = emptyMap()
         lastRoundCorrectlyGuessedTargetIds = emptySet()
         currentRoundCorrectlyGuessedTargetIds.clear()
         passStreaks.clear()
@@ -800,6 +804,7 @@ class GameEngine(
         revealedScoresThisRound.clear()
         targetedThisRound.clear()
         attacksThisRound.clear()
+        guessesThisRound.clear()
         weatherProtectedThisRound.clear()
         smogRevealedPlayerIds.clear()
         bannerText = null
@@ -863,6 +868,7 @@ class GameEngine(
                 targetedThisRound = emptySet(),
                 lastRoundChoices = lastRoundChoices,
                 lastRoundAttacks = lastRoundAttacks,
+                lastRoundGuesses = lastRoundGuesses,
                 passStreaks = passStreaks.toMap(),
                 myId = pid,
                 playersAlive = activeIds,
@@ -1076,7 +1082,8 @@ class GameEngine(
             revealedScoresThisRound = visibleScoresThisRoundForBots(),
             targetedThisRound = (targetedThisRound + weatherBlockedTargets).toSet(),
             lastRoundChoices = lastRoundChoices,
-            lastRoundAttacks = lastRoundAttacks,
+            lastRoundAttacks = if (roundNumber == 1) attacksThisRound.toMap() else lastRoundAttacks,
+            lastRoundGuesses = if (roundNumber == 1) guessesThisRound.toMap() else lastRoundGuesses,
             passStreaks = passStreaks.toMap(),
             myId = actorId,
             playersAlive = activePlayerIds(),
@@ -1143,6 +1150,7 @@ class GameEngine(
             PendingLog(kind = LogEventKind.PASS) {
                 log += RoundLogEvent("${displayNameFor(actorId)} passes.")
                 attacksThisRound[actorId] = 0
+                guessesThisRound[actorId] = 0
                 passStreaks[actorId] = (passStreaks[actorId] ?: 0) + 1
             }
         )
@@ -1171,6 +1179,7 @@ class GameEngine(
                         }, but weather protects them this round. (pass)"
                     )
                     attacksThisRound[actorId] = 0
+                    guessesThisRound[actorId] = 0
                     passStreaks[actorId] = (passStreaks[actorId] ?: 0) + 1
                 }
             )
@@ -1182,6 +1191,7 @@ class GameEngine(
                 PendingLog(kind = LogEventKind.PASS) {
                     log += RoundLogEvent("${displayNameFor(actorId)} made an invalid targeting action and must pass.")
                     attacksThisRound[actorId] = 0
+                    guessesThisRound[actorId] = 0
                     passStreaks[actorId] = (passStreaks[actorId] ?: 0) + 1
                 }
             )
@@ -1200,6 +1210,7 @@ class GameEngine(
                         }, but they were already targeted. (pass)"
                     )
                     attacksThisRound[actorId] = 0
+                    guessesThisRound[actorId] = 0
                     passStreaks[actorId] = (passStreaks[actorId] ?: 0) + 1
                 }
             )
@@ -1238,6 +1249,7 @@ class GameEngine(
         }
 
         attacksThisRound[actorId] = targetIds.first()
+        guessesThisRound[actorId] = guess
         passStreaks[actorId] = 0
         targetingActionsTakenThisRound += 1
         activeTargetArrowActorId = actorId
@@ -1559,6 +1571,7 @@ class GameEngine(
 
             lastRoundChoices = selectionsThisRound.toMap()
             lastRoundAttacks = attacksThisRound.toMap()
+            lastRoundGuesses = guessesThisRound.toMap()
             lastRoundCorrectlyGuessedTargetIds = currentRoundCorrectlyGuessedTargetIds.toSet()
 
             winnerIds = resolveWinnersAfterRound()
@@ -1582,6 +1595,7 @@ class GameEngine(
             revealedThisRound.clear()
             targetedThisRound.clear()
             attacksThisRound.clear()
+            guessesThisRound.clear()
             currentRoundCorrectlyGuessedTargetIds.clear()
             turnOrder = emptyList()
             turnCursor = 0
@@ -2100,7 +2114,7 @@ class GameEngine(
             Strobe(), Chaos(), Glutton(), Lurker(),
             Avenger(), Nemesis(), Auditor(), Cabal(),
             Limper(), Scout(), Jester(), Pacifist(), Bully(),
-            Cynic(), Pitfall()
+            Cynic(), Echo(), Pitfall()
         )
 
         val roll = rng.nextInt(100)

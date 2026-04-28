@@ -32,6 +32,7 @@ data class PublicRoundInfo(
 
     val lastRoundChoices: Map<Int, Int>,
     val lastRoundAttacks: Map<Int, Int>,   // attackerId -> targetId (0 pass)
+    val lastRoundGuesses: Map<Int, Int>,   // attackerId -> guessed value (0 if they passed)
     val passStreaks: Map<Int, Int>,        // playerId -> consecutive passes
 
     val myId: Int,
@@ -781,6 +782,80 @@ class Cynic : Archetype {
         val guess = weatherAdjustedGuess(public, DieChoice.THREE, fallback = DieChoice.ONE)
             ?: return TurnDecision.Pass
         val targetId = bestTargetForGuess(public, guess) ?: return TurnDecision.Pass
+        return TurnDecision.Guess(targetId, guess)
+    }
+}
+
+
+/**
+ * R: Echo
+ * - Die: round 1 chooses 3. From round 2+ copies the Player's previous-round choice.
+ * - Action: round 1 copies the Player if the Player has already acted; otherwise targets at random and guesses 3.
+ *   From round 2+ copies whether the Player passed or targeted last round.
+ *   If the Player targeted last round, Echo targets someone who made that guessed choice last round.
+ */
+class Echo : Archetype {
+    override val isAggressiveInHardMode = true
+    override val code = "R"
+    override val displayName = "Echo"
+
+    override fun chooseDie(public: PublicRoundInfo, mem: BotMemory): DieChoice {
+        rememberLastRoundChoices(public, mem)
+
+        val choice = if (public.roundIndex == 1) {
+            DieChoice.THREE
+        } else {
+            when (public.lastRoundChoices[GameEngine.HUMAN_ID]) {
+                0 -> DieChoice.ZERO
+                1 -> DieChoice.ONE
+                3 -> DieChoice.THREE
+                else -> DieChoice.THREE
+            }
+        }
+
+        mem.lastChosen = choice
+        return choice
+    }
+
+    override fun takeTurn(public: PublicRoundInfo, mem: BotMemory): TurnDecision {
+        rememberLastRoundChoices(public, mem)
+
+        if (public.roundIndex == 1) {
+            val humanAttackThisRound = public.lastRoundAttacks[GameEngine.HUMAN_ID]
+            val humanGuessThisRound = public.lastRoundGuesses[GameEngine.HUMAN_ID]
+
+            if (humanAttackThisRound == null) {
+                val targetId = pickAnyTarget(public) ?: return TurnDecision.Pass
+                val guess = weatherAdjustedGuess(public, DieChoice.THREE)
+                    ?: return TurnDecision.Pass
+                return TurnDecision.Guess(targetId, guess)
+            }
+
+            if (humanAttackThisRound == 0) return TurnDecision.Pass
+
+            val copiedGuess = when (humanGuessThisRound) {
+                1 -> DieChoice.ONE
+                3 -> DieChoice.THREE
+                else -> return TurnDecision.Pass
+            }
+            val guess = weatherAdjustedGuess(public, copiedGuess) ?: return TurnDecision.Pass
+            val targetId = bestTargetForGuess(public, guess, forbid = setOf(GameEngine.HUMAN_ID))
+                ?: return TurnDecision.Pass
+            return TurnDecision.Guess(targetId, guess)
+        }
+
+        val humanAttackLastRound = public.lastRoundAttacks[GameEngine.HUMAN_ID] ?: 0
+        if (humanAttackLastRound == 0) return TurnDecision.Pass
+
+        val copiedGuess = when (public.lastRoundGuesses[GameEngine.HUMAN_ID]) {
+            1 -> DieChoice.ONE
+            3 -> DieChoice.THREE
+            else -> return TurnDecision.Pass
+        }
+
+        val guess = weatherAdjustedGuess(public, copiedGuess) ?: return TurnDecision.Pass
+        val targetId = pickTargetWhoChose(public, guess.v, forbid = setOf(GameEngine.HUMAN_ID))
+            ?: return TurnDecision.Pass
         return TurnDecision.Guess(targetId, guess)
     }
 }
