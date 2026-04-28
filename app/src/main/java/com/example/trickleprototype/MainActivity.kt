@@ -218,6 +218,9 @@ private fun botAvatarResourceNameForArchetype(name: String?): String? {
         "romeo" -> "romeo"
         "scout" -> "scout"
         "strobe" -> "strobe"
+        "hunter" -> "hunter"
+        "seer" -> "seer"
+        "mirror" -> "mirror"
         else -> null
     }
 }
@@ -2225,26 +2228,22 @@ private fun buildBotAvatarResourceNamesByPlayerId(
     botTags: Map<Int, String>
 ): Map<Int, String> {
     val visibleArchetypeNames = result?.botArchetypeNamesByPlayerId.orEmpty()
+    val shouldShowArchetypeAvatars = difficulty == Difficulty.EASY || revealArchetypes
 
     return players
         .filter { player -> player.id != GameEngine.HUMAN_ID }
         .mapNotNull { player ->
-            val taggedArchetypeName = botTags[player.id]
-            val resourceName = when {
-                difficulty == Difficulty.EASY || revealArchetypes -> {
-                    botAvatarResourceNameForArchetype(
-                        visibleArchetypeNames[player.id] ?: player.baseName
-                    )
-                }
-
-                taggedArchetypeName != null -> {
-                    botAvatarResourceNameForArchetype(taggedArchetypeName)
-                }
-
-                else -> {
-                    botAvatarResourceNameForBotName(player.baseName)
-                }
-            } ?: return@mapNotNull null
+            val visibleArchetypeResourceName = if (shouldShowArchetypeAvatars) {
+                botAvatarResourceNameForArchetype(visibleArchetypeNames[player.id])
+            } else {
+                null
+            }
+            val taggedArchetypeResourceName = botAvatarResourceNameForArchetype(botTags[player.id])
+            val botNameResourceName = botAvatarResourceNameForBotName(player.baseName)
+            val resourceName = visibleArchetypeResourceName
+                ?: taggedArchetypeResourceName
+                ?: botNameResourceName
+                ?: return@mapNotNull null
 
             player.id to resourceName
         }

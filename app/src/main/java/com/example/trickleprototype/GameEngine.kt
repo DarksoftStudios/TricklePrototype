@@ -91,7 +91,27 @@ class GameEngine(
 
     private val players: MutableList<PlayerState> = mutableListOf<PlayerState>().apply {
         add(PlayerState(HUMAN_ID, "Player", marbles = 0))
-        for (i in 0 until 11) add(PlayerState(i + 2, botNames[i], marbles = 0))
+        for (i in botNames.indices) add(PlayerState(i + 2, botNames[i], marbles = 0))
+    }
+
+    private fun ensureBotRoster() {
+        val human = players.firstOrNull { it.id == HUMAN_ID }
+            ?: PlayerState(HUMAN_ID, "Player", marbles = 0)
+
+        val rebuilt = mutableListOf(human)
+        botNames.forEachIndexed { index, botName ->
+            val botId = index + 2
+            val existing = players.firstOrNull { it.id == botId }
+            if (existing != null) {
+                existing.baseName = botName
+                rebuilt.add(existing)
+            } else {
+                rebuilt.add(PlayerState(botId, botName, marbles = 0))
+            }
+        }
+
+        players.clear()
+        players.addAll(rebuilt)
     }
 
 
@@ -221,10 +241,13 @@ class GameEngine(
     fun getPhase(): EnginePhase = phase
     fun getRoundNumber(): Int = roundNumber
 
-    fun getPlayersSnapshot(): List<PlayerState> =
-        players.map { p -> p.copy(baseName = displayNameFor(p.id)) }
+    fun getPlayersSnapshot(): List<PlayerState> {
+        ensureBotRoster()
+        return players.map { p -> p.copy(baseName = displayNameFor(p.id)) }
+    }
 
     fun reset() {
+        ensureBotRoster()
         clearLatestMarbleTransfers()
         players.forEach { it.marbles = 0; it.revealedChoice = null }
         roundNumber = 1
