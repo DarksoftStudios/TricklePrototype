@@ -1705,6 +1705,8 @@ class GameEngine(
                 val s = store.load()
                 val humanFinal = players.first { it.id == HUMAN_ID }.marbles
                 val humanWon = winnerIds.contains(HUMAN_ID)
+                val winningArchetypes = winnerIds.mapNotNull { archetypeById[it]?.displayName }
+                val bossArchetypeName = archetypeById[BOSS_ID]?.displayName
 
                 // Always count Easy games so Normal mode unlocks after playing Easy
                 when (difficulty) {
@@ -1808,6 +1810,11 @@ class GameEngine(
                         log += RoundLogEvent("*** Achievement Unlocked: Tourist - Played on Normal and Hard! ***")
                     }
 
+                    if (!humanWon && !s.copycat && winningArchetypes.contains("Echo")) {
+                        s.copycat = true
+                        log += RoundLogEvent("*** Achievement Unlocked: Copycat - Lose when Echo wins! ***")
+                    }
+
                     if (humanWon) {
 
                         if (!humanMadeWrongGuessThisGame) {
@@ -1856,6 +1863,28 @@ class GameEngine(
                         if (!s.dieting && gluttonCorrect3Count >= 4) {
                             s.dieting = true
                             log += RoundLogEvent("*** Achievement Unlocked: dieting - Correctly guess Glutton's 3 four times in one game! ***")
+                        }
+
+                        if (difficulty == Difficulty.HARD) {
+                            when (bossArchetypeName) {
+                                "Hunter" -> if (!s.beatHunter) {
+                                    s.beatHunter = true
+                                    log += RoundLogEvent("*** Achievement Unlocked: Marked Prey - Win against Hunter! ***")
+                                }
+                                "Seer" -> if (!s.beatSeer) {
+                                    s.beatSeer = true
+                                    log += RoundLogEvent("*** Achievement Unlocked: Blind Prophet - Win against Seer! ***")
+                                }
+                                "Mirror" -> if (!s.beatMirror) {
+                                    s.beatMirror = true
+                                    log += RoundLogEvent("*** Achievement Unlocked: Broken Reflection - Win against Mirror! ***")
+                                }
+                            }
+
+                            if (!s.bossSlayer && s.beatHunter && s.beatSeer && s.beatMirror) {
+                                s.bossSlayer = true
+                                log += RoundLogEvent("*** Achievement Unlocked: Boss Slayer - Win against every boss! ***")
+                            }
                         }
 
                         when (difficulty) {

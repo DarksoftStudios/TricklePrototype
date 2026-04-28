@@ -291,6 +291,14 @@ fun AchievementsText(stats: PlayerStats) {
         AchievementRow(stats.hatFinisher, "Hat Trick", "Win after starting because you had the Hat")
         AchievementRow(stats.caughtTheStrobe, "Caught the Strobe", "Correctly guess Strobe's 3 twice in one game")
         AchievementRow(stats.dieting, "Dieting", "Correctly guess Glutton's 3 four times in one game")
+        AchievementRow(stats.copycat, "Copycat", "Lose when Echo wins")
+
+        Spacer(Modifier.height(14.dp))
+        AchievementSectionHeader("Bosses")
+        AchievementRow(stats.beatHunter, "Marked Prey", "Win against Hunter")
+        AchievementRow(stats.beatSeer, "Blind Prophet", "Win against Seer")
+        AchievementRow(stats.beatMirror, "Broken Reflection", "Win against Mirror")
+        AchievementRow(stats.bossSlayer, "Boss Slayer", "Win against every boss")
 
         Spacer(Modifier.height(14.dp))
         AchievementSectionHeader("Zero")

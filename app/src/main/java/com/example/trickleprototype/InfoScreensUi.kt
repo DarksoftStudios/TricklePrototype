@@ -106,7 +106,7 @@ fun AdvancedTipsText() {
                 "- Each game, bots are randomly assigned an Archetype.\n" +
                 "- On Easy mode, bots have their names replaced with their Archetype (and you can see their score totals).\n" +
                 "- On Normal mode, bots have their names and scores hidden.\n" +
-                "- On Hard mode, there is no Log to review, you must rely on your memory.\n" +
+                "- On Hard mode, there is no Log to review, and Boss archetypes appear.\n" +
                 "- Click on a bot's name to 'tag' them as the archetype you think they are.\n\n" +
                 "JESTER'S HAT RULE:\n" +
                 "- If you guess 1 or 3 on someone who actually chose 0, you lose 1 marble and take the Jester's Hat.\n" +

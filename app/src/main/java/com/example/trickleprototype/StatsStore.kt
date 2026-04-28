@@ -73,6 +73,11 @@ data class PlayerStats(
     var hatFinisher: Boolean = false,           // win in a round where you start because you have the Hat
     var caughtTheStrobe: Boolean = false,       // correctly guess Strobe's 3 twice in one game
     var dieting: Boolean = false,              // correctly guess the Glutton's 3 four times in one game
+    var copycat: Boolean = false,              // lose while Echo wins
+    var beatHunter: Boolean = false,           // win against Hunter
+    var beatSeer: Boolean = false,             // win against Seer
+    var beatMirror: Boolean = false,           // win against Mirror
+    var bossSlayer: Boolean = false,           // beat every boss
 
     // Weather achievements
     var unlockedWeatherAchievements: Set<String> = emptySet(),
@@ -212,6 +217,11 @@ class StatsStore(context: Context) {
             hatFinisher = prefs.getBoolean("hatFinisher", false),
             caughtTheStrobe = prefs.getBoolean("caughtTheStrobe", false),
             dieting = prefs.getBoolean("dieting", false),
+            copycat = prefs.getBoolean("copycat", false),
+            beatHunter = prefs.getBoolean("beatHunter", false),
+            beatSeer = prefs.getBoolean("beatSeer", false),
+            beatMirror = prefs.getBoolean("beatMirror", false),
+            bossSlayer = prefs.getBoolean("bossSlayer", false),
 
             unlockedWeatherAchievements = prefs.getStringSet("unlockedWeatherAchievements", emptySet())?.toSet() ?: emptySet(),
             seenWeatherIds = prefs.getStringSet("seenWeatherIds", emptySet())?.toSet() ?: emptySet(),
@@ -289,6 +299,11 @@ class StatsStore(context: Context) {
             .putBoolean("hatFinisher", stats.hatFinisher)
             .putBoolean("caughtTheStrobe", stats.caughtTheStrobe)
             .putBoolean("dieting", stats.dieting)
+            .putBoolean("copycat", stats.copycat)
+            .putBoolean("beatHunter", stats.beatHunter)
+            .putBoolean("beatSeer", stats.beatSeer)
+            .putBoolean("beatMirror", stats.beatMirror)
+            .putBoolean("bossSlayer", stats.bossSlayer)
 
             .putStringSet("unlockedWeatherAchievements", stats.unlockedWeatherAchievements)
             .putStringSet("seenWeatherIds", stats.seenWeatherIds)
