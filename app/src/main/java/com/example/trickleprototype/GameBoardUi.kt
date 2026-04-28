@@ -1497,21 +1497,16 @@ fun AnimatedMarbleFlight(
         y = (travelY - arcLift - marbleSizePx / 2f).toInt()
     )
 
-    Canvas(
+    val marbleBitmap = ImageBitmap.imageResource(id = R.drawable.marble)
+
+    Image(
+        painter = BitmapPainter(image = marbleBitmap, filterQuality = FilterQuality.None),
+        contentDescription = "Marble",
+        contentScale = ContentScale.Fit,
         modifier = Modifier
             .offset { marbleOffset }
-            .size(16.dp)
-    ) {
-        drawCircle(color = Color(0xFF4FC3F7))
-        drawCircle(
-            color = Color(0x88FFFFFF),
-            radius = size.minDimension * 0.24f,
-            center = Offset(
-                x = size.width * 0.34f,
-                y = size.height * 0.30f
-            )
-        )
-    }
+            .size(40.dp)
+    )
 }
 
 
