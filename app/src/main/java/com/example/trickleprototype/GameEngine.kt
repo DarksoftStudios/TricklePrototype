@@ -68,6 +68,8 @@ class GameEngine(
     companion object {
         const val HUMAN_ID = 1
         const val WIN_SCORE = 13
+        const val BOSS_ID = 2
+        private var lastBossKind: BossKind? = null
     }
 
     private var difficulty: Difficulty = Difficulty.NORMAL
@@ -89,7 +91,7 @@ class GameEngine(
 
     private val players: MutableList<PlayerState> = mutableListOf<PlayerState>().apply {
         add(PlayerState(HUMAN_ID, "Player", marbles = 0))
-        for (i in 0 until 12) add(PlayerState(i + 2, botNames[i], marbles = 0))
+        for (i in 0 until 11) add(PlayerState(i + 2, botNames[i], marbles = 0))
     }
 
 
@@ -189,6 +191,8 @@ class GameEngine(
     private var lastEventKind: LogEventKind? = null
     private var activeTargetArrowActorId: Int? = null
     private var activeTargetArrowTargetIds: List<Int> = emptyList()
+    private var humanTargetIdThisRound: Int? = null
+    private var humanGuessThisRound: Int? = null
 
     private var statsStore: StatsStore? = null
 
@@ -202,7 +206,10 @@ class GameEngine(
 
     fun setDifficulty(d: Difficulty) {
         difficulty = d
-        if (phase == EnginePhase.SETUP) phase = EnginePhase.SELECT
+        if (phase == EnginePhase.SETUP) {
+            assignRandomArchetypesToBots()
+            phase = EnginePhase.SELECT
+        }
     }
 
     fun setWeatherEnabled(enabled: Boolean) {
@@ -235,6 +242,8 @@ class GameEngine(
         currentWeatherCard = null
         activeTargetArrowActorId = null
         activeTargetArrowTargetIds = emptyList()
+        humanTargetIdThisRound = null
+        humanGuessThisRound = null
         firstNonZeroGuessThisRound = null
         firstTargetingActorId = null
         firstWrongZeroResolvedThisRound = false
@@ -297,8 +306,6 @@ class GameEngine(
         gameSeenWeatherIds.clear()
         gameUnlockedWeatherAchievementIds.clear()
         humanOriginalChoiceThisRound = null
-
-        assignRandomArchetypesToBots()
     }
 
 
@@ -813,6 +820,8 @@ class GameEngine(
         lastEventKind = null
         activeTargetArrowActorId = null
         activeTargetArrowTargetIds = emptyList()
+        humanTargetIdThisRound = null
+        humanGuessThisRound = null
         currentRoundCorrectlyGuessedTargetIds.clear()
         firstNonZeroGuessThisRound = null
         firstTargetingActorId = null
@@ -853,7 +862,7 @@ class GameEngine(
             humanOriginalChoiceThisRound = null
         }
 
-        for (pid in 2..13) {
+        for (pid in players.map { it.id }.filter { it != HUMAN_ID }) {
             if (pid !in activeIds) continue
 
             val arch = archetypeById[pid]!!
@@ -873,7 +882,9 @@ class GameEngine(
                 myId = pid,
                 playersAlive = activeIds,
                 rng = rng,
-                humanMarbles = if (difficulty == Difficulty.HARD) players.first { it.id == HUMAN_ID }.marbles else null
+                humanMarbles = if (difficulty == Difficulty.HARD) players.first { it.id == HUMAN_ID }.marbles else null,
+                currentRoundChoices = selectionsThisRound.toMap(),
+                currentScores = players.associate { it.id to it.marbles }
             )
             selectionsThisRound[pid] = arch.chooseDie(pub, mem).v
         }
@@ -918,6 +929,8 @@ class GameEngine(
         val validTargets = targetableIdsForHuman()
 
         if (actorMustPassBecauseAlreadyScored(HUMAN_ID) || humanMustAutoPassBecauseWeather()) {
+            humanTargetIdThisRound = 0
+            humanGuessThisRound = 0
             queuePass(actorId = HUMAN_ID)
             turnCursor++
             phase = EnginePhase.BOT_TURN
@@ -933,6 +946,8 @@ class GameEngine(
                 gameHumanPerfectBonusBroken = true
             }
             gameHumanPassedAtLeastOnce = true
+            humanTargetIdThisRound = 0
+            humanGuessThisRound = 0
             queuePass(actorId = HUMAN_ID)
         } else {
             if (targetId !in validTargets) {
@@ -961,6 +976,8 @@ class GameEngine(
             gameHumanMadeGuess = true
             gameHumanSubmittedTarget = true
             gameHumanGuessesUsed += g
+            humanTargetIdThisRound = targetId
+            humanGuessThisRound = g
 
             queueGuessAction(actorId = HUMAN_ID, targetIds = selectedTargets, guess = g)
         }
@@ -988,9 +1005,24 @@ class GameEngine(
         activeTargetArrowActorId = null
         activeTargetArrowTargetIds = emptyList()
 
+        if (archetypeById[actorId] is Mirror &&
+            humanTargetIdThisRound == null &&
+            HUMAN_ID in turnOrder.drop(turnCursor + 1)
+        ) {
+            val reordered = turnOrder.toMutableList()
+            reordered.removeAt(turnCursor)
+            val humanIndex = reordered.indexOf(HUMAN_ID)
+            val insertIndex = if (humanIndex >= 0) humanIndex + 1 else reordered.size
+            reordered.add(insertIndex, actorId)
+            turnOrder = reordered
+            return stepInternalOrSnapshot()
+        }
+
         if (actorId == HUMAN_ID) {
             phase = EnginePhase.PLAYER_TURN
             if (humanMustAutoPassBecauseWeather()) {
+                humanTargetIdThisRound = 0
+                humanGuessThisRound = 0
                 queuePass(actorId = HUMAN_ID)
                 turnCursor++
                 phase = EnginePhase.BOT_TURN
@@ -1014,6 +1046,7 @@ class GameEngine(
         legalTargets: List<Int>
     ): Pair<Int, Int>? {
         if (difficulty != Difficulty.HARD) return null
+        if (arch is Hunter || arch is Seer || arch is Mirror) return null
         if (!arch.isAggressiveInHardMode) return null
         if (actorNeedsTwoTargetsIfTargeting()) return null
 
@@ -1088,7 +1121,11 @@ class GameEngine(
             myId = actorId,
             playersAlive = activePlayerIds(),
             rng = rng,
-            humanMarbles = if (difficulty == Difficulty.HARD) players.first { it.id == HUMAN_ID }.marbles else null
+            humanMarbles = if (difficulty == Difficulty.HARD) players.first { it.id == HUMAN_ID }.marbles else null,
+            currentRoundChoices = selectionsThisRound.toMap(),
+            currentScores = players.associate { it.id to it.marbles },
+            humanTargetIdThisRound = humanTargetIdThisRound,
+            humanGuessThisRound = humanGuessThisRound
         )
 
         pickHardModePressureTarget(arch, pub, legalTargets)?.let { (targetId, guess) ->
@@ -1145,10 +1182,15 @@ class GameEngine(
         }
     }
 
+    private fun logNameForAction(actorId: Int): String {
+        val base = displayNameFor(actorId)
+        return if (archetypeById[actorId] is Mirror) "$base copies Player," else base
+    }
+
     private fun queuePass(actorId: Int) {
         pending.addLast(
             PendingLog(kind = LogEventKind.PASS) {
-                log += RoundLogEvent("${displayNameFor(actorId)} passes.")
+                log += RoundLogEvent("${logNameForAction(actorId)} passes.")
                 attacksThisRound[actorId] = 0
                 guessesThisRound[actorId] = 0
                 passStreaks[actorId] = (passStreaks[actorId] ?: 0) + 1
@@ -1265,7 +1307,7 @@ class GameEngine(
 
         val targetNames = targetIds.joinToString(" and ") { displayNameFor(it) }
         enqueueOther {
-            log += RoundLogEvent("${displayNameFor(actorId)} targets $targetNames and guesses $guess.")
+            log += RoundLogEvent("${logNameForAction(actorId)} targets $targetNames and guesses $guess.")
         }
 
         targetIds.forEach { targetId ->
@@ -2105,7 +2147,20 @@ class GameEngine(
         pending.addLast(PendingLog(LogEventKind.OTHER, block))
     }
 
-    // Archetype assignment (unchanged)
+    private fun chooseBossKind(): BossKind {
+        val choices = BossKind.values().filter { it != lastBossKind }
+        val chosen = choices.random(rng)
+        lastBossKind = chosen
+        return chosen
+    }
+
+    private fun archetypeForBossKind(kind: BossKind): Archetype =
+        when (kind) {
+            BossKind.HUNTER -> Hunter()
+            BossKind.SEER -> Seer()
+            BossKind.MIRROR -> Mirror()
+        }
+
     private fun assignRandomArchetypesToBots() {
         archetypeById.clear()
         memById.clear()
@@ -2117,9 +2172,23 @@ class GameEngine(
             Cynic(), Echo(), Pitfall()
         )
 
+        val botIds = players.map { it.id }.filter { it != HUMAN_ID }.toMutableList()
+
+        val bossIds = if (difficulty == Difficulty.HARD && BOSS_ID in botIds) {
+            val kind = chooseBossKind()
+            archetypeById[BOSS_ID] = archetypeForBossKind(kind)
+            memById[BOSS_ID] = BotMemory()
+            setOf(BOSS_ID)
+        } else {
+            emptySet()
+        }
+
+        val normalBotIds = botIds.filter { it !in bossIds }.toMutableList()
+
         val roll = rng.nextInt(100)
-        val includeBoth = roll >= 75
-        val includeSingle = roll in 45..74
+        val maxColluders = minOf(2, normalBotIds.size)
+        val includeBoth = roll >= 75 && maxColluders >= 2
+        val includeSingle = roll in 45..74 && maxColluders >= 1
 
         val colludersToAdd = when {
             includeBoth -> 2
@@ -2127,15 +2196,14 @@ class GameEngine(
             else -> 0
         }
 
-        val neededFromNonColluders = 12 - colludersToAdd
+        val neededFromNonColluders = normalBotIds.size - colludersToAdd
         nonColluderPool.shuffle(rng)
         val selected = nonColluderPool.take(neededFromNonColluders).toMutableList()
 
-        val botIds = (2..13).toMutableList()
-        botIds.shuffle(rng)
+        normalBotIds.shuffle(rng)
 
-        val colluderIds = botIds.take(colludersToAdd)
-        val remainingIds = botIds.drop(colludersToAdd)
+        val colluderIds = normalBotIds.take(colludersToAdd)
+        val remainingIds = normalBotIds.drop(colludersToAdd)
 
         val NO_PARTNER = -999
 

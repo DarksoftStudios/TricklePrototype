@@ -41,6 +41,10 @@ data class PublicRoundInfo(
 
     // HARD ONLY: bots can see Player's marbles (null in Easy/Normal)
     val humanMarbles: Int?,
+    val currentRoundChoices: Map<Int, Int> = emptyMap(),
+    val currentScores: Map<Int, Int> = emptyMap(),
+    val humanTargetIdThisRound: Int? = null,
+    val humanGuessThisRound: Int? = null,
     val lastRoundDogpileCounts: Map<Int, Int> = emptyMap(),
     val lastRoundHatMoved: Boolean = false
 )
@@ -209,6 +213,130 @@ private fun baselineBraveryDie(public: PublicRoundInfo, allowZeroThisRound: Bool
 
     return base
 }
+
+
+enum class BossKind {
+    HUNTER,
+    SEER,
+    MIRROR
+}
+
+class Hunter : Archetype {
+    override val code = "BOSS_HUNTER"
+    override val displayName = "Hunter"
+    override val isAggressiveInHardMode = true
+
+    override fun chooseDie(public: PublicRoundInfo, mem: BotMemory): DieChoice {
+        mem.lastChosen = DieChoice.THREE
+        return DieChoice.THREE
+    }
+
+    override fun takeTurn(public: PublicRoundInfo, mem: BotMemory): TurnDecision {
+        val targets = candidateTargets(public)
+        if (targets.isEmpty()) return TurnDecision.Pass
+
+        val humanId = 1
+        if (humanId in targets) {
+            return TurnDecision.Guess(humanId, DieChoice.THREE)
+        }
+
+        val knownThree = targets.firstOrNull {
+            public.currentRoundChoices[it] == 3 ||
+                    public.revealedThisRound[it] == 3 ||
+                    public.lastRoundChoices[it] == 3
+        }
+        if (knownThree != null) {
+            return TurnDecision.Guess(knownThree, DieChoice.THREE)
+        }
+
+        val highestScore = targets.maxOfOrNull { public.currentScores[it] ?: 0 } ?: 0
+        val highestTarget = targets.firstOrNull { (public.currentScores[it] ?: 0) == highestScore }
+        return TurnDecision.Guess(highestTarget ?: targets.first(), DieChoice.THREE)
+    }
+}
+
+class Seer : Archetype {
+    override val code = "BOSS_SEER"
+    override val displayName = "Seer"
+    override val isAggressiveInHardMode = true
+
+    override fun chooseDie(public: PublicRoundInfo, mem: BotMemory): DieChoice {
+        mem.lastChosen = DieChoice.THREE
+        return DieChoice.THREE
+    }
+
+    override fun takeTurn(public: PublicRoundInfo, mem: BotMemory): TurnDecision {
+        val targets = candidateTargets(public)
+        if (targets.isEmpty()) return TurnDecision.Pass
+
+        fun bestTargetForCurrentChoice(value: Int): Int? {
+            val matching = targets.filter { public.currentRoundChoices[it] == value }
+            if (matching.isEmpty()) return null
+            val bestScore = matching.maxOf { public.currentScores[it] ?: 0 }
+            val top = matching.filter { (public.currentScores[it] ?: 0) == bestScore }
+            return top.firstOrNull { it == 1 } ?: top.first()
+        }
+
+        bestTargetForCurrentChoice(3)?.let {
+            return TurnDecision.Guess(it, DieChoice.THREE)
+        }
+
+        bestTargetForCurrentChoice(1)?.let {
+            return TurnDecision.Guess(it, DieChoice.ONE)
+        }
+
+        return TurnDecision.Pass
+    }
+}
+
+class Mirror : Archetype {
+    override val code = "BOSS_MIRROR"
+    override val displayName = "Mirror"
+
+    override fun chooseDie(public: PublicRoundInfo, mem: BotMemory): DieChoice {
+        val humanChoice = public.currentRoundChoices[1] ?: DieChoice.ONE.v
+        val copied = when (humanChoice) {
+            0 -> DieChoice.ZERO
+            3 -> DieChoice.THREE
+            else -> DieChoice.ONE
+        }
+        mem.lastChosen = copied
+        return copied
+    }
+
+    override fun takeTurn(public: PublicRoundInfo, mem: BotMemory): TurnDecision {
+        val copiedGuess = when (public.humanGuessThisRound) {
+            0 -> DieChoice.ZERO
+            3 -> DieChoice.THREE
+            1 -> DieChoice.ONE
+            else -> null
+        } ?: return TurnDecision.Pass
+
+        val copiedTarget = public.humanTargetIdThisRound ?: return TurnDecision.Pass
+        if (copiedTarget == 0) return TurnDecision.Pass
+
+        val targets = candidateTargets(public)
+        if (targets.isEmpty()) return TurnDecision.Pass
+
+        if (public.roundIndex == 1 && 1 in targets) {
+            return TurnDecision.Guess(1, copiedGuess)
+        }
+
+        val target = when (copiedGuess) {
+            DieChoice.THREE -> targets.firstOrNull { public.lastRoundChoices[it] == 3 }
+            DieChoice.ONE -> targets.firstOrNull { public.lastRoundChoices[it] == 1 }
+            DieChoice.ZERO -> {
+                val lastRoundTargeted = public.lastRoundAttacks.values
+                    .filter { it != 0 }
+                    .firstOrNull { it in targets }
+                lastRoundTargeted ?: targets.firstOrNull { public.lastRoundChoices[it] == 0 }
+            }
+        } ?: targets.firstOrNull { it == 1 } ?: targets.firstOrNull()
+
+        return if (target != null) TurnDecision.Guess(target, copiedGuess) else TurnDecision.Pass
+    }
+}
+
 
 // ---------- Archetypes ----------
 
