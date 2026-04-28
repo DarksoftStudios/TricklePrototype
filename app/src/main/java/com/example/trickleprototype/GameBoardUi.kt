@@ -1192,113 +1192,34 @@ fun GameTableSurface(
     onBowlSpawnMeasured: (TablePoint) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Surface(
+    val tableVerticalOffset = 30.dp
+
+    Box(
         modifier = modifier,
-        shape = RoundedCornerShape(40.dp),
-        color = Color(0xFF6D4C41),
-        border = BorderStroke(4.dp, Color(0xFF3E2723)),
-        shadowElevation = 10.dp
+        contentAlignment = Alignment.Center
     ) {
-        Box(
+        Image(
+            painter = painterResource(id = R.drawable.table),
+            contentDescription = null,
             modifier = Modifier
                 .fillMaxSize()
-                .padding(12.dp)
-                .background(
-                    brush = Brush.verticalGradient(
-                        listOf(
-                            Color(0xFF7B574B),
-                            Color(0xFF6D4C41),
-                            Color(0xFF5D4037)
-                        )
-                    ),
-                    shape = RoundedCornerShape(28.dp)
-                )
-        ) {
-            TableCenterBowl(
-                onBowlSpawnMeasured = onBowlSpawnMeasured,
-                modifier = Modifier
-                    .align(Alignment.Center)
-                    .fillMaxWidth(0.26f)
-                    .fillMaxHeight(0.15f)
-                    .offset(y = 34.dp)
-            )
-        }
-    }
-}
-
-@Composable
-fun TableCenterBowl(
-    onBowlSpawnMeasured: (TablePoint) -> Unit,
-    modifier: Modifier = Modifier
-) {
-    Canvas(
-        modifier = modifier.onGloballyPositioned { coordinates ->
-            onBowlSpawnMeasured(coordinates.boundsInRoot().bowlSpawnPoint())
-        }
-    ) {
-        val shadowHeight = size.height * 0.22f
-        val bowlWidth = size.width
-        val bowlHeight = size.height * 0.68f
-        val bowlTop = size.height * 0.18f
-
-        drawOval(
-            color = Color(0x3A000000),
-            topLeft = Offset(
-                x = size.width * 0.08f,
-                y = size.height * 0.72f
-            ),
-            size = Size(
-                width = size.width * 0.84f,
-                height = shadowHeight
-            )
+                .offset(y = tableVerticalOffset)
+                .graphicsLayer {
+                    scaleX = 2f
+                    scaleY = 1.1f
+                },
+            contentScale = ContentScale.FillBounds
         )
 
-        drawOval(
-            color = Color(0xFF6E6E6E),
-            topLeft = Offset(
-                x = 0f,
-                y = bowlTop
-            ),
-            size = Size(
-                width = bowlWidth,
-                height = bowlHeight
-            )
-        )
-
-        drawOval(
-            color = Color(0xFF4F4F4F),
-            topLeft = Offset(
-                x = size.width * 0.06f,
-                y = bowlTop + size.height * 0.12f
-            ),
-            size = Size(
-                width = size.width * 0.88f,
-                height = bowlHeight * 0.72f
-            )
-        )
-
-        drawOval(
-            color = Color(0xFF9A9A9A),
-            topLeft = Offset(
-                x = size.width * 0.02f,
-                y = bowlTop
-            ),
-            size = Size(
-                width = size.width * 0.96f,
-                height = bowlHeight * 0.34f
-            )
-        )
-
-        drawOval(
-            color = Color(0x55FFFFFF),
-            topLeft = Offset(
-                x = size.width * 0.18f,
-                y = bowlTop + size.height * 0.05f
-            ),
-            size = Size(
-                width = size.width * 0.30f,
-                height = bowlHeight * 0.12f
-            )
+        Box(
+            modifier = Modifier
+                .align(Alignment.Center)
+                .fillMaxWidth(0.26f)
+                .fillMaxHeight(0.15f)
+                .offset(y = tableVerticalOffset + 34.dp)
+                .onGloballyPositioned { coordinates ->
+                    onBowlSpawnMeasured(coordinates.boundsInRoot().bowlSpawnPoint())
+                }
         )
     }
 }
