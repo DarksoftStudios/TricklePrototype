@@ -587,7 +587,17 @@ private fun TrickleApp() {
             botTags = botTagSnapshot,
             difficulty = difficulty
         )
-        statsStore.addEarnedMarbles(payout.total.toLong())
+        val totalProgressAmount = if (difficulty == Difficulty.EASY) {
+            0L
+        } else {
+            (payout.total - (result.players.firstOrNull { it.id == GameEngine.HUMAN_ID }?.marbles ?: 0))
+                .coerceAtLeast(0)
+                .toLong()
+        }
+        statsStore.addEarnedMarbles(
+            amount = payout.total.toLong(),
+            totalMarblesAcrossGamesAmount = totalProgressAmount
+        )
         bonusPayout = payout
         bonusPayoutAppliedKey = gameKey
     }

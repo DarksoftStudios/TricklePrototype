@@ -229,11 +229,16 @@ class StatsStore(context: Context) {
         )
     }
 
-    fun addEarnedMarbles(amount: Long) {
-        if (amount <= 0L) return
+    fun addEarnedMarbles(amount: Long, totalMarblesAcrossGamesAmount: Long = 0L) {
+        if (amount <= 0L && totalMarblesAcrossGamesAmount <= 0L) return
         val s = load()
-        s.lifetimeMarblesEarned += amount
-        s.vaultMarbles += amount
+        if (amount > 0L) {
+            s.lifetimeMarblesEarned += amount
+            s.vaultMarbles += amount
+        }
+        if (totalMarblesAcrossGamesAmount > 0L) {
+            s.totalMarblesAcrossGames += totalMarblesAcrossGamesAmount
+        }
         save(s)
     }
 
