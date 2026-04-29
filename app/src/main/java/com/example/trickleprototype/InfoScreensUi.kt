@@ -381,11 +381,11 @@ fun BonusMarblesAnimationOverlay(
 ) {
     val total = payout.total.coerceAtLeast(0)
     val spawnDelayMs = when {
-        total <= 25 -> 70
-        total <= 50 -> 45
-        total <= 100 -> 25
-        total <= 200 -> 14
-        else -> 8
+        total <= 25 -> 110
+        total <= 50 -> 80
+        total <= 100 -> 50
+        total <= 200 -> 28
+        else -> 16
     }
     val travelTimeMs = when {
         total <= 25 -> 900
@@ -393,9 +393,10 @@ fun BonusMarblesAnimationOverlay(
         else -> 600
     }
     val finalFlashMs = 520
+    val finalHoldMs = 1000
     val allSpawnedAtMs = if (total <= 0) 0 else (total - 1) * spawnDelayMs
     val launchBaseDelayMs = allSpawnedAtMs + 220
-    val visualColumns = 18
+    val visualColumns = 9
 
     val marbleVisuals = remember(payout) {
         val visuals = mutableListOf<BonusMarbleVisual>()
@@ -440,7 +441,7 @@ fun BonusMarblesAnimationOverlay(
         if (total <= 0) {
             delay(700)
             finalFlash = true
-            delay(finalFlashMs.toLong())
+            delay((finalFlashMs + finalHoldMs).toLong())
             onFinished()
             return@LaunchedEffect
         }
@@ -450,14 +451,14 @@ fun BonusMarblesAnimationOverlay(
             delay(spawnDelayMs.toLong())
         }
 
-        delay(140)
+        delay(1000)
         rowsFading = true
 
         val estimatedLastArrivalMs = launchBaseDelayMs + ((total - 1) * 12) + travelTimeMs + 120
         delay((estimatedLastArrivalMs - allSpawnedAtMs).coerceAtLeast(travelTimeMs).toLong())
 
         finalFlash = true
-        delay(finalFlashMs.toLong())
+        delay((finalFlashMs + finalHoldMs).toLong())
         onFinished()
     }
 
@@ -484,14 +485,14 @@ fun BonusMarblesAnimationOverlay(
         ) {
             val panelWidth = maxWidth
             val targetX = panelWidth * 0.50f
-            val targetY = maxHeight * 0.62f
+            val targetY = maxHeight * 0.58f
 
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
                     .alpha(rowAlpha)
                     .align(Alignment.TopCenter),
-                verticalArrangement = Arrangement.spacedBy(6.dp)
+                verticalArrangement = Arrangement.spacedBy(24.dp)
             ) {
                 Text(
                     text = "MARBLES GAINED",
@@ -529,11 +530,11 @@ fun BonusMarblesAnimationOverlay(
                 contentDescription = null,
                 contentScale = ContentScale.Fit,
                 modifier = Modifier
-                    .size(112.dp)
+                    .size(224.dp)
                     .offset {
                         IntOffset(
-                            x = (targetX - 56.dp).roundToPx(),
-                            y = (targetY - 16.dp).roundToPx()
+                            x = (targetX - 112.dp).roundToPx(),
+                            y = (targetY - 128.dp).roundToPx()
                         )
                     }
                     .zIndex(2f)
@@ -549,14 +550,14 @@ fun BonusMarblesAnimationOverlay(
                     painter = painterResource(R.drawable.jug),
                     contentDescription = null,
                     contentScale = ContentScale.Fit,
-                    modifier = Modifier.size(148.dp)
+                    modifier = Modifier.size(296.dp)
                 )
 
                 Text(
                     text = "${payout.startingVaultMarbles + countedMarbleCount}",
                     color = totalColor,
                     fontWeight = FontWeight.Black,
-                    fontSize = 26.sp,
+                    fontSize = 36.sp,
                     modifier = Modifier
                         .padding(top = 20.dp)
                         .graphicsLayer(
@@ -595,8 +596,8 @@ private fun AnimatedBonusMarble(
     val progress = remember(marble.id) { Animatable(0f) }
     var counted by remember(marble.id) { mutableStateOf(false) }
 
-    val startX = 14.dp + (marble.startColumn * 14).dp
-    val startY = 58.dp + (marble.rowIndex * 26).dp + (marble.startRow * 9).dp
+    val startX = 14.dp + (marble.startColumn * 30).dp
+    val startY = 82.dp + (marble.rowIndex * 78).dp + (marble.startRow * 36).dp
 
     LaunchedEffect(marble.id) {
         delay(launchDelayMs.toLong())
@@ -625,7 +626,7 @@ private fun AnimatedBonusMarble(
         contentDescription = null,
         contentScale = ContentScale.Fit,
         modifier = Modifier
-            .size(18.dp)
+            .size(36.dp)
             .offset {
                 IntOffset(
                     x = x.roundToPx(),

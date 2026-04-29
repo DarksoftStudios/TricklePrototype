@@ -37,7 +37,8 @@ import androidx.compose.ui.res.painterResource
 @Composable
 fun MainMenuScreen(
     activity: Activity?,
-    onNavigate: (AppScreen) -> Unit
+    onNavigate: (AppScreen) -> Unit,
+    onDevBonusMarbles: () -> Unit
 ) {
     Column(
         modifier = Modifier
@@ -55,6 +56,8 @@ fun MainMenuScreen(
         MenuLinkButton(text = "SETTINGS") { onNavigate(AppScreen.SETTINGS) }
         Spacer(Modifier.height(2.dp))
         MenuLinkButton(text = "QUIT") { activity?.finish() }
+        Spacer(Modifier.height(2.dp))
+        MenuLinkButton(text = "DEV BONUS MARBLES") { onDevBonusMarbles() }
 
         Spacer(Modifier.height(28.dp))
     }

@@ -722,6 +722,29 @@ private fun TrickleApp() {
         startLocked = false
     }
 
+
+    fun showDevBonusMarblesScreen() {
+        resetRunUiState(clearDifficulty = false)
+
+        val payout = BonusMarblePayout(
+            rows = listOf(
+                BonusMarbleRow("Game Score", 13),
+                BonusMarbleRow("Victory", 7),
+                BonusMarbleRow("Pacifist", 10)
+            ),
+            startingVaultMarbles = statsStore.load().vaultMarbles
+        )
+
+        statsStore.addEarnedMarbles(
+            amount = payout.total.toLong(),
+            totalMarblesAcrossGamesAmount = 0L
+        )
+
+        bonusPayout = payout
+        bonusPayoutAppliedKey = "dev-bonus-marbles"
+        screen = AppScreen.MAIN_MENU
+    }
+
     fun startGameSession(picked: Difficulty, animateEntry: Boolean) {
         engine.reset()
         engine.attachStatsStore(statsStore)
@@ -1246,7 +1269,8 @@ private fun TrickleApp() {
                 AppScreen.MAIN_MENU -> {
                     MainMenuScreen(
                         activity = activity,
-                        onNavigate = { screen = it }
+                        onNavigate = { screen = it },
+                        onDevBonusMarbles = { showDevBonusMarblesScreen() }
                     )
                     return@Column
                 }
