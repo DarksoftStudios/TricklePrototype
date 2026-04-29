@@ -68,12 +68,12 @@ class GameEngine(
     companion object {
         const val HUMAN_ID = 1
         const val WIN_SCORE = 13
-        const val BOSS_ID = 2
         private var lastBossKind: BossKind? = null
     }
 
     private var difficulty: Difficulty = Difficulty.NORMAL
     private var weatherEnabled: Boolean = false
+    private var currentBossId: Int? = null
 
     private var currentWeatherCard: WeatherCard? = null
     private var firstNonZeroGuessThisRound: Int? = null
@@ -1706,7 +1706,7 @@ class GameEngine(
                 val humanFinal = players.first { it.id == HUMAN_ID }.marbles
                 val humanWon = winnerIds.contains(HUMAN_ID)
                 val winningArchetypes = winnerIds.mapNotNull { archetypeById[it]?.displayName }
-                val bossArchetypeName = archetypeById[BOSS_ID]?.displayName
+                val bossArchetypeName = currentBossId?.let { archetypeById[it]?.displayName }
 
                 // Always count Easy games so Normal mode unlocks after playing Easy
                 when (difficulty) {
@@ -2216,6 +2216,7 @@ class GameEngine(
     private fun assignRandomArchetypesToBots() {
         archetypeById.clear()
         memById.clear()
+        currentBossId = null
 
         val nonColluderPool: MutableList<Archetype> = mutableListOf(
             Strobe(), Chaos(), Glutton(), Lurker(),
@@ -2226,11 +2227,13 @@ class GameEngine(
 
         val botIds = players.map { it.id }.filter { it != HUMAN_ID }.toMutableList()
 
-        val bossIds = if (difficulty == Difficulty.HARD && BOSS_ID in botIds) {
+        val bossIds = if (difficulty == Difficulty.HARD && botIds.isNotEmpty()) {
+            val bossId = botIds.random(rng)
+            currentBossId = bossId
             val kind = chooseBossKind()
-            archetypeById[BOSS_ID] = archetypeForBossKind(kind)
-            memById[BOSS_ID] = BotMemory()
-            setOf(BOSS_ID)
+            archetypeById[bossId] = archetypeForBossKind(kind)
+            memById[bossId] = BotMemory()
+            setOf(bossId)
         } else {
             emptySet()
         }

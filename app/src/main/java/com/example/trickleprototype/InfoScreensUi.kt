@@ -186,7 +186,7 @@ fun ArchetypesText() {
 
         ArchetypeRuleEntry(
             resourceName = "cabal",
-            text = "cabal:\n" +
+            text = "Cabal:\n" +
                     "- Picks a 'King' and only attacks people who attack that King\n" +
                     "- Chooses: 1 or 3\n" +
                     "- Targeting Behavior: Usually passes; targets only to avenge their king\n\n"
