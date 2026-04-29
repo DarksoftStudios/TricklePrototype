@@ -272,7 +272,8 @@ data class BonusMarbleRow(
 )
 
 data class BonusMarblePayout(
-    val rows: List<BonusMarbleRow>
+    val rows: List<BonusMarbleRow>,
+    val startingVaultMarbles: Long
 ) {
     val total: Int = rows.sumOf { it.amount }
 }
@@ -296,7 +297,8 @@ private fun uniqueCorrectArchetypeTagCount(
 private fun buildBonusMarblePayout(
     result: RoundResult,
     botTags: Map<Int, String>,
-    difficulty: Difficulty?
+    difficulty: Difficulty?,
+    startingVaultMarbles: Long
 ): BonusMarblePayout {
     val humanScore = result.players.firstOrNull { it.id == GameEngine.HUMAN_ID }?.marbles ?: 0
     val rows = mutableListOf(BonusMarbleRow("Game Score", humanScore))
@@ -322,7 +324,10 @@ private fun buildBonusMarblePayout(
     val achievementAmount = newlyUnlockedAchievementCount(result) * 10
     if (achievementAmount > 0) rows += BonusMarbleRow("Achievement", achievementAmount)
 
-    return BonusMarblePayout(rows)
+    return BonusMarblePayout(
+        rows = rows,
+        startingVaultMarbles = startingVaultMarbles
+    )
 }
 
 private fun parseAchievementPopup(line: String): AchievementPopup? {
@@ -582,10 +587,12 @@ private fun TrickleApp() {
         if (bonusPayoutAppliedKey == gameKey) return@LaunchedEffect
 
         delay(400)
+        val startingVaultMarbles = statsStore.load().vaultMarbles
         val payout = buildBonusMarblePayout(
             result = result,
             botTags = botTagSnapshot,
-            difficulty = difficulty
+            difficulty = difficulty,
+            startingVaultMarbles = startingVaultMarbles
         )
         val totalProgressAmount = if (difficulty == Difficulty.EASY) {
             0L
@@ -967,11 +974,10 @@ private fun TrickleApp() {
     }
 
     bonusPayout?.let { payout ->
-        SimpleDialog(
-            title = "MARBLES GAINED",
-            onClose = { bonusPayout = null },
-            accentColor = Color(0xFF007AFF)
-        ) { BonusMarblesText(payout) }
+        BonusMarblesAnimationOverlay(
+            payout = payout,
+            onFinished = { bonusPayout = null }
+        )
     }
 
     fun finishSplashIntro() {
