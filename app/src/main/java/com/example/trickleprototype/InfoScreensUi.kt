@@ -360,9 +360,12 @@ fun StatsText(stats: PlayerStats) {
 private data class BonusMarbleVisual(
     val id: Int,
     val rowIndex: Int,
-    val startColumn: Int,
-    val startRow: Int,
-    val launchDelayMs: Int
+    val amountIndex: Int,
+    val rowColumn: Int,
+    val rowStack: Int,
+    val rowDelayMs: Int,
+    val fallDelayMs: Int,
+    val wobble: Float
 )
 
 @Composable
@@ -379,35 +382,28 @@ fun BonusMarblesAnimationOverlay(
     onFinished: () -> Unit
 ) {
     val total = payout.total.coerceAtLeast(0)
-    val spawnDelayMs = when {
-        total <= 25 -> 110
-        total <= 50 -> 80
-        total <= 100 -> 50
-        total <= 200 -> 28
-        else -> 16
-    }
-    val travelTimeMs = when {
-        total <= 25 -> 900
-        total <= 50 -> 750
-        else -> 600
-    }
+    val rowRevealMs = 520
+    val rowSettleMs = 760
+    val collapsePauseMs = 700
     val finalFlashMs = 520
     val finalHoldMs = 1000
-    val allSpawnedAtMs = if (total <= 0) 0 else (total - 1) * spawnDelayMs
-    val launchBaseDelayMs = allSpawnedAtMs + 220
-    val visualColumns = 9
+    val visualColumns = 10
 
     val marbleVisuals = remember(payout) {
         val visuals = mutableListOf<BonusMarbleVisual>()
         var nextId = 0
         payout.rows.forEachIndexed { rowIndex, row ->
             repeat(row.amount.coerceAtLeast(0)) { amountIndex ->
+                val id = nextId
                 visuals += BonusMarbleVisual(
-                    id = nextId,
+                    id = id,
                     rowIndex = rowIndex,
-                    startColumn = amountIndex % visualColumns,
-                    startRow = amountIndex / visualColumns,
-                    launchDelayMs = (launchBaseDelayMs + nextId * 12 - nextId * spawnDelayMs).coerceAtLeast(0)
+                    amountIndex = amountIndex,
+                    rowColumn = amountIndex % visualColumns,
+                    rowStack = amountIndex / visualColumns,
+                    rowDelayMs = rowIndex * rowRevealMs + 120 + (amountIndex * 34).coerceAtMost(360),
+                    fallDelayMs = (id * 18) + ((amountIndex % 4) * 28),
+                    wobble = ((id % 7) - 3) * 0.06f
                 )
                 nextId += 1
             }
@@ -415,15 +411,20 @@ fun BonusMarblesAnimationOverlay(
         visuals
     }
 
-    var visibleMarbleCount by remember(payout) { mutableIntStateOf(0) }
+    var visibleRowCount by remember(payout) { mutableIntStateOf(0) }
     var countedMarbleCount by remember(payout) { mutableIntStateOf(0) }
-    var rowsFading by remember(payout) { mutableStateOf(false) }
+    var collapseStarted by remember(payout) { mutableStateOf(false) }
     var finalFlash by remember(payout) { mutableStateOf(false) }
 
     val rowAlpha by androidx.compose.animation.core.animateFloatAsState(
-        targetValue = if (rowsFading) 0f else 1f,
-        animationSpec = tween(durationMillis = 420, easing = FastOutSlowInEasing),
-        label = "bonusMarbleRowsAlpha"
+        targetValue = if (collapseStarted) 0f else 1f,
+        animationSpec = tween(durationMillis = 380, easing = FastOutSlowInEasing),
+        label = "bonusRowsAlpha"
+    )
+    val collectorAlpha by androidx.compose.animation.core.animateFloatAsState(
+        targetValue = if (collapseStarted || total <= 0) 1f else 0f,
+        animationSpec = tween(durationMillis = 260, easing = FastOutSlowInEasing),
+        label = "bonusCollectorAlpha"
     )
     val totalColor by animateColorAsState(
         targetValue = if (finalFlash) Color(0xFFFFFFFF) else Color(0xFF80D8FF),
@@ -432,12 +433,12 @@ fun BonusMarblesAnimationOverlay(
     )
 
     LaunchedEffect(payout) {
-        visibleMarbleCount = 0
+        visibleRowCount = 0
         countedMarbleCount = 0
-        rowsFading = false
+        collapseStarted = false
         finalFlash = false
 
-        if (total <= 0) {
+        if (payout.rows.isEmpty() || total <= 0) {
             delay(700)
             finalFlash = true
             delay((finalFlashMs + finalHoldMs).toLong())
@@ -445,16 +446,18 @@ fun BonusMarblesAnimationOverlay(
             return@LaunchedEffect
         }
 
-        repeat(total) { index ->
-            visibleMarbleCount = index + 1
-            delay(spawnDelayMs.toLong())
+        payout.rows.indices.forEach { rowIndex ->
+            visibleRowCount = rowIndex + 1
+            delay(rowRevealMs.toLong())
         }
 
-        delay(1000)
-        rowsFading = true
+        delay(rowSettleMs.toLong())
+        collapseStarted = true
 
-        val estimatedLastArrivalMs = launchBaseDelayMs + ((total - 1) * 12) + travelTimeMs + 120
-        delay((estimatedLastArrivalMs - allSpawnedAtMs).coerceAtLeast(travelTimeMs).toLong())
+        val longestFallMs = marbleVisuals.maxOfOrNull {
+            it.fallDelayMs + 880 + ((it.id % 5) * 45)
+        } ?: 900
+        delay((collapsePauseMs + longestFallMs).toLong())
 
         finalFlash = true
         delay((finalFlashMs + finalHoldMs).toLong())
@@ -483,15 +486,17 @@ fun BonusMarblesAnimationOverlay(
                 .padding(18.dp)
         ) {
             val panelWidth = maxWidth
-            val targetX = panelWidth * 0.50f
-            val targetY = maxHeight * 0.58f
+            val funnelX = panelWidth * 0.50f
+            val funnelY = maxHeight * 0.58f
+            val rowStartY = 98.dp
+            val rowSpacing = 48.dp
 
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
                     .alpha(rowAlpha)
                     .align(Alignment.TopCenter),
-                verticalArrangement = Arrangement.spacedBy(24.dp)
+                verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 Text(
                     text = "MARBLES GAINED",
@@ -501,28 +506,36 @@ fun BonusMarblesAnimationOverlay(
                     modifier = Modifier.fillMaxWidth()
                 )
 
-                payout.rows.forEach { row ->
+                payout.rows.forEachIndexed { index, row ->
+                    val rowVisible = index < visibleRowCount
                     Text(
-                        text = "${row.label}: +${row.amount}",
+                        text = if (rowVisible) "${row.label}: +${row.amount}" else "",
                         color = Color.White,
                         style = MaterialTheme.typography.bodyMedium,
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(36.dp)
+                            .alpha(if (rowVisible) 1f else 0f)
                     )
                 }
             }
 
-            marbleVisuals.take(visibleMarbleCount).forEach { marble ->
-                AnimatedBonusMarble(
-                    marble = marble,
-                    targetX = targetX,
-                    targetY = targetY,
-                    launchDelayMs = marble.launchDelayMs,
-                    travelTimeMs = travelTimeMs,
-                    onEnteredFunnel = {
-                        countedMarbleCount += 1
-                    }
-                )
-            }
+            marbleVisuals
+                .filter { it.rowIndex < visibleRowCount }
+                .forEach { marble ->
+                    AnimatedBonusMarble(
+                        marble = marble,
+                        panelWidth = panelWidth,
+                        rowStartY = rowStartY,
+                        rowSpacing = rowSpacing,
+                        funnelX = funnelX,
+                        funnelY = funnelY,
+                        collapseStarted = collapseStarted,
+                        onEnteredFunnel = {
+                            countedMarbleCount += 1
+                        }
+                    )
+                }
 
             Image(
                 painter = painterResource(R.drawable.funnel),
@@ -532,17 +545,19 @@ fun BonusMarblesAnimationOverlay(
                     .size(224.dp)
                     .offset {
                         IntOffset(
-                            x = (targetX - 112.dp).roundToPx(),
-                            y = (targetY - 128.dp).roundToPx()
+                            x = (funnelX - 112.dp).roundToPx(),
+                            y = (funnelY - 128.dp).roundToPx()
                         )
                     }
+                    .graphicsLayer(alpha = collectorAlpha)
                     .zIndex(2f)
             )
 
             Box(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
-                    .padding(bottom = 36.dp),
+                    .padding(bottom = 36.dp)
+                    .graphicsLayer(alpha = collectorAlpha),
                 contentAlignment = Alignment.Center
             ) {
                 Image(
@@ -575,6 +590,7 @@ fun BonusMarblesAnimationOverlay(
                     .align(Alignment.BottomCenter)
                     .padding(bottom = 8.dp)
                     .graphicsLayer(
+                        alpha = collectorAlpha,
                         scaleX = if (finalFlash) 1.10f else 1f,
                         scaleY = if (finalFlash) 1.10f else 1f
                     )
@@ -586,46 +602,73 @@ fun BonusMarblesAnimationOverlay(
 @Composable
 private fun AnimatedBonusMarble(
     marble: BonusMarbleVisual,
-    targetX: androidx.compose.ui.unit.Dp,
-    targetY: androidx.compose.ui.unit.Dp,
-    launchDelayMs: Int,
-    travelTimeMs: Int,
+    panelWidth: androidx.compose.ui.unit.Dp,
+    rowStartY: androidx.compose.ui.unit.Dp,
+    rowSpacing: androidx.compose.ui.unit.Dp,
+    funnelX: androidx.compose.ui.unit.Dp,
+    funnelY: androidx.compose.ui.unit.Dp,
+    collapseStarted: Boolean,
     onEnteredFunnel: () -> Unit
 ) {
-    val progress = remember(marble.id) { Animatable(0f) }
+    val rowProgress = remember(marble.id) { Animatable(0f) }
+    val fallProgress = remember(marble.id) { Animatable(0f) }
     var counted by remember(marble.id) { mutableStateOf(false) }
 
-    val startX = 14.dp + (marble.startColumn * 30).dp
-    val startY = 82.dp + (marble.rowIndex * 78).dp + (marble.startRow * 36).dp
+    val launchDurationMs = 520 + ((marble.id % 5) * 55)
+    val fallDurationMs = 880 + ((marble.id % 5) * 45)
 
     LaunchedEffect(marble.id) {
-        delay(launchDelayMs.toLong())
-        progress.animateTo(
+        delay(marble.rowDelayMs.toLong())
+        rowProgress.animateTo(
             targetValue = 1f,
-            animationSpec = tween(durationMillis = travelTimeMs, easing = FastOutSlowInEasing)
+            animationSpec = tween(durationMillis = launchDurationMs, easing = FastOutSlowInEasing)
         )
     }
 
-    val p = progress.value
+    LaunchedEffect(collapseStarted) {
+        if (!collapseStarted) return@LaunchedEffect
+        delay(marble.fallDelayMs.toLong())
+        fallProgress.animateTo(
+            targetValue = 1f,
+            animationSpec = tween(durationMillis = fallDurationMs, easing = FastOutSlowInEasing)
+        )
+    }
 
-    LaunchedEffect(p >= 0.88f) {
-        if (p >= 0.88f && !counted) {
+    val shelfX = 184.dp + (marble.rowColumn * 18).dp + ((marble.id % 3) * 3).dp
+    val shelfY = rowStartY + (rowSpacing * marble.rowIndex.toFloat()) + (marble.rowStack * 15).dp
+    val spawnX = panelWidth - 46.dp + ((marble.id % 4) * 9).dp
+    val spawnY = (-34).dp - ((marble.amountIndex % 5) * 13).dp
+
+    val rowP = rowProgress.value
+    val fallP = fallProgress.value
+
+    LaunchedEffect(fallP >= 0.88f) {
+        if (fallP >= 0.88f && !counted) {
             counted = true
             onEnteredFunnel()
         }
     }
 
-    val x = startX + (targetX - startX) * p
-    val y = startY + (targetY - startY) * p
-    val fadeProgress = ((p - 0.78f) / 0.22f).coerceIn(0f, 1f)
+    val arcLift = 28.dp * (1f - kotlin.math.abs((rowP * 2f) - 1f))
+    val settledX = spawnX + (shelfX - spawnX) * rowP
+    val settledY = spawnY + (shelfY - spawnY) * rowP - arcLift
+
+    val wobbleX = (kotlin.math.sin((rowP * 3.14f) + marble.wobble) * 8f).dp
+    val funnelTargetX = funnelX - 18.dp + ((marble.id % 7) * 6).dp
+    val funnelTargetY = funnelY + 74.dp + ((marble.id % 4) * 5).dp
+
+    val x = settledX + (funnelTargetX - settledX) * fallP + wobbleX * (1f - fallP)
+    val y = settledY + (funnelTargetY - settledY) * fallP
+    val fadeProgress = ((fallP - 0.80f) / 0.20f).coerceIn(0f, 1f)
     val alpha = 1f - fadeProgress
-    val scale = 1f - (fadeProgress * 0.55f)
+    val scale = 1f - (fadeProgress * 0.45f)
+
     Image(
         painter = painterResource(R.drawable.marble),
         contentDescription = null,
         contentScale = ContentScale.Fit,
         modifier = Modifier
-            .size(36.dp)
+            .size(30.dp)
             .offset {
                 IntOffset(
                     x = x.roundToPx(),

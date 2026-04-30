@@ -177,16 +177,27 @@ private enum class SplashStage {
 
 
 private val TAGGABLE_ARCHETYPE_NAMES = listOf(
-    "Glutton",
-    "Pacifist",
-    "Chaos",
-    "Limper",
-    "Scout",
-    "Strobe",
-    "Nemesis",
+    "Auditor",
+    "Avenger",
     "Bully",
+    "Cabal",
+    "Chaos",
     "Cynic",
-    "Pitfall"
+    "Echo",
+    "Glutton",
+    "Hunter",
+    "Jester",
+    "Juliet",
+    "Limper",
+    "Lurker",
+    "Mirror",
+    "Nemesis",
+    "Pacifist",
+    "Pitfall",
+    "Romeo",
+    "Scout",
+    "Seer",
+    "Strobe"
 )
 
 private fun cleanArchetypeNameForAvatar(name: String?): String? {
@@ -1678,7 +1689,7 @@ private fun TrickleApp() {
                             hatHolderId = lastResult?.hatHolderId,
                             starterId = lastResult?.currentStarterId,
                             indicators = floatingIndicators,
-                            showMarbleCounts = difficulty == Difficulty.EASY,
+                            showMarbleCounts = difficulty == Difficulty.EASY || revealArchetypesActive,
                             playersWithForcedMarbleCounts = smogVisibleBotIds,
                             taggingEnabled = difficulty != Difficulty.EASY && !revealArchetypesActive,
                             avatarResourceNameForBot = { botId -> botAvatarResourceNamesByPlayerId[botId] },
@@ -1702,7 +1713,7 @@ private fun TrickleApp() {
                             hatHolderId = lastResult?.hatHolderId,
                             starterId = lastResult?.currentStarterId,
                             indicators = floatingIndicators,
-                            showMarbleCounts = difficulty == Difficulty.EASY,
+                            showMarbleCounts = difficulty == Difficulty.EASY || revealArchetypesActive,
                             playersWithForcedMarbleCounts = smogVisibleBotIds,
                             taggingEnabled = difficulty != Difficulty.EASY && !revealArchetypesActive,
                             avatarResourceNameForBot = { botId -> botAvatarResourceNamesByPlayerId[botId] },
@@ -2002,16 +2013,29 @@ private fun TrickleApp() {
                 Column(
                     verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
+                    val tagsUsedByOtherBots = botTags
+                        .filterKeys { botId -> botId != selectedBotId }
+                        .values
+                        .mapNotNull { tag -> cleanArchetypeNameForAvatar(tag) }
+                        .toSet()
+
                     TAGGABLE_ARCHETYPE_NAMES.forEach { archetypeName ->
+                        val tagAlreadyUsed = cleanArchetypeNameForAvatar(archetypeName) in tagsUsedByOtherBots
+
                         Button(
                             onClick = {
-                                botTags[selectedBotId] = "$archetypeName(?)"
-                                tagMenuBotId = null
+                                if (!tagAlreadyUsed) {
+                                    botTags[selectedBotId] = "$archetypeName(?)"
+                                    tagMenuBotId = null
+                                }
                             },
+                            enabled = !tagAlreadyUsed,
                             modifier = Modifier.fillMaxWidth(),
                             colors = ButtonDefaults.buttonColors(
-                                containerColor = Color(0xFF263238),
-                                contentColor = Color.White
+                                containerColor = if (tagAlreadyUsed) Color(0xFF4A4A4A) else Color(0xFF263238),
+                                contentColor = if (tagAlreadyUsed) Color(0xFF9E9E9E) else Color.White,
+                                disabledContainerColor = Color(0xFF4A4A4A),
+                                disabledContentColor = Color(0xFF9E9E9E)
                             )
                         ) {
                             OneLineButtonText(archetypeName)
