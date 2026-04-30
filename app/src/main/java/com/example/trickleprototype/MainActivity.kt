@@ -296,6 +296,10 @@ private fun uniqueCorrectArchetypeTagCount(
     }
 }
 
+private const val EASY_BONUS_MARBLES = 1
+private const val HARD_BONUS_MARBLES = 3
+private const val ACHIEVEMENT_BONUS_MARBLES = 7
+
 private fun buildBonusMarblePayout(
     result: RoundResult,
     botTags: Map<Int, String>,
@@ -305,25 +309,25 @@ private fun buildBonusMarblePayout(
     val humanScore = result.players.firstOrNull { it.id == GameEngine.HUMAN_ID }?.marbles ?: 0
     val rows = mutableListOf(BonusMarbleRow("Game Score", humanScore))
 
-    if (result.humanHeldHatThisGame) rows += BonusMarbleRow("Hat Holder", 1)
+    if (result.humanHeldHatThisGame) rows += BonusMarbleRow("Hat Holder", EASY_BONUS_MARBLES)
     if (result.humanCorrectGuessesThisGame > 0) {
-        rows += BonusMarbleRow("Accuracy", result.humanCorrectGuessesThisGame)
+        rows += BonusMarbleRow("Accuracy", result.humanCorrectGuessesThisGame * EASY_BONUS_MARBLES)
     }
 
     val detectiveCount = uniqueCorrectArchetypeTagCount(botTags, result.botArchetypeNamesByPlayerId)
-    if (detectiveCount > 0) rows += BonusMarbleRow("Detective", detectiveCount)
+    if (detectiveCount > 0) rows += BonusMarbleRow("Detective", detectiveCount * EASY_BONUS_MARBLES)
 
-    if (!result.humanStartedAnyRoundThisGame) rows += BonusMarbleRow("Drafting", 2)
-    if (!result.humanSubmittedTargetThisGame) rows += BonusMarbleRow("Peacekeeper", 3)
+    if (!result.humanStartedAnyRoundThisGame) rows += BonusMarbleRow("Drafting", HARD_BONUS_MARBLES)
+    if (!result.humanSubmittedTargetThisGame) rows += BonusMarbleRow("Peacekeeper", HARD_BONUS_MARBLES)
 
-    val patienceAmount = maxOf(0, result.roundNumber - 5) * 4
+    val patienceAmount = maxOf(0, result.roundNumber - 5) * HARD_BONUS_MARBLES
     if (patienceAmount > 0) rows += BonusMarbleRow("Patience", patienceAmount)
 
-    if (result.humanPerfectBonusIntact) rows += BonusMarbleRow("Perfection", 5)
-    if (difficulty == Difficulty.HARD) rows += BonusMarbleRow("Endeavor", 6)
-    if (result.winnerIds.contains(GameEngine.HUMAN_ID)) rows += BonusMarbleRow("Victory", 7)
+    if (result.humanPerfectBonusIntact) rows += BonusMarbleRow("Perfection", HARD_BONUS_MARBLES)
+    if (difficulty == Difficulty.HARD) rows += BonusMarbleRow("Endeavor", HARD_BONUS_MARBLES)
+    if (result.winnerIds.contains(GameEngine.HUMAN_ID)) rows += BonusMarbleRow("Victory", HARD_BONUS_MARBLES)
 
-    val achievementAmount = newlyUnlockedAchievementCount(result) * 10
+    val achievementAmount = newlyUnlockedAchievementCount(result) * ACHIEVEMENT_BONUS_MARBLES
     if (achievementAmount > 0) rows += BonusMarbleRow("Achievement", achievementAmount)
 
     return BonusMarblePayout(

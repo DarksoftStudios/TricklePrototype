@@ -393,7 +393,7 @@ object Weather {
             ruleText = "Scoring still resolves normally for untargeted players, but their chosen values are not shown to players or logs as public reveal information. The system still knows the values internally; visibility only is suppressed.",
             category = WeatherCategory.INFORMATION,
             complexity = WeatherComplexity.MEDIUM,
-            copies = 1,
+            copies = 333,
             enabled = true,
             digitalOnly = true,
             effectTags = setOf(WeatherEffectTag.HIDE_UNTARGETED_TRICKLE_REVEALS)

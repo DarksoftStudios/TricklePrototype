@@ -1824,6 +1824,21 @@ class GameEngine(
                         s.totalWins += 1
                     }
 
+                    if (!s.played13Games && s.totalGames >= 13) {
+                        s.played13Games = true
+                        log += RoundLogEvent("*** Achievement Unlocked: Amateur - Play 13 games! ***")
+                    }
+
+                    if (!s.played113Games && s.totalGames >= 113) {
+                        s.played113Games = true
+                        log += RoundLogEvent("*** Achievement Unlocked: Professional - Play 113 games! ***")
+                    }
+
+                    if (!s.played1113Games && s.totalGames >= 1113) {
+                        s.played1113Games = true
+                        log += RoundLogEvent("*** Achievement Unlocked: Expert - Play 1,113 games! ***")
+                    }
+
                     if (!s.has113MarblesTotal && s.totalMarblesAcrossGames >= 113L) {
                         s.has113MarblesTotal = true
                         log += RoundLogEvent("*** Achievement Unlocked: Bucket Filler - Gain 113 marbles across games! ***")

@@ -345,7 +345,6 @@ fun StatsText(stats: PlayerStats) {
                     "Wins: ${stats.totalWins}\n\n" +
                     "Lifetime earned: ${stats.lifetimeMarblesEarned}\n" +
                     "Vault: ${stats.vaultMarbles}\n\n" +
-                    "Total marbles gained: ${stats.totalMarblesAcrossGames}\n\n" +
                     "Accuracy: $acc (${stats.correctGuesses}/${stats.totalGuesses})\n" +
                     "Tricked by 0: ${stats.timesTrickedByZero}\n" +
                     "Perfect games: ${stats.perfectGames}\n\n" +
