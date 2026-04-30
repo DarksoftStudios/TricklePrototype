@@ -182,6 +182,22 @@ class GameEngine(
     private var startedRoundBecauseHat: Boolean = false // computed at startRound
     private var strobeCorrect3Count: Int = 0
     private var gluttonCorrect3Count: Int = 0
+    private var pacifistCorrect3Count: Int = 0
+
+    private var gameChaosTheory: Boolean = false
+    private var gameShadowStep: Boolean = false
+    private var gameVendetta: Boolean = false
+    private var gameWrongGuyPal: Boolean = false
+    private var gameTaxPaid: Boolean = false
+    private var gameHumanSelectedByCabal: Boolean = false
+    private var gameSlowAndSteady: Boolean = false
+    private var gameFirstFlood: Boolean = false
+    private var gameAltComedy: Boolean = false
+    private var gamePickOnSomeoneYourSize: Boolean = false
+    private var gameHumanGuessedCynicWrong: Boolean = false
+    private var gameCynicGuessedHumanCorrectly: Boolean = false
+    private val gameBotsThatTargetedHuman = mutableSetOf<Int>()
+    private val gameAvengedBotIdsAgainstHuman = mutableSetOf<Int>()
 
     // weather achievements
     private val gameSeenWeatherIds = mutableSetOf<String>()
@@ -326,6 +342,21 @@ class GameEngine(
         startedRoundBecauseHat = false
         strobeCorrect3Count = 0
         gluttonCorrect3Count = 0
+        pacifistCorrect3Count = 0
+        gameChaosTheory = false
+        gameShadowStep = false
+        gameVendetta = false
+        gameWrongGuyPal = false
+        gameTaxPaid = false
+        gameHumanSelectedByCabal = false
+        gameSlowAndSteady = false
+        gameFirstFlood = false
+        gameAltComedy = false
+        gamePickOnSomeoneYourSize = false
+        gameHumanGuessedCynicWrong = false
+        gameCynicGuessedHumanCorrectly = false
+        gameBotsThatTargetedHuman.clear()
+        gameAvengedBotIdsAgainstHuman.clear()
         gameSeenWeatherIds.clear()
         gameUnlockedWeatherAchievementIds.clear()
         humanOriginalChoiceThisRound = null
@@ -1157,7 +1188,12 @@ class GameEngine(
             return
         }
 
-        when (val decision = arch.takeTurn(pub, mem)) {
+        val decision = arch.takeTurn(pub, mem)
+        if (arch is Cabal && mem.protectedId == HUMAN_ID) {
+            gameHumanSelectedByCabal = true
+        }
+
+        when (decision) {
             is TurnDecision.Pass -> {
                 if (actorMustTarget(actorId)) {
                     val fallbackTarget = legalTargets.firstOrNull()
@@ -1310,7 +1346,28 @@ class GameEngine(
 
         targetIds.forEach { targetId ->
             targetedThisRound += targetId
-            if (targetId == HUMAN_ID) gameHumanWasTargeted = true
+            if (targetId == HUMAN_ID) {
+                gameHumanWasTargeted = true
+                gameBotsThatTargetedHuman += actorId
+                if (actorId in gameAvengedBotIdsAgainstHuman) {
+                    gameVendetta = true
+                }
+            }
+            if (actorId == HUMAN_ID && roundNumber == 1 && archetypeById[targetId] is Nemesis) {
+                gameWrongGuyPal = true
+            }
+        }
+
+        if (archetypeById[actorId] is Avenger && targetIds.contains(HUMAN_ID)) {
+            val avengedId = lastRoundAttacks[HUMAN_ID]?.takeIf { it != 0 && it != actorId } ?: actorId
+            gameAvengedBotIdsAgainstHuman += avengedId
+            if (avengedId in gameBotsThatTargetedHuman) {
+                gameVendetta = true
+            }
+        }
+
+        if (archetypeById[actorId] is Bully && guess == 3) {
+            gamePickOnSomeoneYourSize = true
         }
 
         attacksThisRound[actorId] = targetIds.first()
@@ -1355,6 +1412,8 @@ class GameEngine(
         val actor = players.first { it.id == actorId }
         val target = players.first { it.id == targetId }
         val actual = revealedThisRound[targetId]!!
+        val actorArch = archetypeById[actorId]
+        val targetArch = archetypeById[targetId]
 
         if (actorId == HUMAN_ID && difficulty != Difficulty.EASY) {
             statsStore?.let { store ->
@@ -1372,6 +1431,15 @@ class GameEngine(
 
         if (guess == actual) {
             currentRoundCorrectlyGuessedTargetIds += targetId
+
+            if (targetId == HUMAN_ID) {
+                if (actorArch is Chaos) gameChaosTheory = true
+                if (actorArch is Lurker && actual == 3) gameShadowStep = true
+                if (actorArch is Auditor) gameTaxPaid = true
+                if (actorArch is Scout && roundNumber == 1) gameFirstFlood = true
+                if (actorArch is Cynic) gameCynicGuessedHumanCorrectly = true
+            }
+
             if (guess == 0) {
                 setHatHolder(actorId)
                 if (actorId == HUMAN_ID && currentWeatherId() == "drought") {
@@ -1432,10 +1500,14 @@ class GameEngine(
                     }
                 }
 
-                val targArch = archetypeById[targetId]
+                if (guess == 1 && actual == 1 && targetArch is Limper) {
+                    gameSlowAndSteady = true
+                }
+
                 if (guess == 3 && actual == 3) {
-                    if (targArch is Strobe) strobeCorrect3Count += 1
-                    if (targArch is Glutton) gluttonCorrect3Count += 1
+                    if (targetArch is Strobe) strobeCorrect3Count += 1
+                    if (targetArch is Glutton) gluttonCorrect3Count += 1
+                    if (targetArch is Pacifist) pacifistCorrect3Count += 1
                 }
             }
 
@@ -1445,6 +1517,13 @@ class GameEngine(
         if (actorId == HUMAN_ID) {
             humanCorrectGuessStreak = 0
             gameHumanPerfectBonusBroken = true
+            if (targetArch is Cynic) {
+                gameHumanGuessedCynicWrong = true
+            }
+        }
+
+        if (targetId == HUMAN_ID && actorArch is Jester && actual != 0) {
+            gameAltComedy = true
         }
 
         if (actual == 0) {
@@ -1810,9 +1889,49 @@ class GameEngine(
                         log += RoundLogEvent("*** Achievement Unlocked: Tourist - Played on Normal and Hard! ***")
                     }
 
+                    if (!s.chaosTheory && gameChaosTheory) {
+                        s.chaosTheory = true
+                        log += RoundLogEvent("*** Achievement Unlocked: Chaos Theory - Have your choice guessed correctly by Chaos! ***")
+                    }
+
+                    if (!s.shadowStep && gameShadowStep) {
+                        s.shadowStep = true
+                        log += RoundLogEvent("*** Achievement Unlocked: Shadow Step - Have Lurker correctly guess your 3! ***")
+                    }
+
+                    if (!s.vendetta && gameVendetta) {
+                        s.vendetta = true
+                        log += RoundLogEvent("*** Achievement Unlocked: Vendetta - Get targeted by Avenger and the bot being avenged in one game! ***")
+                    }
+
+                    if (!s.taxPaid && gameTaxPaid) {
+                        s.taxPaid = true
+                        log += RoundLogEvent("*** Achievement Unlocked: Tax Paid - Get correctly guessed by Auditor! ***")
+                    }
+
+                    if (!s.altComedy && gameAltComedy) {
+                        s.altComedy = true
+                        log += RoundLogEvent("*** Achievement Unlocked: Alt Comedy - Get guessed wrong by Jester without choosing 0! ***")
+                    }
+
+                    if (!s.pickOnSomeoneYourSize && gamePickOnSomeoneYourSize) {
+                        s.pickOnSomeoneYourSize = true
+                        log += RoundLogEvent("*** Achievement Unlocked: Pick on Someone Your Size - Witness Bully target someone for 3! ***")
+                    }
+
+                    if (!s.badFaith && gameHumanGuessedCynicWrong && gameCynicGuessedHumanCorrectly) {
+                        s.badFaith = true
+                        log += RoundLogEvent("*** Achievement Unlocked: Bad Faith - Guess wrong on Cynic and have Cynic guess you correctly! ***")
+                    }
+
                     if (!humanWon && !s.copycat && winningArchetypes.contains("Echo")) {
                         s.copycat = true
                         log += RoundLogEvent("*** Achievement Unlocked: Copycat - Lose when Echo wins! ***")
+                    }
+
+                    if (!humanWon && !s.karma && pacifistCorrect3Count >= 3) {
+                        s.karma = true
+                        log += RoundLogEvent("*** Achievement Unlocked: Karma - Lose after correctly guessing Pacifist's 3 three times! ***")
                     }
 
                     if (humanWon) {
@@ -1860,9 +1979,29 @@ class GameEngine(
                             log += RoundLogEvent("*** Achievement Unlocked: Caught the Strobe - Correctly guess Strobe's 3 twice in one game! ***")
                         }
 
-                        if (!s.dieting && gluttonCorrect3Count >= 4) {
+                        if (!s.dieting && gluttonCorrect3Count >= 3) {
                             s.dieting = true
-                            log += RoundLogEvent("*** Achievement Unlocked: dieting - Correctly guess Glutton's 3 four times in one game! ***")
+                            log += RoundLogEvent("*** Achievement Unlocked: Dieting - Correctly guess Glutton's 3 three times in one game! ***")
+                        }
+
+                        if (!s.wrongGuyPal && gameWrongGuyPal) {
+                            s.wrongGuyPal = true
+                            log += RoundLogEvent("*** Achievement Unlocked: Wrong Guy, Pal - Win after attacking Nemesis in round 1! ***")
+                        }
+
+                        if (!s.anointed && gameHumanSelectedByCabal) {
+                            s.anointed = true
+                            log += RoundLogEvent("*** Achievement Unlocked: Anointed - Win after being selected by Cabal! ***")
+                        }
+
+                        if (!s.slowAndSteady && gameSlowAndSteady) {
+                            s.slowAndSteady = true
+                            log += RoundLogEvent("*** Achievement Unlocked: Slow and Steady - Win after correctly guessing Limper's 1! ***")
+                        }
+
+                        if (!s.firstFlood && gameFirstFlood) {
+                            s.firstFlood = true
+                            log += RoundLogEvent("*** Achievement Unlocked: First Flood - Have Scout guess your round 1 choice and still win! ***")
                         }
 
                         if (difficulty == Difficulty.HARD) {

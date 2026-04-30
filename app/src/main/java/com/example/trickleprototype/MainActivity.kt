@@ -206,6 +206,7 @@ private fun botAvatarResourceNameForArchetype(name: String?): String? {
         "bully" -> "bully"
         "chaos" -> "chaos"
         "cynic" -> "cynic"
+        "echo" -> "echo"
         "glutton" -> "glutton"
         "jester" -> "jester"
         "juliet" -> "juliet"
@@ -232,6 +233,7 @@ fun botAvatarStaticDrawableResourceId(resourceName: String?): Int {
         "bully" -> R.drawable.bully
         "chaos" -> R.drawable.chaos
         "cynic" -> R.drawable.cynic
+        "echo" -> R.drawable.echo
         "glutton" -> R.drawable.glutton
         "jester" -> R.drawable.jester
         "juliet" -> R.drawable.juliet

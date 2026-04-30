@@ -163,17 +163,17 @@ fun ArchetypesText() {
         ArchetypeRuleEntry(
             resourceName = "bully",
             text = "Bully:\n" +
-                    "- Pressures the table by always playing high and hunting the cautious\n" +
+                    "- Picks on the meek\n" +
                     "- Chooses: 3\n" +
-                    "- Targeting Behavior: 50% chance to target on round 1 (guessing 1); from round 2 on, targets players who chose 1 last round (guessing 1)\n\n"
+                    "- Targeting Behavior: Targets players who chose 1 last round\n\n"
         )
 
         ArchetypeRuleEntry(
             resourceName = "chaos",
             text = "Chaos:\n" +
                     "- The Matriarch of RNG. All random everything\n" +
-                    "- Chooses: Random (0/1/3 evenly)\n" +
-                    "- Targeting Behavior: 50/50 pass vs target\n\n"
+                    "- Chooses: 33% chance of 0/1/3\n" +
+                    "- Targeting Behavior: 50% pass, 50% target\n\n"
         )
 
         ArchetypeRuleEntry(
@@ -181,15 +181,15 @@ fun ArchetypesText() {
             text = "Cynic:\n" +
                     "- Assumes everyone is greedy and punishes it\n" +
                     "- Chooses: 1\n" +
-                    "- Targeting Behavior: 50% chance to target on round 1 (guessing 3); from round 2 on, targets players who chose 3 last round (guessing 3)\n\n"
+                    "- Targeting Behavior: Targets players who chose 3 last round\n\n"
         )
 
         ArchetypeRuleEntry(
             resourceName = "echo",
             text = "Echo:\n" +
-                    "- Mirrors the Player one beat behind\n" +
-                    "- Chooses: 3 on round 1, then copies the Player's previous choice\n" +
-                    "- Targeting Behavior: Copies whether the Player passed or targeted, then looks for the same guessed number\n\n"
+                    "- Stop copying me! StOp CoPyInG mE!\n" +
+                    "- Chooses: 3 on round 1, then copies the Player's choice last round\n" +
+                    "- Targeting Behavior: Copies whether the Player's action last round\n\n"
         )
 
         ArchetypeRuleEntry(
@@ -213,7 +213,7 @@ fun ArchetypesText() {
             text = "Cabal:\n" +
                     "- Picks a 'King' and only attacks people who attack that King\n" +
                     "- Chooses: 1 or 3\n" +
-                    "- Targeting Behavior: Usually passes; targets only to avenge their king\n\n"
+                    "- Targeting Behavior: Usually passes; targets only to avenge their King\n\n"
         )
 
         ArchetypeRuleEntry(
@@ -229,7 +229,7 @@ fun ArchetypesText() {
             text = "Lurker:\n" +
                     "- Waits, watches, then punishes repeated 3 behavior\n" +
                     "- Chooses: 1 (unless close to winning)\n" +
-                    "- Targeting Behavior: Passes for 3 rounds, then targets repeat-3 players\n\n"
+                    "- Targeting Behavior: Passes for 2 rounds, then targets repeat-3 players\n\n"
         )
 
         ArchetypeRuleEntry(
@@ -251,7 +251,7 @@ fun ArchetypesText() {
         ArchetypeRuleEntry(
             resourceName = "pitfall",
             text = "Pitfall:\n" +
-                    "- Starts strong, stumbles, then becomes unpredictable\n" +
+                    "- Seems like a treasure chest, actually a beartrap\n" +
                     "- Chooses: 3 on round 1, 0 on round 2, then random between 0 and 3\n" +
                     "- Targeting Behavior: Always passes\n\n"
         )
@@ -275,15 +275,15 @@ fun ArchetypesText() {
         ArchetypeRuleEntry(
             resourceName = "strobe",
             text = "Strobe:\n" +
-                    "- Alternates like a metronome and attacks in a repeating rhythm.\n" +
+                    "- Moody is an understatement\n" +
                     "- Chooses: Alternates 1,3,1,3...\n" +
-                    "- Targeting Behavior: Alternates pass/target with pattern-based guesses.\n\n"
+                    "- Targeting Behavior: Alternates pass/target\n\n"
         )
 
         ArchetypeRuleEntry(
             resourceName = "hunter",
             text = "Hunter:\n" +
-                    "- Hard-mode boss. Fixates on the Player whenever possible\n" +
+                    "- [Hard-mode boss] Fixates on the Player whenever possible\n" +
                     "- Chooses: 3\n" +
                     "- Targeting Behavior: Targets the Player and guesses 3; if the Player cannot be targeted, hunts known 3-choosers\n\n"
         )
@@ -291,15 +291,15 @@ fun ArchetypesText() {
         ArchetypeRuleEntry(
             resourceName = "seer",
             text = "Seer:\n" +
-                    "- Hard-mode boss. Sees hidden choices and score totals\n" +
+                    "- [Hard-mode boss] Sees hidden choices and score totals\n" +
                     "- Chooses: 3\n" +
-                    "- Targeting Behavior: Targets the highest-scoring player who chose 3, then the highest-scoring player who chose 1; never targets a 0\n\n"
+                    "- Targeting Behavior: Targets the highest-scoring player who chose 3\n\n"
         )
 
         ArchetypeRuleEntry(
             resourceName = "mirror",
             text = "Mirror:\n" +
-                    "- Hard-mode boss. Copies the Player at the exact same time\n" +
+                    "- [Hard-mode boss] Copies the Player at the exact same time\n" +
                     "- Chooses: Whatever the Player chose this round\n" +
                     "- Targeting Behavior: Copies the Player's pass or target choice and looks for the same guess type\n\n"
         )

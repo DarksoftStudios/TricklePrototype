@@ -72,7 +72,19 @@ data class PlayerStats(
     var dumbLuck: Boolean = false,              // correctly guess a 3 in round 1
     var hatFinisher: Boolean = false,           // win in a round where you start because you have the Hat
     var caughtTheStrobe: Boolean = false,       // correctly guess Strobe's 3 twice in one game
-    var dieting: Boolean = false,              // correctly guess the Glutton's 3 four times in one game
+    var dieting: Boolean = false,              // correctly guess the Glutton's 3 three times in one game
+    var chaosTheory: Boolean = false,          // have Chaos correctly guess your choice
+    var shadowStep: Boolean = false,           // have Lurker correctly guess your 3
+    var vendetta: Boolean = false,             // get targeted by Avenger and the bot being avenged
+    var wrongGuyPal: Boolean = false,          // win after attacking Nemesis in round 1
+    var taxPaid: Boolean = false,              // get correctly guessed by Auditor
+    var anointed: Boolean = false,             // win after being selected by Cabal
+    var slowAndSteady: Boolean = false,        // win after correctly guessing Limper's 1
+    var firstFlood: Boolean = false,           // Scout guesses your round 1 choice and you still win
+    var altComedy: Boolean = false,            // Jester guesses you wrong when you did not choose 0
+    var pickOnSomeoneYourSize: Boolean = false,// witness Bully target someone for 3
+    var badFaith: Boolean = false,             // guess Cynic wrong and have Cynic guess you correctly
+    var karma: Boolean = false,                // lose after correctly guessing Pacifist's 3 three times
     var copycat: Boolean = false,              // lose while Echo wins
     var beatHunter: Boolean = false,           // win against Hunter
     var beatSeer: Boolean = false,             // win against Seer
@@ -217,6 +229,18 @@ class StatsStore(context: Context) {
             hatFinisher = prefs.getBoolean("hatFinisher", false),
             caughtTheStrobe = prefs.getBoolean("caughtTheStrobe", false),
             dieting = prefs.getBoolean("dieting", false),
+            chaosTheory = prefs.getBoolean("chaosTheory", false),
+            shadowStep = prefs.getBoolean("shadowStep", false),
+            vendetta = prefs.getBoolean("vendetta", false),
+            wrongGuyPal = prefs.getBoolean("wrongGuyPal", false),
+            taxPaid = prefs.getBoolean("taxPaid", false),
+            anointed = prefs.getBoolean("anointed", false),
+            slowAndSteady = prefs.getBoolean("slowAndSteady", false),
+            firstFlood = prefs.getBoolean("firstFlood", false),
+            altComedy = prefs.getBoolean("altComedy", false),
+            pickOnSomeoneYourSize = prefs.getBoolean("pickOnSomeoneYourSize", false),
+            badFaith = prefs.getBoolean("badFaith", false),
+            karma = prefs.getBoolean("karma", false),
             copycat = prefs.getBoolean("copycat", false),
             beatHunter = prefs.getBoolean("beatHunter", false),
             beatSeer = prefs.getBoolean("beatSeer", false),
@@ -304,6 +328,18 @@ class StatsStore(context: Context) {
             .putBoolean("hatFinisher", stats.hatFinisher)
             .putBoolean("caughtTheStrobe", stats.caughtTheStrobe)
             .putBoolean("dieting", stats.dieting)
+            .putBoolean("chaosTheory", stats.chaosTheory)
+            .putBoolean("shadowStep", stats.shadowStep)
+            .putBoolean("vendetta", stats.vendetta)
+            .putBoolean("wrongGuyPal", stats.wrongGuyPal)
+            .putBoolean("taxPaid", stats.taxPaid)
+            .putBoolean("anointed", stats.anointed)
+            .putBoolean("slowAndSteady", stats.slowAndSteady)
+            .putBoolean("firstFlood", stats.firstFlood)
+            .putBoolean("altComedy", stats.altComedy)
+            .putBoolean("pickOnSomeoneYourSize", stats.pickOnSomeoneYourSize)
+            .putBoolean("badFaith", stats.badFaith)
+            .putBoolean("karma", stats.karma)
             .putBoolean("copycat", stats.copycat)
             .putBoolean("beatHunter", stats.beatHunter)
             .putBoolean("beatSeer", stats.beatSeer)
