@@ -216,8 +216,8 @@ object Weather {
         ),
 
         WeatherCard(
-            id = "lightning_storm",
-            displayName = "Lightning Storm",
+            id = "lightning_strike",
+            displayName = "Lightning Strike",
             effectText = "The first player who guesses wrong on a 0 gets +3",
             ruleText = "The first time in the round that a player guesses wrong and the target actually chose 0, that guesser gains 3 marbles instead of losing 1. The Hat still moves to that guesser. Any later wrong-on-0 events in the same round resolve normally unless otherwise specified.",
             category = WeatherCategory.RISK,
@@ -393,7 +393,7 @@ object Weather {
             ruleText = "Scoring still resolves normally for untargeted players, but their chosen values are not shown to players or logs as public reveal information. The system still knows the values internally; visibility only is suppressed.",
             category = WeatherCategory.INFORMATION,
             complexity = WeatherComplexity.MEDIUM,
-            copies = 333,
+            copies = 1,
             enabled = true,
             digitalOnly = true,
             effectTags = setOf(WeatherEffectTag.HIDE_UNTARGETED_TRICKLE_REVEALS)
