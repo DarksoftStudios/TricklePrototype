@@ -419,7 +419,7 @@ private fun TrickleApp() {
     var nextMarbleFlightId by remember { mutableLongStateOf(1L) }
     var bowlSpawnPoint by remember { mutableStateOf<TablePoint?>(null) }
     val cupCenters = remember { mutableStateMapOf<Int, TablePoint>() }
-    var lastQueuedMarbleTransferSignature by remember { mutableStateOf("") }
+    var lastQueuedMarbleTransferSignature by remember { mutableStateOf<String?>(null) }
 
     var achievementQueue by remember { mutableStateOf<List<AchievementPopup>>(emptyList()) }
     var activeAchievement by remember { mutableStateOf<AchievementPopup?>(null) }
@@ -703,7 +703,7 @@ private fun TrickleApp() {
         floatingIndicators = emptyMap()
         marbleFlights = emptyList()
         activeTargetArrow = null
-        lastQueuedMarbleTransferSignature = ""
+        lastQueuedMarbleTransferSignature = null
         achievementQueue = emptyList()
         activeAchievement = null
         bonusPayout = null
@@ -777,7 +777,7 @@ private fun TrickleApp() {
         floatingIndicators = emptyMap()
         marbleFlights = emptyList()
         activeTargetArrow = null
-        lastQueuedMarbleTransferSignature = ""
+        lastQueuedMarbleTransferSignature = null
         achievementQueue = emptyList()
         activeAchievement = null
 
@@ -868,8 +868,15 @@ private fun TrickleApp() {
         }
     }
 
-    LaunchedEffect(lastResult, bowlSpawnPoint, cupCenters.size) {
+    LaunchedEffect(lastResult, bowlSpawnPoint, cupCenters.size, currentWeatherId) {
         val result = lastResult ?: return@LaunchedEffect
+
+        if (currentWeatherId == "whiteout") {
+            lastQueuedMarbleTransferSignature = null
+            marbleFlights = emptyList()
+            return@LaunchedEffect
+        }
+
         val transfers = result.marbleTransfers
         if (transfers.isEmpty()) return@LaunchedEffect
 
@@ -945,9 +952,13 @@ private fun TrickleApp() {
                     val baseDelayMs = if (turbo) (base / 4).coerceAtLeast(35L) else base
 
                     val marbleAnimationDelayMs =
-                        result.marbleTransfers.maxOfOrNull { transfer ->
-                            ((transfer.amount - 1).coerceAtLeast(0) * 170L) + 520L
-                        } ?: 0L
+                        if (currentWeatherId == "whiteout") {
+                            0L
+                        } else {
+                            result.marbleTransfers.maxOfOrNull { transfer ->
+                                ((transfer.amount - 1).coerceAtLeast(0) * 170L) + 520L
+                            } ?: 0L
+                        }
 
                     val totalDelayMs = maxOf(baseDelayMs, marbleAnimationDelayMs + 80L)
                     delay(totalDelayMs)
