@@ -398,6 +398,7 @@ private fun TrickleApp() {
     var passTargetConfirmEnabled by remember { mutableStateOf(settingsPrefs.getBoolean("pass_target_confirm_enabled", false)) }
 
     var playerName by remember { mutableStateOf(statsStore.getPlayerName()) }
+    var playerAvatarResourceName by remember { mutableStateOf(statsStore.getPlayerAvatarResourceName()) }
 
     SideEffect {
         engine.setHumanName(playerName)
@@ -1371,9 +1372,14 @@ private fun TrickleApp() {
 
                 AppScreen.PROFILE -> {
                     ProfileMenuScreen(
+                        playerAvatarResourceName = playerAvatarResourceName,
                         onStats = { showStats = true },
                         onAchievements = { showAchievements = true },
                         onCustomize = { screen = AppScreen.CUSTOMIZE },
+                        onAvatarSelected = { selectedResourceName ->
+                            statsStore.setPlayerAvatarResourceName(selectedResourceName)
+                            playerAvatarResourceName = statsStore.getPlayerAvatarResourceName()
+                        },
                         onBack = { screen = AppScreen.MORE }
                     )
                     return@Column
@@ -1403,6 +1409,7 @@ private fun TrickleApp() {
                         onConfirmResetStats = {
                             statsStore.resetAll()
                             playerName = statsStore.getPlayerName()
+                            playerAvatarResourceName = statsStore.getPlayerAvatarResourceName()
                             engine.setHumanName(playerName)
                             showResetStatsConfirm = false
                         },
@@ -1694,6 +1701,7 @@ private fun TrickleApp() {
 
                         PlayerStatusStack(
                             playerTitle = playerTitle,
+                            playerAvatarResourceName = playerAvatarResourceName,
                             playerScore = playerScore,
                             isCurrentTurn = currentActorId == GameEngine.HUMAN_ID,
                             indicator = floatingIndicators[GameEngine.HUMAN_ID],

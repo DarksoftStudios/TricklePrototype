@@ -150,6 +150,21 @@ class StatsStore(context: Context) {
 
     private companion object {
         const val KEY_PLAYER_NAME = "player_name"
+        const val KEY_PLAYER_AVATAR_RESOURCE_NAME = "player_avatar_resource_name"
+        const val DEFAULT_PLAYER_AVATAR_RESOURCE_NAME = "player"
+    }
+
+    fun getPlayerAvatarResourceName(): String {
+        val raw = prefs.getString(KEY_PLAYER_AVATAR_RESOURCE_NAME, null)?.trim().orEmpty()
+        return if (raw.isBlank()) DEFAULT_PLAYER_AVATAR_RESOURCE_NAME else raw
+    }
+
+    fun setPlayerAvatarResourceName(resourceName: String) {
+        val cleaned = resourceName.trim()
+        prefs.edit().putString(
+            KEY_PLAYER_AVATAR_RESOURCE_NAME,
+            if (cleaned.isBlank()) DEFAULT_PLAYER_AVATAR_RESOURCE_NAME else cleaned
+        ).apply()
     }
 
     fun getPlayerName(): String {

@@ -484,6 +484,7 @@ fun PhaseBadge(
 @Composable
 fun PlayerStatusStack(
     playerTitle: String,
+    playerAvatarResourceName: String?,
     playerScore: Int,
     isCurrentTurn: Boolean,
     indicator: FloatingIndicator?,
@@ -522,7 +523,15 @@ fun PlayerStatusStack(
             overflow = TextOverflow.Ellipsis
         )
 
-        Spacer(Modifier.width(10.dp))
+        Spacer(Modifier.width(8.dp))
+
+        BotAvatarIcon(
+            resourceName = playerAvatarResourceName,
+            greyedOut = false,
+            modifier = Modifier.size(52.dp)
+        )
+
+        Spacer(Modifier.width(8.dp))
 
         TableCup(
             label = "Player (You)",

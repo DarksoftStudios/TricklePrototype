@@ -2,6 +2,14 @@ package com.example.trickleprototype
 
 import android.app.Activity
 import android.widget.Toast
+import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.draw.alpha
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -281,28 +289,149 @@ fun RulesMenuScreen(
 
 @Composable
 fun ProfileMenuScreen(
+    playerAvatarResourceName: String,
     onStats: () -> Unit,
     onAchievements: () -> Unit,
     onCustomize: () -> Unit,
+    onAvatarSelected: (String) -> Unit,
     onBack: () -> Unit
 ) {
+    val playerAvatarOptions = listOf(
+        AvatarMenuItem("Player", "player", locked = false),
+        AvatarMenuItem("Fem Player", "playerf", locked = false),
+        AvatarMenuItem("Male Player", "playerm", locked = false),
+        AvatarMenuItem("Al", "al", locked = false),
+        AvatarMenuItem("Barbara", "barbara", locked = false),
+        AvatarMenuItem("Clark", "clark", locked = false),
+        AvatarMenuItem("David", "david", locked = false),
+        AvatarMenuItem("Erika", "erika", locked = false),
+        AvatarMenuItem("Fred", "fred", locked = false),
+        AvatarMenuItem("Graham", "graham", locked = false),
+        AvatarMenuItem("Harry", "harry", locked = false),
+        AvatarMenuItem("Ian", "ian", locked = false),
+        AvatarMenuItem("Josh", "josh", locked = false),
+        AvatarMenuItem("Kelly", "kelly", locked = false),
+        AvatarMenuItem("Lois", "lois", locked = false),
+        AvatarMenuItem("Auditor", "auditor", locked = true),
+        AvatarMenuItem("Avenger", "avenger", locked = true),
+        AvatarMenuItem("Bully", "bully", locked = true),
+        AvatarMenuItem("Cabal", "cabal", locked = true),
+        AvatarMenuItem("Chaos", "chaos", locked = true),
+        AvatarMenuItem("Cynic", "cynic", locked = true),
+        AvatarMenuItem("Echo", "echo", locked = true),
+        AvatarMenuItem("Glutton", "glutton", locked = true),
+        AvatarMenuItem("Hunter", "hunter", locked = true),
+        AvatarMenuItem("Jester", "jester", locked = true),
+        AvatarMenuItem("Juliet", "juliet", locked = true),
+        AvatarMenuItem("Limper", "limper", locked = true),
+        AvatarMenuItem("Lurker", "lurker", locked = true),
+        AvatarMenuItem("Mirror", "mirror", locked = true),
+        AvatarMenuItem("Nemesis", "nemesis", locked = true),
+        AvatarMenuItem("Pacifist", "pacifist", locked = true),
+        AvatarMenuItem("Pitfall", "pitfall", locked = true),
+        AvatarMenuItem("Romeo", "romeo", locked = true),
+        AvatarMenuItem("Scout", "scout", locked = true),
+        AvatarMenuItem("Seer", "seer", locked = true),
+        AvatarMenuItem("Strobe", "strobe", locked = true)
+    )
+
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(top = 72.dp),
-        verticalArrangement = Arrangement.spacedBy(35.dp, Alignment.CenterVertically),
+            .padding(top = 34.dp, start = 18.dp, end = 18.dp)
+            .verticalScroll(rememberScrollState()),
+        verticalArrangement = Arrangement.spacedBy(14.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         MenuLinkButton(text = "STATS") { onStats() }
-        Spacer(Modifier.height(2.dp))
         MenuLinkButton(text = "ACHIEVEMENTS") { onAchievements() }
-        Spacer(Modifier.height(2.dp))
         MenuLinkButton(text = "CUSTOMIZE") { onCustomize() }
 
-        Spacer(Modifier.height(16.dp))
+        Spacer(Modifier.height(4.dp))
+
+        Text(
+            text = "Player Avatar",
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold,
+            textAlign = TextAlign.Center
+        )
+
+        playerAvatarOptions.chunked(3).forEach { rowItems ->
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
+                verticalAlignment = Alignment.Top
+            ) {
+                rowItems.forEach { item ->
+                    AvatarMenuItemButton(
+                        item = item,
+                        selected = playerAvatarResourceName == item.resourceName,
+                        onSelected = { onAvatarSelected(item.resourceName) },
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+
+                repeat(3 - rowItems.size) {
+                    Spacer(Modifier.weight(1f))
+                }
+            }
+        }
+
+        Spacer(Modifier.height(8.dp))
         MenuLinkButton(text = "BACK") { onBack() }
 
         Spacer(Modifier.height(24.dp))
+    }
+}
+
+private data class AvatarMenuItem(
+    val label: String,
+    val resourceName: String,
+    val locked: Boolean
+)
+
+@Composable
+private fun AvatarMenuItemButton(
+    item: AvatarMenuItem,
+    selected: Boolean,
+    onSelected: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val borderColor = if (selected) Color(0xFF2F38CE) else Color(0xFF9AA3AD)
+    val textColor = if (item.locked) Color(0xFF777777) else Color(0xFF111111)
+
+    Column(
+        modifier = modifier
+            .border(2.dp, borderColor, androidx.compose.foundation.shape.RoundedCornerShape(14.dp))
+            .padding(horizontal = 6.dp, vertical = 8.dp)
+            .alpha(if (item.locked) 0.55f else 1f)
+            .then(
+                if (!item.locked) {
+                    Modifier.clickable(onClick = onSelected)
+                } else {
+                    Modifier
+                }
+            ),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        BotAvatarIcon(
+            resourceName = item.resourceName,
+            greyedOut = item.locked,
+            modifier = Modifier.size(54.dp)
+        )
+
+        Spacer(Modifier.height(4.dp))
+
+        Text(
+            text = if (item.locked) "${item.label} Locked" else item.label,
+            color = textColor,
+            fontSize = 11.sp,
+            fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
+            maxLines = 2,
+            textAlign = TextAlign.Center,
+            overflow = TextOverflow.Ellipsis,
+            lineHeight = 12.sp
+        )
     }
 }
 
