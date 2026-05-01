@@ -162,10 +162,12 @@ enum class AppScreen {
     SPLASH,
     MAIN_MENU,
     PLAY,
+    MORE,
     RULES,
     PROFILE,
     CUSTOMIZE,
     SETTINGS,
+    SHOP,
     GAME
 }
 
@@ -406,6 +408,13 @@ private fun TrickleApp() {
     }
 
     var difficulty by remember { mutableStateOf<Difficulty?>(null) }
+    var lastDifficulty by remember {
+        mutableStateOf(
+            runCatching {
+                Difficulty.valueOf(settingsPrefs.getString("last_difficulty", Difficulty.EASY.name) ?: Difficulty.EASY.name)
+            }.getOrDefault(Difficulty.EASY)
+        )
+    }
     var weatherEnabled by remember { mutableStateOf(settingsPrefs.getBoolean("weather_enabled", false)) }
 
     var choice by remember { mutableIntStateOf(1) }
@@ -510,6 +519,10 @@ private fun TrickleApp() {
 
     LaunchedEffect(weatherEnabled) {
         settingsPrefs.edit().putBoolean("weather_enabled", weatherEnabled).apply()
+    }
+
+    LaunchedEffect(lastDifficulty) {
+        settingsPrefs.edit().putString("last_difficulty", lastDifficulty.name).apply()
     }
 
     val seenAchievements = remember { mutableSetOf<String>() }
@@ -766,6 +779,7 @@ private fun TrickleApp() {
         engine.reset()
         engine.attachStatsStore(statsStore)
         difficulty = picked
+        lastDifficulty = picked
         engine.setDifficulty(picked)
 
         val stats = statsStore.load()
@@ -1297,8 +1311,28 @@ private fun TrickleApp() {
                 AppScreen.MAIN_MENU -> {
                     MainMenuScreen(
                         activity = activity,
+                        quickplayGameLabel = run {
+                            val stats = statsStore.load()
+                            val quickplayDifficulty = when {
+                                lastDifficulty == Difficulty.HARD && stats.normalWins > 0 -> Difficulty.HARD
+                                lastDifficulty == Difficulty.NORMAL && stats.easyGames > 0 -> Difficulty.NORMAL
+                                lastDifficulty == Difficulty.HARD && stats.easyGames > 0 -> Difficulty.NORMAL
+                                else -> Difficulty.EASY
+                            }
+                            val quickplayWeatherEnabled = stats.wonHard && weatherEnabled
+                            "${quickplayDifficulty.name.lowercase()} - weather ${if (quickplayWeatherEnabled) "on" else "off"}"
+                        },
                         onNavigate = { screen = it },
-                        onDevBonusMarbles = { showDevBonusMarblesScreen() }
+                        onQuickplay = {
+                            val stats = statsStore.load()
+                            val quickplayDifficulty = when {
+                                lastDifficulty == Difficulty.HARD && stats.normalWins > 0 -> Difficulty.HARD
+                                lastDifficulty == Difficulty.NORMAL && stats.easyGames > 0 -> Difficulty.NORMAL
+                                lastDifficulty == Difficulty.HARD && stats.easyGames > 0 -> Difficulty.NORMAL
+                                else -> Difficulty.EASY
+                            }
+                            startGameSession(picked = quickplayDifficulty, animateEntry = true)
+                        }
                     )
                     return@Column
                 }
@@ -1314,12 +1348,23 @@ private fun TrickleApp() {
                     return@Column
                 }
 
+                AppScreen.MORE -> {
+                    MoreMenuScreen(
+                        onRules = { screen = AppScreen.RULES },
+                        onProfile = { screen = AppScreen.PROFILE },
+                        onSettings = { screen = AppScreen.SETTINGS },
+                        onShop = { screen = AppScreen.SHOP },
+                        onBack = { screen = AppScreen.MAIN_MENU }
+                    )
+                    return@Column
+                }
+
                 AppScreen.RULES -> {
                     RulesMenuScreen(
                         onHowToPlay = { showHowToPlay = true },
                         onAdvancedTips = { showTips = true },
                         onArchetypes = { showArchetypes = true },
-                        onBack = { screen = AppScreen.MAIN_MENU }
+                        onBack = { screen = AppScreen.MORE }
                     )
                     return@Column
                 }
@@ -1329,7 +1374,7 @@ private fun TrickleApp() {
                         onStats = { showStats = true },
                         onAchievements = { showAchievements = true },
                         onCustomize = { screen = AppScreen.CUSTOMIZE },
-                        onBack = { screen = AppScreen.MAIN_MENU }
+                        onBack = { screen = AppScreen.MORE }
                     )
                     return@Column
                 }
@@ -1385,7 +1430,14 @@ private fun TrickleApp() {
                             passTargetConfirmEnabled = !passTargetConfirmEnabled
                         },
                         onResetStats = { showResetStatsConfirm = true },
-                        onBack = { screen = AppScreen.MAIN_MENU }
+                        onBack = { screen = AppScreen.MORE }
+                    )
+                    return@Column
+                }
+
+                AppScreen.SHOP -> {
+                    ShopMenuScreen(
+                        onBack = { screen = AppScreen.MORE }
                     )
                     return@Column
                 }

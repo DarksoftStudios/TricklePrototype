@@ -29,7 +29,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
-private val CloudButtonShape: GenericShape = GenericShape { size, _ ->
+val CloudButtonShape: GenericShape = GenericShape { size, _ ->
     val w = size.width
     val h = size.height
 

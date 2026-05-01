@@ -5,6 +5,7 @@ import android.widget.Toast
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -17,6 +18,8 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -26,7 +29,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.DialogProperties
 import androidx.compose.foundation.Image
 import androidx.compose.ui.graphics.TransformOrigin
@@ -37,8 +43,103 @@ import androidx.compose.ui.res.painterResource
 @Composable
 fun MainMenuScreen(
     activity: Activity?,
+    quickplayGameLabel: String,
     onNavigate: (AppScreen) -> Unit,
-    onDevBonusMarbles: () -> Unit
+    onQuickplay: () -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(top = 72.dp),
+        verticalArrangement = Arrangement.spacedBy(22.dp, Alignment.CenterVertically),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        LargePlayButton(
+            quickplayGameLabel = quickplayGameLabel,
+            onPlay = { onNavigate(AppScreen.PLAY) },
+            onQuickplay = onQuickplay
+        )
+
+        Spacer(Modifier.height(10.dp))
+        MenuLinkButton(text = "MORE") { onNavigate(AppScreen.MORE) }
+
+        Spacer(Modifier.height(28.dp))
+    }
+}
+
+@Composable
+private fun LargePlayButton(
+    quickplayGameLabel: String,
+    onPlay: () -> Unit,
+    onQuickplay: () -> Unit
+) {
+    OutlinedButton(
+        onClick = onPlay,
+        modifier = Modifier
+            .fillMaxWidth(0.90f)
+            .height(258.dp),
+        shape = CloudButtonShape,
+        border = androidx.compose.foundation.BorderStroke(3.dp, androidx.compose.ui.graphics.Color(0xFF9AA3AD)),
+        colors = ButtonDefaults.outlinedButtonColors(
+            containerColor = androidx.compose.ui.graphics.Color(0xFFF2F7FF),
+            contentColor = androidx.compose.ui.graphics.Color(0xFF9AA3AD)
+        ),
+        contentPadding = PaddingValues(vertical = 22.dp, horizontal = 26.dp)
+    ) {
+        Column(
+            modifier = Modifier.fillMaxSize(),
+            verticalArrangement = Arrangement.SpaceEvenly,
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                text = "PLAY",
+                fontWeight = FontWeight.Black,
+                letterSpacing = 3.sp,
+                fontSize = 38.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                textAlign = TextAlign.Center
+            )
+
+            Button(
+                onClick = onQuickplay,
+                shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = androidx.compose.ui.graphics.Color(0xFFE4F0FF),
+                    contentColor = androidx.compose.ui.graphics.Color(0xFF65707C)
+                ),
+                contentPadding = PaddingValues(vertical = 10.dp, horizontal = 24.dp)
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(
+                        text = "QUICKPLAY:",
+                        fontWeight = FontWeight.Black,
+                        letterSpacing = 1.sp,
+                        fontSize = 16.sp,
+                        maxLines = 1,
+                        textAlign = TextAlign.Center
+                    )
+                    Text(
+                        text = quickplayGameLabel.uppercase(),
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 13.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        textAlign = TextAlign.Center
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun MoreMenuScreen(
+    onRules: () -> Unit,
+    onProfile: () -> Unit,
+    onSettings: () -> Unit,
+    onShop: () -> Unit,
+    onBack: () -> Unit
 ) {
     Column(
         modifier = Modifier
@@ -47,19 +148,35 @@ fun MainMenuScreen(
         verticalArrangement = Arrangement.spacedBy(35.dp, Alignment.CenterVertically),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        MenuLinkButton(text = "PLAY") { onNavigate(AppScreen.PLAY) }
+        MenuLinkButton(text = "RULES") { onRules() }
         Spacer(Modifier.height(2.dp))
-        MenuLinkButton(text = "RULES") { onNavigate(AppScreen.RULES) }
+        MenuLinkButton(text = "PROFILE") { onProfile() }
         Spacer(Modifier.height(2.dp))
-        MenuLinkButton(text = "PROFILE") { onNavigate(AppScreen.PROFILE) }
+        MenuLinkButton(text = "SETTINGS") { onSettings() }
         Spacer(Modifier.height(2.dp))
-        MenuLinkButton(text = "SETTINGS") { onNavigate(AppScreen.SETTINGS) }
-        Spacer(Modifier.height(2.dp))
-        MenuLinkButton(text = "QUIT") { activity?.finish() }
-        Spacer(Modifier.height(2.dp))
-        MenuLinkButton(text = "DEV BONUS MARBLES") { onDevBonusMarbles() }
+        MenuLinkButton(text = "SHOP") { onShop() }
 
-        Spacer(Modifier.height(28.dp))
+        Spacer(Modifier.height(16.dp))
+        MenuLinkButton(text = "BACK") { onBack() }
+
+        Spacer(Modifier.height(24.dp))
+    }
+}
+
+@Composable
+fun ShopMenuScreen(
+    onBack: () -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(top = 72.dp),
+        verticalArrangement = Arrangement.spacedBy(35.dp, Alignment.CenterVertically),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        MenuLinkButton(text = "BACK") { onBack() }
+
+        Spacer(Modifier.height(24.dp))
     }
 }
 
