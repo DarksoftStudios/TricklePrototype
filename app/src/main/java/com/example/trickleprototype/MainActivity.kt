@@ -1385,12 +1385,28 @@ private fun TrickleApp() {
                 AppScreen.PROFILE -> {
                     ProfileMenuScreen(
                         playerAvatarResourceName = playerAvatarResourceName,
+                        unlockedNameColorIds = unlockedNameColorIds,
+                        unlockedAvatarOutlineColorIds = unlockedAvatarOutlineColorIds,
+                        selectedNameColorId = playerNameColorId,
+                        selectedAvatarOutlineColorId = playerAvatarOutlineColorId,
                         onStats = { showStats = true },
                         onAchievements = { showAchievements = true },
                         onCustomize = { screen = AppScreen.CUSTOMIZE },
                         onAvatarSelected = { selectedResourceName ->
                             statsStore.setPlayerAvatarResourceName(selectedResourceName)
                             playerAvatarResourceName = statsStore.getPlayerAvatarResourceName()
+                        },
+                        onNameColorSelected = { colorId ->
+                            if (statsStore.isPlayerNameColorUnlocked(colorId)) {
+                                statsStore.setPlayerNameColorId(colorId)
+                                playerNameColorId = statsStore.getPlayerNameColorId()
+                            }
+                        },
+                        onAvatarOutlineColorSelected = { colorId ->
+                            if (statsStore.isPlayerAvatarOutlineColorUnlocked(colorId)) {
+                                statsStore.setPlayerAvatarOutlineColorId(colorId)
+                                playerAvatarOutlineColorId = statsStore.getPlayerAvatarOutlineColorId()
+                            }
                         },
                         onBack = { screen = AppScreen.MORE }
                     )
@@ -1464,32 +1480,16 @@ private fun TrickleApp() {
                         vaultMarbles = shopStats.vaultMarbles,
                         unlockedNameColorIds = unlockedNameColorIds,
                         unlockedAvatarOutlineColorIds = unlockedAvatarOutlineColorIds,
-                        selectedNameColorId = playerNameColorId,
-                        selectedAvatarOutlineColorId = playerAvatarOutlineColorId,
                         onBuyNameColor = { colorId ->
                             if (statsStore.buyPlayerNameColor(colorId, 113L)) {
                                 shopStats = statsStore.load()
                                 unlockedNameColorIds = statsStore.getUnlockedPlayerNameColorIds()
-                                playerNameColorId = statsStore.getPlayerNameColorId()
-                            }
-                        },
-                        onSelectNameColor = { colorId ->
-                            if (statsStore.isPlayerNameColorUnlocked(colorId)) {
-                                statsStore.setPlayerNameColorId(colorId)
-                                playerNameColorId = statsStore.getPlayerNameColorId()
                             }
                         },
                         onBuyAvatarOutlineColor = { colorId ->
                             if (statsStore.buyPlayerAvatarOutlineColor(colorId, 13L)) {
                                 shopStats = statsStore.load()
                                 unlockedAvatarOutlineColorIds = statsStore.getUnlockedPlayerAvatarOutlineColorIds()
-                                playerAvatarOutlineColorId = statsStore.getPlayerAvatarOutlineColorId()
-                            }
-                        },
-                        onSelectAvatarOutlineColor = { colorId ->
-                            if (statsStore.isPlayerAvatarOutlineColorUnlocked(colorId)) {
-                                statsStore.setPlayerAvatarOutlineColorId(colorId)
-                                playerAvatarOutlineColorId = statsStore.getPlayerAvatarOutlineColorId()
                             }
                         },
                         onBack = { screen = AppScreen.MORE }

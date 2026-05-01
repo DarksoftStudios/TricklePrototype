@@ -30,6 +30,8 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -284,91 +286,91 @@ fun ShopMenuScreen(
     vaultMarbles: Long,
     unlockedNameColorIds: Set<String>,
     unlockedAvatarOutlineColorIds: Set<String>,
-    selectedNameColorId: String,
-    selectedAvatarOutlineColorId: String,
     onBuyNameColor: (String) -> Unit,
-    onSelectNameColor: (String) -> Unit,
     onBuyAvatarOutlineColor: (String) -> Unit,
-    onSelectAvatarOutlineColor: (String) -> Unit,
     onBack: () -> Unit
 ) {
     var pendingPurchase by remember { mutableStateOf<PendingShopPurchase?>(null) }
 
-    Column(
+    Box(
         modifier = Modifier
             .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .padding(top = 34.dp, start = 18.dp, end = 18.dp, bottom = 24.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
+            .padding(top = 34.dp, start = 18.dp, end = 18.dp, bottom = 24.dp)
+            .background(
+                Color.White.copy(alpha = 0.78f),
+                androidx.compose.foundation.shape.RoundedCornerShape(22.dp)
+            )
+            .padding(horizontal = 14.dp, vertical = 14.dp)
     ) {
-        Text(
-            text = "Shop",
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.Bold,
-            textAlign = TextAlign.Center
-        )
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(14.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                text = "Shop",
+                color = Color(0xFF333333),
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                textAlign = TextAlign.Center
+            )
 
-        Text(
-            text = "Vault: $vaultMarbles marbles",
-            color = Color.White,
-            fontWeight = FontWeight.Bold,
-            textAlign = TextAlign.Center
-        )
+            Text(
+                text = "Jug-Vault: $vaultMarbles marbles",
+                color = Color(0xFF333333),
+                fontWeight = FontWeight.Bold,
+                textAlign = TextAlign.Center
+            )
 
-        ShopColorSection(
-            title = "Avatar Outline",
-            cost = 13L,
-            colors = PlayerShopColors,
-            unlockedIds = unlockedAvatarOutlineColorIds,
-            selectedId = selectedAvatarOutlineColorId,
-            defaultId = "",
-            defaultLabel = "None",
-            onBuy = { item ->
-                pendingPurchase = PendingShopPurchase(
-                    id = item.id,
-                    label = item.label,
-                    category = "Avatar Outline",
-                    cost = 13L,
-                    onConfirm = onBuyAvatarOutlineColor
-                )
-            },
-            onSelect = onSelectAvatarOutlineColor
-        )
+            ShopColorPurchaseDropdown(
+                title = "Avatar Outline",
+                cost = 13L,
+                colors = PlayerShopColors,
+                unlockedIds = unlockedAvatarOutlineColorIds,
+                onBuy = { item ->
+                    pendingPurchase = PendingShopPurchase(
+                        id = item.id,
+                        label = item.label,
+                        category = "Avatar Outline",
+                        cost = 13L,
+                        onConfirm = onBuyAvatarOutlineColor
+                    )
+                }
+            )
 
-        ShopColorSection(
-            title = "Name Color",
-            cost = 113L,
-            colors = PlayerShopColors.filterNot { it.id == "white" },
-            unlockedIds = unlockedNameColorIds,
-            selectedId = selectedNameColorId,
-            defaultId = "",
-            defaultLabel = "White",
-            onBuy = { item ->
-                pendingPurchase = PendingShopPurchase(
-                    id = item.id,
-                    label = item.label,
-                    category = "Name Color",
-                    cost = 113L,
-                    onConfirm = onBuyNameColor
-                )
-            },
-            onSelect = onSelectNameColor
-        )
+            ShopColorPurchaseDropdown(
+                title = "Name Color",
+                cost = 113L,
+                colors = PlayerShopColors.filterNot { it.id == "white" },
+                unlockedIds = unlockedNameColorIds,
+                onBuy = { item ->
+                    pendingPurchase = PendingShopPurchase(
+                        id = item.id,
+                        label = item.label,
+                        category = "Name Color",
+                        cost = 113L,
+                        onConfirm = onBuyNameColor
+                    )
+                }
+            )
 
-        ShopUpgradePlaceholderSection()
+            ShopUpgradePlaceholderSection()
 
-        Spacer(Modifier.height(8.dp))
-        MenuLinkButton(text = "BACK") { onBack() }
+            Spacer(Modifier.height(8.dp))
+            MenuLinkButton(text = "BACK") { onBack() }
+        }
     }
 
     pendingPurchase?.let { purchase ->
         AlertDialog(
             onDismissRequest = { pendingPurchase = null },
-            title = { Text("Confirm Purchase") },
+            title = { Text("Confirm Purchase", color = Color(0xFF333333)) },
             text = {
                 Text(
-                    text = "Buy ${purchase.label} ${purchase.category} for ${purchase.cost} marbles?"
+                    text = "Buy ${purchase.label} ${purchase.category} for ${purchase.cost} marbles?",
+                    color = Color(0xFF333333)
                 )
             },
             confirmButton = {
@@ -378,12 +380,12 @@ fun ShopMenuScreen(
                         pendingPurchase = null
                     }
                 ) {
-                    Text("BUY")
+                    Text("BUY", color = Color(0xFF333333))
                 }
             },
             dismissButton = {
                 TextButton(onClick = { pendingPurchase = null }) {
-                    Text("CANCEL")
+                    Text("CANCEL", color = Color(0xFF333333))
                 }
             }
         )
@@ -391,17 +393,15 @@ fun ShopMenuScreen(
 }
 
 @Composable
-private fun ShopColorSection(
+private fun ShopColorPurchaseDropdown(
     title: String,
     cost: Long,
     colors: List<ShopColorItem>,
     unlockedIds: Set<String>,
-    selectedId: String,
-    defaultId: String,
-    defaultLabel: String,
-    onBuy: (ShopColorItem) -> Unit,
-    onSelect: (String) -> Unit
+    onBuy: (ShopColorItem) -> Unit
 ) {
+    var expanded by remember { mutableStateOf(false) }
+
     Column(
         modifier = Modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -409,48 +409,73 @@ private fun ShopColorSection(
     ) {
         Text(
             text = "$title - $cost marbles each",
-            color = Color.White,
+            color = Color(0xFF333333),
             fontWeight = FontWeight.Bold,
             textAlign = TextAlign.Center
         )
 
-        ShopColorButton(
-            label = defaultLabel,
-            color = Color.White,
-            selected = selectedId == defaultId,
-            unlocked = true,
-            onClick = { onSelect(defaultId) }
-        )
-
-        colors.chunked(3).forEach { rowItems ->
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
-                verticalAlignment = Alignment.CenterVertically
+        Box {
+            Button(
+                onClick = { expanded = true },
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = Color.White,
+                    contentColor = Color(0xFF333333)
+                ),
+                shape = androidx.compose.foundation.shape.RoundedCornerShape(14.dp)
             ) {
-                rowItems.forEach { item ->
+                Text("Choose Color", color = Color(0xFF333333))
+            }
+
+            DropdownMenu(
+                expanded = expanded,
+                onDismissRequest = { expanded = false }
+            ) {
+                colors.forEach { item ->
                     val unlocked = item.id in unlockedIds
-                    ShopColorButton(
-                        label = if (unlocked) item.label else "${item.label} Locked",
-                        color = item.color,
-                        selected = selectedId == item.id,
-                        unlocked = unlocked,
+                    DropdownMenuItem(
+                        text = {
+                            ShopColorDropdownRow(
+                                label = if (unlocked) "${item.label} Owned" else "${item.label} - $cost",
+                                color = item.color,
+                                textColor = Color(0xFF333333)
+                            )
+                        },
                         onClick = {
-                            if (unlocked) {
-                                onSelect(item.id)
-                            } else {
+                            if (!unlocked) {
                                 onBuy(item)
                             }
-                        },
-                        modifier = Modifier.weight(1f)
+                            expanded = false
+                        }
                     )
-                }
-
-                repeat(3 - rowItems.size) {
-                    Spacer(Modifier.weight(1f))
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun ShopColorDropdownRow(
+    label: String,
+    color: Color,
+    textColor: Color
+) {
+    Row(
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            modifier = Modifier
+                .size(18.dp)
+                .background(color, androidx.compose.foundation.shape.RoundedCornerShape(5.dp))
+                .border(1.dp, Color(0xFF9AA3AD), androidx.compose.foundation.shape.RoundedCornerShape(5.dp))
+        )
+
+        Text(
+            text = label,
+            color = textColor,
+            fontSize = 13.sp,
+            fontWeight = FontWeight.Bold
+        )
     }
 }
 
@@ -634,10 +659,16 @@ fun RulesMenuScreen(
 @Composable
 fun ProfileMenuScreen(
     playerAvatarResourceName: String,
+    unlockedNameColorIds: Set<String>,
+    unlockedAvatarOutlineColorIds: Set<String>,
+    selectedNameColorId: String,
+    selectedAvatarOutlineColorId: String,
     onStats: () -> Unit,
     onAchievements: () -> Unit,
     onCustomize: () -> Unit,
     onAvatarSelected: (String) -> Unit,
+    onNameColorSelected: (String) -> Unit,
+    onAvatarOutlineColorSelected: (String) -> Unit,
     onBack: () -> Unit
 ) {
     val playerAvatarOptions = listOf(
@@ -695,6 +726,26 @@ fun ProfileMenuScreen(
 
         Spacer(Modifier.height(4.dp))
 
+        ProfileColorDropdown(
+            title = "Name Color",
+            colors = PlayerShopColors.filterNot { it.id == "white" },
+            unlockedIds = unlockedNameColorIds,
+            selectedId = selectedNameColorId,
+            emptyLabel = "No name colors unlocked",
+            onSelect = onNameColorSelected
+        )
+
+        ProfileColorDropdown(
+            title = "Avatar Outline",
+            colors = PlayerShopColors,
+            unlockedIds = unlockedAvatarOutlineColorIds,
+            selectedId = selectedAvatarOutlineColorId,
+            emptyLabel = "No outline colors unlocked",
+            onSelect = onAvatarOutlineColorSelected
+        )
+
+        Spacer(Modifier.height(4.dp))
+
         Text(
             text = "Player Avatar",
             style = MaterialTheme.typography.titleMedium,
@@ -727,6 +778,73 @@ fun ProfileMenuScreen(
         MenuLinkButton(text = "BACK") { onBack() }
 
         Spacer(Modifier.height(24.dp))
+    }
+}
+
+@Composable
+private fun ProfileColorDropdown(
+    title: String,
+    colors: List<ShopColorItem>,
+    unlockedIds: Set<String>,
+    selectedId: String,
+    emptyLabel: String,
+    onSelect: (String) -> Unit
+) {
+    var expanded by remember { mutableStateOf(false) }
+    val unlockedColors = colors.filter { it.id in unlockedIds }
+    val selectedLabel = unlockedColors.firstOrNull { it.id == selectedId }?.label.orEmpty()
+
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text(
+            text = title,
+            color = Color(0xFF333333),
+            fontWeight = FontWeight.Bold,
+            textAlign = TextAlign.Center
+        )
+
+        Box {
+            Button(
+                onClick = { if (unlockedColors.isNotEmpty()) expanded = true },
+                enabled = unlockedColors.isNotEmpty(),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = Color.White,
+                    contentColor = Color(0xFF333333),
+                    disabledContainerColor = Color.White.copy(alpha = 0.55f),
+                    disabledContentColor = Color(0xFF777777)
+                ),
+                shape = androidx.compose.foundation.shape.RoundedCornerShape(14.dp)
+            ) {
+                Text(
+                    text = selectedLabel.ifBlank { emptyLabel },
+                    color = if (unlockedColors.isEmpty()) Color(0xFF777777) else Color(0xFF333333)
+                )
+            }
+
+            DropdownMenu(
+                expanded = expanded,
+                onDismissRequest = { expanded = false }
+            ) {
+                unlockedColors.forEach { item ->
+                    DropdownMenuItem(
+                        text = {
+                            ShopColorDropdownRow(
+                                label = item.label,
+                                color = item.color,
+                                textColor = Color(0xFF333333)
+                            )
+                        },
+                        onClick = {
+                            onSelect(item.id)
+                            expanded = false
+                        }
+                    )
+                }
+            }
+        }
     }
 }
 
