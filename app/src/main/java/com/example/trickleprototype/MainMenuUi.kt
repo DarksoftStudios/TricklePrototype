@@ -1044,21 +1044,29 @@ private fun ProfileColorDropdown(
             textAlign = TextAlign.Center
         )
 
-        Box {
-            Button(
+        Box(
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            OutlinedButton(
                 onClick = { if (unlockedColors.isNotEmpty()) expanded = true },
                 enabled = unlockedColors.isNotEmpty(),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = Color.White,
-                    contentColor = Color.White,
-                    disabledContainerColor = Color.White.copy(alpha = 0.55f),
-                    disabledContentColor = Color.White.copy(alpha = 0.55f)
-                ),
-                shape = RoundedCornerShape(14.dp)
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(48.dp),
+                shape = RoundedCornerShape(14.dp),
+                border = androidx.compose.foundation.BorderStroke(2.dp, Color(0xFF6F7D8C)),
+                colors = ButtonDefaults.outlinedButtonColors(
+                    containerColor = Color(0xFFF2F7FF),
+                    contentColor = Color(0xFF333333),
+                    disabledContainerColor = Color(0xFFE8EDF3),
+                    disabledContentColor = Color(0xFF6F7D8C)
+                )
             ) {
                 Text(
                     text = selectedLabel.ifBlank { emptyLabel },
-                    color = Color.White
+                    color = if (unlockedColors.isNotEmpty()) Color(0xFF333333) else Color(0xFF6F7D8C),
+                    fontWeight = FontWeight.Bold,
+                    textAlign = TextAlign.Center
                 )
             }
 
