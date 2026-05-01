@@ -40,6 +40,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -291,6 +293,12 @@ fun ShopMenuScreen(
     onBack: () -> Unit
 ) {
     var pendingPurchase by remember { mutableStateOf<PendingShopPurchase?>(null) }
+    val shopTitleAccentColors = remember {
+        PlayerShopColors.map { it.color }.shuffled()
+    }
+    val shopNameTitleAccentColors = remember {
+        PlayerShopColors.filterNot { it.id == "white" }.map { it.color }.shuffled()
+    }
 
     Box(
         modifier = Modifier
@@ -328,6 +336,7 @@ fun ShopMenuScreen(
                 title = "Avatar Outline",
                 cost = 13L,
                 colors = PlayerShopColors,
+                titleAccentColors = shopTitleAccentColors,
                 unlockedIds = unlockedAvatarOutlineColorIds,
                 onBuy = { item ->
                     pendingPurchase = PendingShopPurchase(
@@ -344,6 +353,7 @@ fun ShopMenuScreen(
                 title = "Name Color",
                 cost = 113L,
                 colors = PlayerShopColors.filterNot { it.id == "white" },
+                titleAccentColors = shopNameTitleAccentColors,
                 unlockedIds = unlockedNameColorIds,
                 onBuy = { item ->
                     pendingPurchase = PendingShopPurchase(
@@ -397,6 +407,7 @@ private fun ShopColorPurchaseDropdown(
     title: String,
     cost: Long,
     colors: List<ShopColorItem>,
+    titleAccentColors: List<Color>,
     unlockedIds: Set<String>,
     onBuy: (ShopColorItem) -> Unit
 ) {
@@ -407,11 +418,10 @@ private fun ShopColorPurchaseDropdown(
         verticalArrangement = Arrangement.spacedBy(8.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Text(
-            text = "$title - $cost marbles each",
-            color = Color(0xFF333333),
-            fontWeight = FontWeight.Bold,
-            textAlign = TextAlign.Center
+        ShopColorPurchaseTitle(
+            title = title,
+            cost = cost,
+            accentColors = titleAccentColors
         )
 
         Box {
@@ -448,6 +458,101 @@ private fun ShopColorPurchaseDropdown(
                         }
                     )
                 }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ShopColorPurchaseTitle(
+    title: String,
+    cost: Long,
+    accentColors: List<Color>
+) {
+    val safeAccentColors = accentColors.ifEmpty { listOf(Color(0xFF333333)) }
+    val outlineAccentColor = safeAccentColors.first()
+    val colorWordColors = safeAccentColors.take(5).let { selectedColors ->
+        if (selectedColors.size >= 5) {
+            selectedColors
+        } else {
+            selectedColors + List(5 - selectedColors.size) { Color(0xFF333333) }
+        }
+    }
+
+    Row(
+        horizontalArrangement = Arrangement.Center,
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        when (title) {
+            "Avatar Outline" -> {
+                Text(
+                    text = "Avatar ",
+                    color = Color(0xFF333333),
+                    fontWeight = FontWeight.Bold,
+                    textAlign = TextAlign.Center
+                )
+
+                Box(
+                    modifier = Modifier
+                        .border(
+                            2.dp,
+                            outlineAccentColor,
+                            androidx.compose.foundation.shape.RoundedCornerShape(5.dp)
+                        )
+                        .padding(horizontal = 5.dp, vertical = 1.dp)
+                ) {
+                    Text(
+                        text = "Outline",
+                        color = Color(0xFF333333),
+                        fontWeight = FontWeight.Bold,
+                        textAlign = TextAlign.Center
+                    )
+                }
+
+                Text(
+                    text = " - $cost marbles each",
+                    color = Color(0xFF333333),
+                    fontWeight = FontWeight.Bold,
+                    textAlign = TextAlign.Center
+                )
+            }
+
+            "Name Color" -> {
+                Text(
+                    text = "Name ",
+                    color = Color(0xFF333333),
+                    fontWeight = FontWeight.Bold,
+                    textAlign = TextAlign.Center
+                )
+
+                Text(
+                    text = buildAnnotatedString {
+                        "Color".forEachIndexed { index, letter ->
+                            pushStyle(SpanStyle(color = colorWordColors[index]))
+                            append(letter)
+                            pop()
+                        }
+                    },
+                    fontWeight = FontWeight.Bold,
+                    textAlign = TextAlign.Center
+                )
+
+                Text(
+                    text = " - $cost marbles each",
+                    color = Color(0xFF333333),
+                    fontWeight = FontWeight.Bold,
+                    textAlign = TextAlign.Center
+                )
+            }
+
+            else -> {
+                Text(
+                    text = "$title - $cost marbles each",
+                    color = Color(0xFF333333),
+                    fontWeight = FontWeight.Bold,
+                    textAlign = TextAlign.Center
+                )
             }
         }
     }
@@ -795,7 +900,11 @@ private fun ProfileColorDropdown(
     val selectedLabel = unlockedColors.firstOrNull { it.id == selectedId }?.label.orEmpty()
 
     Column(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(Color.White, androidx.compose.foundation.shape.RoundedCornerShape(14.dp))
+            .border(2.dp, Color(0xFF9AA3AD), androidx.compose.foundation.shape.RoundedCornerShape(14.dp))
+            .padding(horizontal = 10.dp, vertical = 10.dp),
         verticalArrangement = Arrangement.spacedBy(6.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
@@ -866,6 +975,7 @@ private fun AvatarMenuItemButton(
 
     Column(
         modifier = modifier
+            .background(Color.White, androidx.compose.foundation.shape.RoundedCornerShape(14.dp))
             .border(2.dp, borderColor, androidx.compose.foundation.shape.RoundedCornerShape(14.dp))
             .padding(horizontal = 6.dp, vertical = 8.dp)
             .alpha(if (item.locked) 0.55f else 1f)
