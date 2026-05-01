@@ -178,6 +178,88 @@ data class ShopColorItem(
     val color: Color
 )
 
+private data class PendingShopPurchase(
+    val id: String,
+    val label: String,
+    val category: String,
+    val cost: Long,
+    val onConfirm: (String) -> Unit
+)
+
+private data class ShopUpgradePlaceholder(
+    val name: String,
+    val cost: Long,
+    val description: String
+)
+
+private val ShopUpgradePlaceholders = listOf(
+    ShopUpgradePlaceholder(
+        name = "Faucet",
+        cost = 11L,
+        description = "At the end of the game, earn 1 extra marble if you had a 1 trickle through untargeted."
+    ),
+    ShopUpgradePlaceholder(
+        name = "Hose",
+        cost = 333L,
+        description = "At the end of the game, earn 3 extra marbles if you had a 1 trickle through untargeted."
+    ),
+    ShopUpgradePlaceholder(
+        name = "Rooster",
+        cost = 113L,
+        description = "Earn 13 extra marbles on the first game you play every 24 hours."
+    ),
+    ShopUpgradePlaceholder(
+        name = "Weather Vane",
+        cost = 333L,
+        description = "Earn 33 extra marbles on the first game you win every 24 hours."
+    ),
+    ShopUpgradePlaceholder(
+        name = "Community Board",
+        cost = 1111L,
+        description = "Unlocks daily missions. Missions refresh daily and will award marbles for future tasks."
+    ),
+    ShopUpgradePlaceholder(
+        name = "Fountain",
+        cost = 11111L,
+        description = "At the end of any game, earn 1 extra marble."
+    ),
+    ShopUpgradePlaceholder(
+        name = "Waterslide",
+        cost = 33333L,
+        description = "At the end of any game, earn 3 extra marbles."
+    ),
+    ShopUpgradePlaceholder(
+        name = "One-Pound Weight",
+        cost = 111L,
+        description = "Auto-play placeholder. Later, this will automatically choose 1 when combined with a coin."
+    ),
+    ShopUpgradePlaceholder(
+        name = "Three-Pound Weight",
+        cost = 333L,
+        description = "Auto-play placeholder. Later, this will automatically choose 3 when combined with a coin."
+    ),
+    ShopUpgradePlaceholder(
+        name = "Patinad Coin",
+        cost = 111L,
+        description = "Auto-play placeholder. Later, this will combine with a weight and autopass every turn."
+    ),
+    ShopUpgradePlaceholder(
+        name = "Normal Coin",
+        cost = 333L,
+        description = "Auto-play placeholder. Later, this will combine with a weight and randomly autopass or auto-target."
+    ),
+    ShopUpgradePlaceholder(
+        name = "Polished Coin",
+        cost = 1113L,
+        description = "Auto-play placeholder. Later, this will combine with a weight and auto-target every turn."
+    ),
+    ShopUpgradePlaceholder(
+        name = "Sealed Coin",
+        cost = 3333L,
+        description = "Auto-play placeholder. Later, this will combine with a weight, auto-target every turn, and guess 3."
+    )
+)
+
 val PlayerShopColors = listOf(
     ShopColorItem("red", "Red", Color(0xFFD32F2F)),
     ShopColorItem("orange", "Orange", Color(0xFFF57C00)),
@@ -209,6 +291,8 @@ fun ShopMenuScreen(
     onSelectAvatarOutlineColor: (String) -> Unit,
     onBack: () -> Unit
 ) {
+    var pendingPurchase by remember { mutableStateOf<PendingShopPurchase?>(null) }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -239,7 +323,15 @@ fun ShopMenuScreen(
             selectedId = selectedAvatarOutlineColorId,
             defaultId = "",
             defaultLabel = "None",
-            onBuy = onBuyAvatarOutlineColor,
+            onBuy = { item ->
+                pendingPurchase = PendingShopPurchase(
+                    id = item.id,
+                    label = item.label,
+                    category = "Avatar Outline",
+                    cost = 13L,
+                    onConfirm = onBuyAvatarOutlineColor
+                )
+            },
             onSelect = onSelectAvatarOutlineColor
         )
 
@@ -251,12 +343,49 @@ fun ShopMenuScreen(
             selectedId = selectedNameColorId,
             defaultId = "",
             defaultLabel = "White",
-            onBuy = onBuyNameColor,
+            onBuy = { item ->
+                pendingPurchase = PendingShopPurchase(
+                    id = item.id,
+                    label = item.label,
+                    category = "Name Color",
+                    cost = 113L,
+                    onConfirm = onBuyNameColor
+                )
+            },
             onSelect = onSelectNameColor
         )
 
+        ShopUpgradePlaceholderSection()
+
         Spacer(Modifier.height(8.dp))
         MenuLinkButton(text = "BACK") { onBack() }
+    }
+
+    pendingPurchase?.let { purchase ->
+        AlertDialog(
+            onDismissRequest = { pendingPurchase = null },
+            title = { Text("Confirm Purchase") },
+            text = {
+                Text(
+                    text = "Buy ${purchase.label} ${purchase.category} for ${purchase.cost} marbles?"
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        purchase.onConfirm(purchase.id)
+                        pendingPurchase = null
+                    }
+                ) {
+                    Text("BUY")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { pendingPurchase = null }) {
+                    Text("CANCEL")
+                }
+            }
+        )
     }
 }
 
@@ -269,7 +398,7 @@ private fun ShopColorSection(
     selectedId: String,
     defaultId: String,
     defaultLabel: String,
-    onBuy: (String) -> Unit,
+    onBuy: (ShopColorItem) -> Unit,
     onSelect: (String) -> Unit
 ) {
     Column(
@@ -309,7 +438,7 @@ private fun ShopColorSection(
                             if (unlocked) {
                                 onSelect(item.id)
                             } else {
-                                onBuy(item.id)
+                                onBuy(item)
                             }
                         },
                         modifier = Modifier.weight(1f)
@@ -319,6 +448,45 @@ private fun ShopColorSection(
                 repeat(3 - rowItems.size) {
                     Spacer(Modifier.weight(1f))
                 }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ShopUpgradePlaceholderSection() {
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text(
+            text = "Upgrades - Coming Soon",
+            color = Color.White,
+            fontWeight = FontWeight.Bold,
+            textAlign = TextAlign.Center
+        )
+
+        ShopUpgradePlaceholders.forEach { upgrade ->
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .border(2.dp, Color(0xFF9AA3AD), androidx.compose.foundation.shape.RoundedCornerShape(14.dp))
+                    .padding(horizontal = 10.dp, vertical = 9.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                Text(
+                    text = "${upgrade.name} - ${upgrade.cost} marbles",
+                    color = Color.White,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 12.sp
+                )
+
+                Text(
+                    text = upgrade.description,
+                    color = Color(0xFFBBBBBB),
+                    fontSize = 11.sp
+                )
             }
         }
     }
