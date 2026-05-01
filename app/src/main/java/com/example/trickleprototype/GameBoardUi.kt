@@ -543,7 +543,8 @@ fun PlayerStatusStack(
             BotAvatarIcon(
                 resourceName = playerAvatarResourceName,
                 greyedOut = false,
-                modifier = Modifier.size(52.dp)
+                modifier = Modifier.size(52.dp),
+                flipHorizontally = true
             )
         }
 
@@ -851,7 +852,8 @@ fun greyedOutAvatarFilter(): ColorFilter {
 fun BotAvatarIcon(
     resourceName: String?,
     greyedOut: Boolean,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    flipHorizontally: Boolean = false
 ) {
     val context = LocalContext.current
     val displayResourceName = remember(resourceName, greyedOut) {
@@ -905,6 +907,7 @@ fun BotAvatarIcon(
                     colorFilter = greyFilter,
                     modifier = Modifier
                         .size(110.dp)
+                        .graphicsLayer { scaleX = if (flipHorizontally) -1f else 1f }
                         .alpha(if (useGeneratedGreyFilter) 0.72f else 1f)
                 )
             }
@@ -917,6 +920,7 @@ fun BotAvatarIcon(
                     colorFilter = greyFilter,
                     modifier = Modifier
                         .size(110.dp)
+                        .graphicsLayer { scaleX = if (flipHorizontally) -1f else 1f }
                         .alpha(if (useGeneratedGreyFilter) 0.72f else 1f)
                 )
             }

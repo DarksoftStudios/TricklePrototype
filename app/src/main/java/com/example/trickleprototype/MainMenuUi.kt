@@ -194,77 +194,90 @@ private data class PendingShopPurchase(
 private data class ShopUpgradePlaceholder(
     val name: String,
     val cost: Long,
-    val description: String
+    val description: String,
+    val spriteName: String
 )
 
 private val ShopUpgradePlaceholders = listOf(
     ShopUpgradePlaceholder(
         name = "Faucet",
         cost = 11L,
-        description = "At the end of the game, earn 1 extra marble if you had a 1 trickle through untargeted."
+        description = "At the end of the game, earn 1 extra marble if you had a 1 trickle through untargeted.",
+        spriteName = "faucet"
     ),
     ShopUpgradePlaceholder(
         name = "Hose",
         cost = 333L,
-        description = "At the end of the game, earn 3 extra marbles if you had a 1 trickle through untargeted."
+        description = "At the end of the game, earn 3 extra marbles if you had a 1 trickle through untargeted.",
+        spriteName = "hose"
     ),
     ShopUpgradePlaceholder(
         name = "Rooster",
         cost = 113L,
-        description = "Earn 13 extra marbles on the first game you play every 24 hours."
+        description = "Earn 13 extra marbles on the first game you play every 24 hours.",
+        spriteName = "rooster"
     ),
     ShopUpgradePlaceholder(
         name = "Weather Vane",
         cost = 333L,
-        description = "Earn 33 extra marbles on the first game you win every 24 hours."
+        description = "Earn 33 extra marbles on the first game you win every 24 hours.",
+        spriteName = "vane"
     ),
     ShopUpgradePlaceholder(
         name = "Community Board",
         cost = 1111L,
-        description = "Unlocks daily missions. Missions refresh daily and will award marbles for future tasks."
+        description = "Unlocks daily missions. Missions refresh daily and will award marbles for future tasks.",
+        spriteName = "corkboard"
     ),
     ShopUpgradePlaceholder(
         name = "Fountain",
         cost = 11111L,
-        description = "At the end of any game, earn 1 extra marble."
+        description = "At the end of any game, earn 1 extra marble.",
+        spriteName = "fountain"
     ),
     ShopUpgradePlaceholder(
         name = "Waterslide",
         cost = 33333L,
-        description = "At the end of any game, earn 3 extra marbles."
+        description = "At the end of any game, earn 3 extra marbles.",
+        spriteName = "waterslide"
     ),
     ShopUpgradePlaceholder(
         name = "One-Pound Weight",
         cost = 111L,
-        description = "Auto-play placeholder. Later, this will automatically choose 1 when combined with a coin."
+        description = "Auto-play placeholder. Later, this will automatically choose 1 when combined with a coin.",
+        spriteName = "weight1"
     ),
     ShopUpgradePlaceholder(
         name = "Three-Pound Weight",
         cost = 333L,
-        description = "Auto-play placeholder. Later, this will automatically choose 3 when combined with a coin."
+        description = "Auto-play placeholder. Later, this will automatically choose 3 when combined with a coin.",
+        spriteName = "weight3"
     ),
     ShopUpgradePlaceholder(
         name = "Patinad Coin",
         cost = 111L,
-        description = "Auto-play placeholder. Later, this will combine with a weight and autopass every turn."
+        description = "Auto-play placeholder. Later, this will combine with a weight and autopass every turn.",
+        spriteName = "coina"
     ),
     ShopUpgradePlaceholder(
         name = "Normal Coin",
         cost = 333L,
-        description = "Auto-play placeholder. Later, this will combine with a weight and randomly autopass or auto-target."
+        description = "Auto-play placeholder. Later, this will combine with a weight and randomly autopass or auto-target.",
+        spriteName = "coinn"
     ),
     ShopUpgradePlaceholder(
         name = "Polished Coin",
         cost = 1113L,
-        description = "Auto-play placeholder. Later, this will combine with a weight and auto-target every turn."
+        description = "Auto-play placeholder. Later, this will combine with a weight and auto-target every turn.",
+        spriteName = "coino"
     ),
     ShopUpgradePlaceholder(
         name = "Sealed Coin",
         cost = 3333L,
-        description = "Auto-play placeholder. Later, this will combine with a weight, auto-target every turn, and guess 3."
+        description = "Auto-play placeholder. Later, this will combine with a weight, auto-target every turn, and guess 3.",
+        spriteName = "coins"
     )
 )
-
 val PlayerShopColors = listOf(
     ShopColorItem("red", "Red", Color(0xFFD32F2F)),
     ShopColorItem("orange", "Orange", Color(0xFFF57C00)),
@@ -584,6 +597,25 @@ private fun ShopColorDropdownRow(
     }
 }
 
+private fun shopUpgradeSpriteResourceId(spriteName: String): Int {
+    return when (spriteName) {
+        "faucet" -> R.drawable.faucet
+        "hose" -> R.drawable.hose
+        "rooster" -> R.drawable.rooster
+        "vane" -> R.drawable.vane
+        "corkboard" -> R.drawable.corkboard
+        "fountain" -> R.drawable.fountain
+        "waterslide" -> R.drawable.waterslide
+        "weight1" -> R.drawable.weight1
+        "weight3" -> R.drawable.weight3
+        "coina" -> R.drawable.coina
+        "coinn" -> R.drawable.coinn
+        "coino" -> R.drawable.coino
+        "coins" -> R.drawable.coins
+        else -> 0
+    }
+}
+
 @Composable
 private fun ShopUpgradePlaceholderSection() {
     Column(
@@ -599,26 +631,43 @@ private fun ShopUpgradePlaceholderSection() {
         )
 
         ShopUpgradePlaceholders.forEach { upgrade ->
-            Column(
+            val spriteResourceId = shopUpgradeSpriteResourceId(upgrade.spriteName)
+
+            Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .background(Color.White, androidx.compose.foundation.shape.RoundedCornerShape(14.dp))
                     .border(2.dp, Color(0xFF9AA3AD), androidx.compose.foundation.shape.RoundedCornerShape(14.dp))
                     .padding(horizontal = 10.dp, vertical = 9.dp),
-                verticalArrangement = Arrangement.spacedBy(4.dp)
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                Text(
-                    text = "${upgrade.name} - ${upgrade.cost} marbles",
-                    color = Color(0xFF333333),
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 12.sp
-                )
+                if (spriteResourceId != 0) {
+                    Image(
+                        painter = painterResource(id = spriteResourceId),
+                        contentDescription = null,
+                        contentScale = ContentScale.Fit,
+                        modifier = Modifier.size(44.dp)
+                    )
+                }
 
-                Text(
-                    text = upgrade.description,
-                    color = Color(0xFF666666),
-                    fontSize = 11.sp
-                )
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    Text(
+                        text = "${upgrade.name} - ${upgrade.cost} marbles",
+                        color = Color(0xFF333333),
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 12.sp
+                    )
+
+                    Text(
+                        text = upgrade.description,
+                        color = Color(0xFF666666),
+                        fontSize = 11.sp
+                    )
+                }
             }
         }
     }
@@ -991,7 +1040,8 @@ private fun AvatarMenuItemButton(
         BotAvatarIcon(
             resourceName = item.resourceName,
             greyedOut = item.locked,
-            modifier = Modifier.size(54.dp)
+            modifier = Modifier.size(54.dp),
+            flipHorizontally = true
         )
 
         Spacer(Modifier.height(4.dp))
