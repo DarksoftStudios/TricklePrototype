@@ -102,6 +102,7 @@ private fun LargePlayButton(
         ) {
             Text(
                 text = "PLAY",
+                modifier = Modifier.padding(top = 36.dp),
                 fontWeight = FontWeight.Black,
                 letterSpacing = 3.sp,
                 fontSize = 38.sp,
@@ -462,7 +463,7 @@ private fun ShopUpgradePlaceholderSection() {
     ) {
         Text(
             text = "Upgrades - Coming Soon",
-            color = Color.White,
+            color = Color(0xFF333333),
             fontWeight = FontWeight.Bold,
             textAlign = TextAlign.Center
         )
@@ -471,20 +472,21 @@ private fun ShopUpgradePlaceholderSection() {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .background(Color.White, androidx.compose.foundation.shape.RoundedCornerShape(14.dp))
                     .border(2.dp, Color(0xFF9AA3AD), androidx.compose.foundation.shape.RoundedCornerShape(14.dp))
                     .padding(horizontal = 10.dp, vertical = 9.dp),
                 verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
                 Text(
                     text = "${upgrade.name} - ${upgrade.cost} marbles",
-                    color = Color.White,
+                    color = Color(0xFF333333),
                     fontWeight = FontWeight.Bold,
                     fontSize = 12.sp
                 )
 
                 Text(
                     text = upgrade.description,
-                    color = Color(0xFFBBBBBB),
+                    color = Color(0xFF666666),
                     fontSize = 11.sp
                 )
             }
@@ -502,10 +504,12 @@ private fun ShopColorButton(
     modifier: Modifier = Modifier
 ) {
     val borderColor = if (selected) Color(0xFF2F38CE) else Color(0xFF9AA3AD)
+    val buttonShape = androidx.compose.foundation.shape.RoundedCornerShape(14.dp)
 
     Row(
         modifier = modifier
-            .border(2.dp, borderColor, androidx.compose.foundation.shape.RoundedCornerShape(14.dp))
+            .background(Color.White, buttonShape)
+            .border(2.dp, borderColor, buttonShape)
             .clickable(onClick = onClick)
             .padding(horizontal = 8.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -520,7 +524,7 @@ private fun ShopColorButton(
 
         Text(
             text = label,
-            color = if (unlocked) Color.White else Color(0xFFBBBBBB),
+            color = if (unlocked) Color(0xFF333333) else Color(0xFF666666),
             fontSize = 11.sp,
             maxLines = 2,
             overflow = TextOverflow.Ellipsis
