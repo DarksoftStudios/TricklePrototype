@@ -48,6 +48,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.DialogProperties
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
@@ -298,11 +299,14 @@ fun colorForShopColorId(colorId: String): Color? {
 
 @Composable
 fun ShopMenuScreen(
+    stats: PlayerStats,
     vaultMarbles: Long,
     unlockedNameColorIds: Set<String>,
     unlockedAvatarOutlineColorIds: Set<String>,
+    unlockedArchetypeAvatarResourceNames: Set<String>,
     onBuyNameColor: (String) -> Unit,
     onBuyAvatarOutlineColor: (String) -> Unit,
+    onBuyArchetypeAvatar: (String) -> Unit,
     onBack: () -> Unit
 ) {
     var pendingPurchase by remember { mutableStateOf<PendingShopPurchase?>(null) }
@@ -379,6 +383,20 @@ fun ShopMenuScreen(
                 }
             )
 
+            ShopArchetypeAvatarPurchaseSection(
+                stats = stats,
+                unlockedResourceNames = unlockedArchetypeAvatarResourceNames,
+                onBuy = { item ->
+                    pendingPurchase = PendingShopPurchase(
+                        id = item.resourceName,
+                        label = item.label,
+                        category = "Avatar",
+                        cost = ArchetypeAvatarUnlocks.COST,
+                        onConfirm = onBuyArchetypeAvatar
+                    )
+                }
+            )
+
             ShopUpgradePlaceholderSection()
 
             Spacer(Modifier.height(8.dp))
@@ -389,11 +407,11 @@ fun ShopMenuScreen(
     pendingPurchase?.let { purchase ->
         AlertDialog(
             onDismissRequest = { pendingPurchase = null },
-            title = { Text("Confirm Purchase", color = Color(0xFF333333)) },
+            title = { Text("Confirm Purchase", color = Color.White) },
             text = {
                 Text(
                     text = "Buy ${purchase.label} ${purchase.category} for ${purchase.cost} marbles?",
-                    color = Color(0xFF333333)
+                    color = Color.White
                 )
             },
             confirmButton = {
@@ -403,12 +421,12 @@ fun ShopMenuScreen(
                         pendingPurchase = null
                     }
                 ) {
-                    Text("BUY", color = Color(0xFF333333))
+                    Text("BUY", color = Color.White)
                 }
             },
             dismissButton = {
                 TextButton(onClick = { pendingPurchase = null }) {
-                    Text("CANCEL", color = Color(0xFF333333))
+                    Text("CANCEL", color = Color.White)
                 }
             }
         )
@@ -442,11 +460,11 @@ private fun ShopColorPurchaseDropdown(
                 onClick = { expanded = true },
                 colors = ButtonDefaults.buttonColors(
                     containerColor = Color.White,
-                    contentColor = Color(0xFF333333)
+                    contentColor = Color(0xFFFFFFFF)
                 ),
                 shape = androidx.compose.foundation.shape.RoundedCornerShape(14.dp)
             ) {
-                Text("Choose Color", color = Color(0xFF333333))
+                Text("Choose Color", color = Color(0xFF1C1C1C))
             }
 
             DropdownMenu(
@@ -460,7 +478,7 @@ private fun ShopColorPurchaseDropdown(
                             ShopColorDropdownRow(
                                 label = if (unlocked) "${item.label} Owned" else "${item.label} - $cost",
                                 color = item.color,
-                                textColor = Color(0xFF333333)
+                                textColor = Color(0xFFFFFFFF)
                             )
                         },
                         onClick = {
@@ -597,6 +615,80 @@ private fun ShopColorDropdownRow(
     }
 }
 
+
+@Composable
+private fun ShopArchetypeAvatarPurchaseSection(
+    stats: PlayerStats,
+    unlockedResourceNames: Set<String>,
+    onBuy: (ArchetypeAvatarUnlockDef) -> Unit
+) {
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text(
+            text = "Archetype Avatars - ${ArchetypeAvatarUnlocks.COST} marbles each",
+            color = Color(0xFF333333),
+            fontWeight = FontWeight.Bold,
+            textAlign = TextAlign.Center
+        )
+
+        ArchetypeAvatarUnlocks.all.forEach { item ->
+            val achievementReady = item.achievementUnlocked(stats)
+            val owned = item.resourceName in unlockedResourceNames
+            val available = achievementReady && !owned
+
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(Color.White, androidx.compose.foundation.shape.RoundedCornerShape(14.dp))
+                    .border(2.dp, Color(0xFF9AA3AD), androidx.compose.foundation.shape.RoundedCornerShape(14.dp))
+                    .then(
+                        if (available) {
+                            Modifier.clickable { onBuy(item) }
+                        } else {
+                            Modifier
+                        }
+                    )
+                    .padding(horizontal = 10.dp, vertical = 9.dp)
+                    .alpha(if (achievementReady || owned) 1f else 0.55f),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                BotAvatarIcon(
+                    resourceName = item.resourceName,
+                    greyedOut = !owned,
+                    modifier = Modifier.size(44.dp),
+                    flipHorizontally = true
+                )
+
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    Text(
+                        text = item.label,
+                        color = Color(0xFF333333),
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 12.sp
+                    )
+
+                    Text(
+                        text = when {
+                            owned -> "Owned"
+                            achievementReady -> "Achievement unlocked - tap to buy"
+                            else -> "Locked until achievement"
+                        },
+                        color = Color(0xFF666666),
+                        fontSize = 11.sp
+                    )
+                }
+            }
+        }
+    }
+}
+
 private fun shopUpgradeSpriteResourceId(spriteName: String): Int {
     return when (spriteName) {
         "faucet" -> R.drawable.faucet
@@ -625,7 +717,7 @@ private fun ShopUpgradePlaceholderSection() {
     ) {
         Text(
             text = "Upgrades - Coming Soon",
-            color = Color(0xFF333333),
+            color = Color(0xFF000000),
             fontWeight = FontWeight.Bold,
             textAlign = TextAlign.Center
         )
@@ -657,7 +749,7 @@ private fun ShopUpgradePlaceholderSection() {
                 ) {
                     Text(
                         text = "${upgrade.name} - ${upgrade.cost} marbles",
-                        color = Color(0xFF333333),
+                        color = Color(0xFF000000),
                         fontWeight = FontWeight.Bold,
                         fontSize = 12.sp
                     )
@@ -815,6 +907,7 @@ fun ProfileMenuScreen(
     playerAvatarResourceName: String,
     unlockedNameColorIds: Set<String>,
     unlockedAvatarOutlineColorIds: Set<String>,
+    unlockedArchetypeAvatarResourceNames: Set<String>,
     selectedNameColorId: String,
     selectedAvatarOutlineColorId: String,
     onStats: () -> Unit,
@@ -825,7 +918,7 @@ fun ProfileMenuScreen(
     onAvatarOutlineColorSelected: (String) -> Unit,
     onBack: () -> Unit
 ) {
-    val playerAvatarOptions = listOf(
+    val basePlayerAvatarOptions = listOf(
         AvatarMenuItem("Player", "player", locked = false),
         AvatarMenuItem("Fem Player", "playerf", locked = false),
         AvatarMenuItem("Male Player", "playerm", locked = false),
@@ -842,29 +935,16 @@ fun ProfileMenuScreen(
         AvatarMenuItem("Ian", "ian", locked = false),
         AvatarMenuItem("Josh", "josh", locked = false),
         AvatarMenuItem("Kelly", "kelly", locked = false),
-        AvatarMenuItem("Lois", "lois", locked = false),
-        AvatarMenuItem("Auditor", "auditor", locked = true),
-        AvatarMenuItem("Avenger", "avenger", locked = true),
-        AvatarMenuItem("Bully", "bully", locked = true),
-        AvatarMenuItem("Cabal", "cabal", locked = true),
-        AvatarMenuItem("Chaos", "chaos", locked = true),
-        AvatarMenuItem("Cynic", "cynic", locked = true),
-        AvatarMenuItem("Echo", "echo", locked = true),
-        AvatarMenuItem("Glutton", "glutton", locked = true),
-        AvatarMenuItem("Hunter", "hunter", locked = true),
-        AvatarMenuItem("Jester", "jester", locked = true),
-        AvatarMenuItem("Juliet", "juliet", locked = true),
-        AvatarMenuItem("Limper", "limper", locked = true),
-        AvatarMenuItem("Lurker", "lurker", locked = true),
-        AvatarMenuItem("Mirror", "mirror", locked = true),
-        AvatarMenuItem("Nemesis", "nemesis", locked = true),
-        AvatarMenuItem("Pacifist", "pacifist", locked = true),
-        AvatarMenuItem("Pitfall", "pitfall", locked = true),
-        AvatarMenuItem("Romeo", "romeo", locked = true),
-        AvatarMenuItem("Scout", "scout", locked = true),
-        AvatarMenuItem("Seer", "seer", locked = true),
-        AvatarMenuItem("Strobe", "strobe", locked = true)
+        AvatarMenuItem("Lois", "lois", locked = false)
     )
+    val archetypeAvatarOptions = ArchetypeAvatarUnlocks.all.map { item ->
+        AvatarMenuItem(
+            label = item.label,
+            resourceName = item.resourceName,
+            locked = item.resourceName !in unlockedArchetypeAvatarResourceNames
+        )
+    }
+    val playerAvatarOptions = basePlayerAvatarOptions + archetypeAvatarOptions
 
     Column(
         modifier = Modifier
@@ -970,15 +1050,15 @@ private fun ProfileColorDropdown(
                 enabled = unlockedColors.isNotEmpty(),
                 colors = ButtonDefaults.buttonColors(
                     containerColor = Color.White,
-                    contentColor = Color(0xFF333333),
+                    contentColor = Color.White,
                     disabledContainerColor = Color.White.copy(alpha = 0.55f),
-                    disabledContentColor = Color(0xFF777777)
+                    disabledContentColor = Color.White.copy(alpha = 0.55f)
                 ),
-                shape = androidx.compose.foundation.shape.RoundedCornerShape(14.dp)
+                shape = RoundedCornerShape(14.dp)
             ) {
                 Text(
                     text = selectedLabel.ifBlank { emptyLabel },
-                    color = if (unlockedColors.isEmpty()) Color(0xFF777777) else Color(0xFF333333)
+                    color = Color.White
                 )
             }
 
@@ -992,7 +1072,7 @@ private fun ProfileColorDropdown(
                             ShopColorDropdownRow(
                                 label = item.label,
                                 color = item.color,
-                                textColor = Color(0xFF333333)
+                                textColor = Color(0xFFFFFFFF)
                             )
                         },
                         onClick = {

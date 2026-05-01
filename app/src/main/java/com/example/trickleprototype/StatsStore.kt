@@ -97,6 +97,47 @@ data class PlayerStats(
     var stormChaser: Boolean = false
 )
 
+
+data class ArchetypeAvatarUnlockDef(
+    val label: String,
+    val resourceName: String,
+    val achievementUnlocked: (PlayerStats) -> Boolean
+)
+
+object ArchetypeAvatarUnlocks {
+    const val COST: Long = 1113L
+
+    val all: List<ArchetypeAvatarUnlockDef> = listOf(
+        ArchetypeAvatarUnlockDef("Auditor", "auditor") { it.taxPaid },
+        ArchetypeAvatarUnlockDef("Avenger", "avenger") { it.vendetta },
+        ArchetypeAvatarUnlockDef("Bully", "bully") { it.pickOnSomeoneYourSize },
+        ArchetypeAvatarUnlockDef("Cabal", "cabal") { it.anointed },
+        ArchetypeAvatarUnlockDef("Chaos", "chaos") { it.chaosTheory },
+        ArchetypeAvatarUnlockDef("Cynic", "cynic") { it.badFaith },
+        ArchetypeAvatarUnlockDef("Echo", "echo") { it.copycat },
+        ArchetypeAvatarUnlockDef("Glutton", "glutton") { it.dieting },
+        ArchetypeAvatarUnlockDef("Hunter", "hunter") { it.beatHunter },
+        ArchetypeAvatarUnlockDef("Jester", "jester") { it.altComedy },
+        ArchetypeAvatarUnlockDef("Juliet", "juliet") { it.shakespeareWin },
+        ArchetypeAvatarUnlockDef("Limper", "limper") { it.slowAndSteady },
+        ArchetypeAvatarUnlockDef("Lurker", "lurker") { it.shadowStep },
+        ArchetypeAvatarUnlockDef("Mirror", "mirror") { it.beatMirror },
+        ArchetypeAvatarUnlockDef("Nemesis", "nemesis") { it.wrongGuyPal },
+        ArchetypeAvatarUnlockDef("Pacifist", "pacifist") { it.pacifistWin || it.pacifistGame },
+        ArchetypeAvatarUnlockDef("Pitfall", "pitfall") { it.firstZeroTrap },
+        ArchetypeAvatarUnlockDef("Romeo", "romeo") { it.shakespeareWin },
+        ArchetypeAvatarUnlockDef("Scout", "scout") { it.firstFlood },
+        ArchetypeAvatarUnlockDef("Seer", "seer") { it.beatSeer },
+        ArchetypeAvatarUnlockDef("Strobe", "strobe") { it.caughtTheStrobe }
+    )
+
+    fun resourceNames(): Set<String> = all.map { it.resourceName }.toSet()
+
+    fun achievementUnlocked(stats: PlayerStats, resourceName: String): Boolean {
+        return all.firstOrNull { it.resourceName == resourceName }?.achievementUnlocked?.invoke(stats) ?: false
+    }
+}
+
 data class WeatherAchievementDef(
     val id: String,
     val title: String,
@@ -156,6 +197,7 @@ class StatsStore(context: Context) {
         const val KEY_PLAYER_AVATAR_OUTLINE_COLOR_ID = "player_avatar_outline_color_id"
         const val KEY_UNLOCKED_PLAYER_NAME_COLOR_IDS = "unlocked_player_name_color_ids"
         const val KEY_UNLOCKED_PLAYER_AVATAR_OUTLINE_COLOR_IDS = "unlocked_player_avatar_outline_color_ids"
+        const val KEY_UNLOCKED_ARCHETYPE_AVATAR_RESOURCE_NAMES = "unlocked_archetype_avatar_resource_names"
     }
 
     fun getPlayerNameColorId(): String {
@@ -180,6 +222,10 @@ class StatsStore(context: Context) {
 
     fun getUnlockedPlayerAvatarOutlineColorIds(): Set<String> {
         return prefs.getStringSet(KEY_UNLOCKED_PLAYER_AVATAR_OUTLINE_COLOR_IDS, emptySet())?.toSet() ?: emptySet()
+    }
+
+    fun getUnlockedArchetypeAvatarResourceNames(): Set<String> {
+        return prefs.getStringSet(KEY_UNLOCKED_ARCHETYPE_AVATAR_RESOURCE_NAMES, emptySet())?.toSet() ?: emptySet()
     }
 
     fun isPlayerNameColorUnlocked(colorId: String): Boolean {
@@ -222,6 +268,43 @@ class StatsStore(context: Context) {
         return true
     }
 
+    fun isArchetypeAvatarUnlocked(resourceName: String): Boolean {
+        val cleaned = resourceName.trim()
+        if (cleaned.isBlank()) return false
+        return cleaned in getUnlockedArchetypeAvatarResourceNames()
+    }
+
+    fun canBuyArchetypeAvatar(resourceName: String): Boolean {
+        val cleaned = resourceName.trim()
+        if (cleaned.isBlank() || isArchetypeAvatarUnlocked(cleaned)) return false
+        return ArchetypeAvatarUnlocks.achievementUnlocked(load(), cleaned)
+    }
+
+    fun buyArchetypeAvatar(resourceName: String, cost: Long): Boolean {
+        val cleaned = resourceName.trim()
+        if (cleaned.isBlank() || isArchetypeAvatarUnlocked(cleaned)) return false
+        val stats = load()
+        if (!ArchetypeAvatarUnlocks.achievementUnlocked(stats, cleaned)) return false
+        if (stats.vaultMarbles < cost) return false
+
+        stats.vaultMarbles -= cost
+        save(stats)
+
+        val unlocked = getUnlockedArchetypeAvatarResourceNames() + cleaned
+        prefs.edit()
+            .putStringSet(KEY_UNLOCKED_ARCHETYPE_AVATAR_RESOURCE_NAMES, unlocked)
+            .putString(KEY_PLAYER_AVATAR_RESOURCE_NAME, cleaned)
+            .apply()
+        return true
+    }
+
+    fun isPlayerAvatarAvailable(resourceName: String): Boolean {
+        val cleaned = resourceName.trim()
+        if (cleaned.isBlank()) return false
+        if (cleaned !in ArchetypeAvatarUnlocks.resourceNames()) return true
+        return isArchetypeAvatarUnlocked(cleaned)
+    }
+
     fun getPlayerAvatarResourceName(): String {
         val raw = prefs.getString(KEY_PLAYER_AVATAR_RESOURCE_NAME, null)?.trim().orEmpty()
         return if (raw.isBlank()) DEFAULT_PLAYER_AVATAR_RESOURCE_NAME else raw
@@ -229,10 +312,9 @@ class StatsStore(context: Context) {
 
     fun setPlayerAvatarResourceName(resourceName: String) {
         val cleaned = resourceName.trim()
-        prefs.edit().putString(
-            KEY_PLAYER_AVATAR_RESOURCE_NAME,
-            if (cleaned.isBlank()) DEFAULT_PLAYER_AVATAR_RESOURCE_NAME else cleaned
-        ).apply()
+        val selected = if (cleaned.isBlank()) DEFAULT_PLAYER_AVATAR_RESOURCE_NAME else cleaned
+        if (!isPlayerAvatarAvailable(selected)) return
+        prefs.edit().putString(KEY_PLAYER_AVATAR_RESOURCE_NAME, selected).apply()
     }
 
     fun getPlayerName(): String {

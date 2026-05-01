@@ -404,6 +404,7 @@ private fun TrickleApp() {
     var shopStats by remember { mutableStateOf(statsStore.load()) }
     var unlockedNameColorIds by remember { mutableStateOf(statsStore.getUnlockedPlayerNameColorIds()) }
     var unlockedAvatarOutlineColorIds by remember { mutableStateOf(statsStore.getUnlockedPlayerAvatarOutlineColorIds()) }
+    var unlockedArchetypeAvatarResourceNames by remember { mutableStateOf(statsStore.getUnlockedArchetypeAvatarResourceNames()) }
 
     SideEffect {
         engine.setHumanName(playerName)
@@ -1363,6 +1364,7 @@ private fun TrickleApp() {
                             shopStats = statsStore.load()
                             unlockedNameColorIds = statsStore.getUnlockedPlayerNameColorIds()
                             unlockedAvatarOutlineColorIds = statsStore.getUnlockedPlayerAvatarOutlineColorIds()
+                            unlockedArchetypeAvatarResourceNames = statsStore.getUnlockedArchetypeAvatarResourceNames()
                             playerNameColorId = statsStore.getPlayerNameColorId()
                             playerAvatarOutlineColorId = statsStore.getPlayerAvatarOutlineColorId()
                             screen = AppScreen.SHOP
@@ -1387,14 +1389,17 @@ private fun TrickleApp() {
                         playerAvatarResourceName = playerAvatarResourceName,
                         unlockedNameColorIds = unlockedNameColorIds,
                         unlockedAvatarOutlineColorIds = unlockedAvatarOutlineColorIds,
+                        unlockedArchetypeAvatarResourceNames = unlockedArchetypeAvatarResourceNames,
                         selectedNameColorId = playerNameColorId,
                         selectedAvatarOutlineColorId = playerAvatarOutlineColorId,
                         onStats = { showStats = true },
                         onAchievements = { showAchievements = true },
                         onCustomize = { screen = AppScreen.CUSTOMIZE },
                         onAvatarSelected = { selectedResourceName ->
-                            statsStore.setPlayerAvatarResourceName(selectedResourceName)
-                            playerAvatarResourceName = statsStore.getPlayerAvatarResourceName()
+                            if (statsStore.isPlayerAvatarAvailable(selectedResourceName)) {
+                                statsStore.setPlayerAvatarResourceName(selectedResourceName)
+                                playerAvatarResourceName = statsStore.getPlayerAvatarResourceName()
+                            }
                         },
                         onNameColorSelected = { colorId ->
                             if (statsStore.isPlayerNameColorUnlocked(colorId)) {
@@ -1443,6 +1448,7 @@ private fun TrickleApp() {
                             shopStats = statsStore.load()
                             unlockedNameColorIds = statsStore.getUnlockedPlayerNameColorIds()
                             unlockedAvatarOutlineColorIds = statsStore.getUnlockedPlayerAvatarOutlineColorIds()
+                            unlockedArchetypeAvatarResourceNames = statsStore.getUnlockedArchetypeAvatarResourceNames()
                             engine.setHumanName(playerName)
                             showResetStatsConfirm = false
                         },
@@ -1477,9 +1483,11 @@ private fun TrickleApp() {
 
                 AppScreen.SHOP -> {
                     ShopMenuScreen(
+                        stats = shopStats,
                         vaultMarbles = shopStats.vaultMarbles,
                         unlockedNameColorIds = unlockedNameColorIds,
                         unlockedAvatarOutlineColorIds = unlockedAvatarOutlineColorIds,
+                        unlockedArchetypeAvatarResourceNames = unlockedArchetypeAvatarResourceNames,
                         onBuyNameColor = { colorId ->
                             if (statsStore.buyPlayerNameColor(colorId, 113L)) {
                                 shopStats = statsStore.load()
@@ -1490,6 +1498,13 @@ private fun TrickleApp() {
                             if (statsStore.buyPlayerAvatarOutlineColor(colorId, 13L)) {
                                 shopStats = statsStore.load()
                                 unlockedAvatarOutlineColorIds = statsStore.getUnlockedPlayerAvatarOutlineColorIds()
+                            }
+                        },
+                        onBuyArchetypeAvatar = { resourceName ->
+                            if (statsStore.buyArchetypeAvatar(resourceName, ArchetypeAvatarUnlocks.COST)) {
+                                shopStats = statsStore.load()
+                                unlockedArchetypeAvatarResourceNames = statsStore.getUnlockedArchetypeAvatarResourceNames()
+                                playerAvatarResourceName = statsStore.getPlayerAvatarResourceName()
                             }
                         },
                         onBack = { screen = AppScreen.MORE }
