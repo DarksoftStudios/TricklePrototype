@@ -152,6 +152,74 @@ class StatsStore(context: Context) {
         const val KEY_PLAYER_NAME = "player_name"
         const val KEY_PLAYER_AVATAR_RESOURCE_NAME = "player_avatar_resource_name"
         const val DEFAULT_PLAYER_AVATAR_RESOURCE_NAME = "player"
+        const val KEY_PLAYER_NAME_COLOR_ID = "player_name_color_id"
+        const val KEY_PLAYER_AVATAR_OUTLINE_COLOR_ID = "player_avatar_outline_color_id"
+        const val KEY_UNLOCKED_PLAYER_NAME_COLOR_IDS = "unlocked_player_name_color_ids"
+        const val KEY_UNLOCKED_PLAYER_AVATAR_OUTLINE_COLOR_IDS = "unlocked_player_avatar_outline_color_ids"
+    }
+
+    fun getPlayerNameColorId(): String {
+        return prefs.getString(KEY_PLAYER_NAME_COLOR_ID, null)?.trim().orEmpty()
+    }
+
+    fun setPlayerNameColorId(colorId: String) {
+        prefs.edit().putString(KEY_PLAYER_NAME_COLOR_ID, colorId.trim()).apply()
+    }
+
+    fun getPlayerAvatarOutlineColorId(): String {
+        return prefs.getString(KEY_PLAYER_AVATAR_OUTLINE_COLOR_ID, null)?.trim().orEmpty()
+    }
+
+    fun setPlayerAvatarOutlineColorId(colorId: String) {
+        prefs.edit().putString(KEY_PLAYER_AVATAR_OUTLINE_COLOR_ID, colorId.trim()).apply()
+    }
+
+    fun getUnlockedPlayerNameColorIds(): Set<String> {
+        return prefs.getStringSet(KEY_UNLOCKED_PLAYER_NAME_COLOR_IDS, emptySet())?.toSet() ?: emptySet()
+    }
+
+    fun getUnlockedPlayerAvatarOutlineColorIds(): Set<String> {
+        return prefs.getStringSet(KEY_UNLOCKED_PLAYER_AVATAR_OUTLINE_COLOR_IDS, emptySet())?.toSet() ?: emptySet()
+    }
+
+    fun isPlayerNameColorUnlocked(colorId: String): Boolean {
+        val cleaned = colorId.trim()
+        return cleaned.isBlank() || cleaned in getUnlockedPlayerNameColorIds()
+    }
+
+    fun isPlayerAvatarOutlineColorUnlocked(colorId: String): Boolean {
+        val cleaned = colorId.trim()
+        return cleaned.isBlank() || cleaned in getUnlockedPlayerAvatarOutlineColorIds()
+    }
+
+    fun buyPlayerNameColor(colorId: String, cost: Long): Boolean {
+        val cleaned = colorId.trim()
+        if (cleaned.isBlank() || isPlayerNameColorUnlocked(cleaned)) return false
+        val stats = load()
+        if (stats.vaultMarbles < cost) return false
+        stats.vaultMarbles -= cost
+        save(stats)
+        val unlocked = getUnlockedPlayerNameColorIds() + cleaned
+        prefs.edit()
+            .putStringSet(KEY_UNLOCKED_PLAYER_NAME_COLOR_IDS, unlocked)
+            .putString(KEY_PLAYER_NAME_COLOR_ID, cleaned)
+            .apply()
+        return true
+    }
+
+    fun buyPlayerAvatarOutlineColor(colorId: String, cost: Long): Boolean {
+        val cleaned = colorId.trim()
+        if (cleaned.isBlank() || isPlayerAvatarOutlineColorUnlocked(cleaned)) return false
+        val stats = load()
+        if (stats.vaultMarbles < cost) return false
+        stats.vaultMarbles -= cost
+        save(stats)
+        val unlocked = getUnlockedPlayerAvatarOutlineColorIds() + cleaned
+        prefs.edit()
+            .putStringSet(KEY_UNLOCKED_PLAYER_AVATAR_OUTLINE_COLOR_IDS, unlocked)
+            .putString(KEY_PLAYER_AVATAR_OUTLINE_COLOR_ID, cleaned)
+            .apply()
+        return true
     }
 
     fun getPlayerAvatarResourceName(): String {

@@ -485,6 +485,8 @@ fun PhaseBadge(
 fun PlayerStatusStack(
     playerTitle: String,
     playerAvatarResourceName: String?,
+    playerNameColor: Color,
+    playerAvatarOutlineColor: Color?,
     playerScore: Int,
     isCurrentTurn: Boolean,
     indicator: FloatingIndicator?,
@@ -517,7 +519,7 @@ fun PlayerStatusStack(
     ) {
         Text(
             text = playerTitle,
-            color = Color.White,
+            color = playerNameColor,
             fontWeight = FontWeight.Bold,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis
@@ -525,11 +527,25 @@ fun PlayerStatusStack(
 
         Spacer(Modifier.width(8.dp))
 
-        BotAvatarIcon(
-            resourceName = playerAvatarResourceName,
-            greyedOut = false,
-            modifier = Modifier.size(52.dp)
-        )
+        Box(
+            modifier = Modifier
+                .then(
+                    if (playerAvatarOutlineColor != null) {
+                        Modifier
+                            .background(playerAvatarOutlineColor)
+                            .padding(3.dp)
+                    } else {
+                        Modifier
+                    }
+                ),
+            contentAlignment = Alignment.Center
+        ) {
+            BotAvatarIcon(
+                resourceName = playerAvatarResourceName,
+                greyedOut = false,
+                modifier = Modifier.size(52.dp)
+            )
+        }
 
         Spacer(Modifier.width(8.dp))
 

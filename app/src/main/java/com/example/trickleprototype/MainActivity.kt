@@ -399,6 +399,11 @@ private fun TrickleApp() {
 
     var playerName by remember { mutableStateOf(statsStore.getPlayerName()) }
     var playerAvatarResourceName by remember { mutableStateOf(statsStore.getPlayerAvatarResourceName()) }
+    var playerNameColorId by remember { mutableStateOf(statsStore.getPlayerNameColorId()) }
+    var playerAvatarOutlineColorId by remember { mutableStateOf(statsStore.getPlayerAvatarOutlineColorId()) }
+    var shopStats by remember { mutableStateOf(statsStore.load()) }
+    var unlockedNameColorIds by remember { mutableStateOf(statsStore.getUnlockedPlayerNameColorIds()) }
+    var unlockedAvatarOutlineColorIds by remember { mutableStateOf(statsStore.getUnlockedPlayerAvatarOutlineColorIds()) }
 
     SideEffect {
         engine.setHumanName(playerName)
@@ -1354,7 +1359,14 @@ private fun TrickleApp() {
                         onRules = { screen = AppScreen.RULES },
                         onProfile = { screen = AppScreen.PROFILE },
                         onSettings = { screen = AppScreen.SETTINGS },
-                        onShop = { screen = AppScreen.SHOP },
+                        onShop = {
+                            shopStats = statsStore.load()
+                            unlockedNameColorIds = statsStore.getUnlockedPlayerNameColorIds()
+                            unlockedAvatarOutlineColorIds = statsStore.getUnlockedPlayerAvatarOutlineColorIds()
+                            playerNameColorId = statsStore.getPlayerNameColorId()
+                            playerAvatarOutlineColorId = statsStore.getPlayerAvatarOutlineColorId()
+                            screen = AppScreen.SHOP
+                        },
                         onBack = { screen = AppScreen.MAIN_MENU }
                     )
                     return@Column
@@ -1410,6 +1422,11 @@ private fun TrickleApp() {
                             statsStore.resetAll()
                             playerName = statsStore.getPlayerName()
                             playerAvatarResourceName = statsStore.getPlayerAvatarResourceName()
+                            playerNameColorId = statsStore.getPlayerNameColorId()
+                            playerAvatarOutlineColorId = statsStore.getPlayerAvatarOutlineColorId()
+                            shopStats = statsStore.load()
+                            unlockedNameColorIds = statsStore.getUnlockedPlayerNameColorIds()
+                            unlockedAvatarOutlineColorIds = statsStore.getUnlockedPlayerAvatarOutlineColorIds()
                             engine.setHumanName(playerName)
                             showResetStatsConfirm = false
                         },
@@ -1444,6 +1461,37 @@ private fun TrickleApp() {
 
                 AppScreen.SHOP -> {
                     ShopMenuScreen(
+                        vaultMarbles = shopStats.vaultMarbles,
+                        unlockedNameColorIds = unlockedNameColorIds,
+                        unlockedAvatarOutlineColorIds = unlockedAvatarOutlineColorIds,
+                        selectedNameColorId = playerNameColorId,
+                        selectedAvatarOutlineColorId = playerAvatarOutlineColorId,
+                        onBuyNameColor = { colorId ->
+                            if (statsStore.buyPlayerNameColor(colorId, 113L)) {
+                                shopStats = statsStore.load()
+                                unlockedNameColorIds = statsStore.getUnlockedPlayerNameColorIds()
+                                playerNameColorId = statsStore.getPlayerNameColorId()
+                            }
+                        },
+                        onSelectNameColor = { colorId ->
+                            if (statsStore.isPlayerNameColorUnlocked(colorId)) {
+                                statsStore.setPlayerNameColorId(colorId)
+                                playerNameColorId = statsStore.getPlayerNameColorId()
+                            }
+                        },
+                        onBuyAvatarOutlineColor = { colorId ->
+                            if (statsStore.buyPlayerAvatarOutlineColor(colorId, 13L)) {
+                                shopStats = statsStore.load()
+                                unlockedAvatarOutlineColorIds = statsStore.getUnlockedPlayerAvatarOutlineColorIds()
+                                playerAvatarOutlineColorId = statsStore.getPlayerAvatarOutlineColorId()
+                            }
+                        },
+                        onSelectAvatarOutlineColor = { colorId ->
+                            if (statsStore.isPlayerAvatarOutlineColorUnlocked(colorId)) {
+                                statsStore.setPlayerAvatarOutlineColorId(colorId)
+                                playerAvatarOutlineColorId = statsStore.getPlayerAvatarOutlineColorId()
+                            }
+                        },
                         onBack = { screen = AppScreen.MORE }
                     )
                     return@Column
@@ -1702,6 +1750,8 @@ private fun TrickleApp() {
                         PlayerStatusStack(
                             playerTitle = playerTitle,
                             playerAvatarResourceName = playerAvatarResourceName,
+                            playerNameColor = colorForShopColorId(playerNameColorId) ?: Color.White,
+                            playerAvatarOutlineColor = colorForShopColorId(playerAvatarOutlineColorId),
                             playerScore = playerScore,
                             isCurrentTurn = currentActorId == GameEngine.HUMAN_ID,
                             indicator = floatingIndicators[GameEngine.HUMAN_ID],

@@ -8,6 +8,7 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -171,20 +172,191 @@ fun MoreMenuScreen(
     }
 }
 
+data class ShopColorItem(
+    val id: String,
+    val label: String,
+    val color: Color
+)
+
+val PlayerShopColors = listOf(
+    ShopColorItem("red", "Red", Color(0xFFD32F2F)),
+    ShopColorItem("orange", "Orange", Color(0xFFF57C00)),
+    ShopColorItem("yellow", "Yellow", Color(0xFFFBC02D)),
+    ShopColorItem("green", "Green", Color(0xFF388E3C)),
+    ShopColorItem("blue", "Blue", Color(0xFF1976D2)),
+    ShopColorItem("purple", "Purple", Color(0xFF7B1FA2)),
+    ShopColorItem("pink", "Pink", Color(0xFFC2185B)),
+    ShopColorItem("brown", "Brown", Color(0xFF795548)),
+    ShopColorItem("black", "Black", Color(0xFF111111)),
+    ShopColorItem("grey", "Grey", Color(0xFF757575)),
+    ShopColorItem("white", "White", Color.White)
+)
+
+fun colorForShopColorId(colorId: String): Color? {
+    return PlayerShopColors.firstOrNull { it.id == colorId }?.color
+}
+
 @Composable
 fun ShopMenuScreen(
+    vaultMarbles: Long,
+    unlockedNameColorIds: Set<String>,
+    unlockedAvatarOutlineColorIds: Set<String>,
+    selectedNameColorId: String,
+    selectedAvatarOutlineColorId: String,
+    onBuyNameColor: (String) -> Unit,
+    onSelectNameColor: (String) -> Unit,
+    onBuyAvatarOutlineColor: (String) -> Unit,
+    onSelectAvatarOutlineColor: (String) -> Unit,
     onBack: () -> Unit
 ) {
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(top = 72.dp),
-        verticalArrangement = Arrangement.spacedBy(35.dp, Alignment.CenterVertically),
+            .verticalScroll(rememberScrollState())
+            .padding(top = 34.dp, start = 18.dp, end = 18.dp, bottom = 24.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        MenuLinkButton(text = "BACK") { onBack() }
+        Text(
+            text = "Shop",
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold,
+            textAlign = TextAlign.Center
+        )
 
-        Spacer(Modifier.height(24.dp))
+        Text(
+            text = "Vault: $vaultMarbles marbles",
+            color = Color.White,
+            fontWeight = FontWeight.Bold,
+            textAlign = TextAlign.Center
+        )
+
+        ShopColorSection(
+            title = "Avatar Outline",
+            cost = 13L,
+            colors = PlayerShopColors,
+            unlockedIds = unlockedAvatarOutlineColorIds,
+            selectedId = selectedAvatarOutlineColorId,
+            defaultId = "",
+            defaultLabel = "None",
+            onBuy = onBuyAvatarOutlineColor,
+            onSelect = onSelectAvatarOutlineColor
+        )
+
+        ShopColorSection(
+            title = "Name Color",
+            cost = 113L,
+            colors = PlayerShopColors.filterNot { it.id == "white" },
+            unlockedIds = unlockedNameColorIds,
+            selectedId = selectedNameColorId,
+            defaultId = "",
+            defaultLabel = "White",
+            onBuy = onBuyNameColor,
+            onSelect = onSelectNameColor
+        )
+
+        Spacer(Modifier.height(8.dp))
+        MenuLinkButton(text = "BACK") { onBack() }
+    }
+}
+
+@Composable
+private fun ShopColorSection(
+    title: String,
+    cost: Long,
+    colors: List<ShopColorItem>,
+    unlockedIds: Set<String>,
+    selectedId: String,
+    defaultId: String,
+    defaultLabel: String,
+    onBuy: (String) -> Unit,
+    onSelect: (String) -> Unit
+) {
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text(
+            text = "$title - $cost marbles each",
+            color = Color.White,
+            fontWeight = FontWeight.Bold,
+            textAlign = TextAlign.Center
+        )
+
+        ShopColorButton(
+            label = defaultLabel,
+            color = Color.White,
+            selected = selectedId == defaultId,
+            unlocked = true,
+            onClick = { onSelect(defaultId) }
+        )
+
+        colors.chunked(3).forEach { rowItems ->
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                rowItems.forEach { item ->
+                    val unlocked = item.id in unlockedIds
+                    ShopColorButton(
+                        label = if (unlocked) item.label else "${item.label} Locked",
+                        color = item.color,
+                        selected = selectedId == item.id,
+                        unlocked = unlocked,
+                        onClick = {
+                            if (unlocked) {
+                                onSelect(item.id)
+                            } else {
+                                onBuy(item.id)
+                            }
+                        },
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+
+                repeat(3 - rowItems.size) {
+                    Spacer(Modifier.weight(1f))
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ShopColorButton(
+    label: String,
+    color: Color,
+    selected: Boolean,
+    unlocked: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val borderColor = if (selected) Color(0xFF2F38CE) else Color(0xFF9AA3AD)
+
+    Row(
+        modifier = modifier
+            .border(2.dp, borderColor, androidx.compose.foundation.shape.RoundedCornerShape(14.dp))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 8.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(7.dp)
+    ) {
+        Box(
+            modifier = Modifier
+                .size(18.dp)
+                .background(color)
+                .border(1.dp, Color.Black)
+        )
+
+        Text(
+            text = label,
+            color = if (unlocked) Color.White else Color(0xFFBBBBBB),
+            fontSize = 11.sp,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis
+        )
     }
 }
 
@@ -300,6 +472,8 @@ fun ProfileMenuScreen(
         AvatarMenuItem("Player", "player", locked = false),
         AvatarMenuItem("Fem Player", "playerf", locked = false),
         AvatarMenuItem("Male Player", "playerm", locked = false),
+        AvatarMenuItem("Dog Player", "playerd", locked = false),
+        AvatarMenuItem("Cat Player", "playerc", locked = false),
         AvatarMenuItem("Al", "al", locked = false),
         AvatarMenuItem("Barbara", "barbara", locked = false),
         AvatarMenuItem("Clark", "clark", locked = false),
