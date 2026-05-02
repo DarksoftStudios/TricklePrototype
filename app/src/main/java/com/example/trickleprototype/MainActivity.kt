@@ -1148,7 +1148,7 @@ private fun TrickleApp() {
                 .fillMaxSize()
                 .statusBarsPadding()
                 .navigationBarsPadding()
-                .padding(12.dp)
+                .padding(start = 12.dp, end = 12.dp, top = 0.dp, bottom = 12.dp)
                 .alpha(uiContentFade.value),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
