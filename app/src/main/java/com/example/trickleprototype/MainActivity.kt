@@ -317,7 +317,10 @@ private fun buildBonusMarblePayout(
     result: RoundResult,
     botTags: Map<Int, String>,
     difficulty: Difficulty?,
-    startingVaultMarbles: Long
+    startingVaultMarbles: Long,
+    ownedUpgradeIds: Set<String>,
+    roosterBonusClaimed: Boolean,
+    weatherVaneBonusClaimed: Boolean
 ): BonusMarblePayout {
     val humanScore = result.players.firstOrNull { it.id == GameEngine.HUMAN_ID }?.marbles ?: 0
     val rows = mutableListOf(BonusMarbleRow("Game Score", humanScore))
@@ -342,6 +345,25 @@ private fun buildBonusMarblePayout(
 
     val achievementAmount = newlyUnlockedAchievementCount(result) * ACHIEVEMENT_BONUS_MARBLES
     if (achievementAmount > 0) rows += BonusMarbleRow("Achievement", achievementAmount)
+
+    if ("faucet" in ownedUpgradeIds && result.humanHadUntargetedOneTrickleThisGame) {
+        rows += BonusMarbleRow("Faucet", 1)
+    }
+    if ("hose" in ownedUpgradeIds && result.humanHadUntargetedOneTrickleThisGame) {
+        rows += BonusMarbleRow("Hose", 3)
+    }
+    if (roosterBonusClaimed) {
+        rows += BonusMarbleRow("Rooster", 13)
+    }
+    if (weatherVaneBonusClaimed) {
+        rows += BonusMarbleRow("Weather Vane", 33)
+    }
+    if ("fountain" in ownedUpgradeIds) {
+        rows += BonusMarbleRow("Fountain", 1)
+    }
+    if ("waterslide" in ownedUpgradeIds) {
+        rows += BonusMarbleRow("Waterslide", 3)
+    }
 
     return BonusMarblePayout(
         rows = rows,
@@ -405,6 +427,7 @@ private fun TrickleApp() {
     var unlockedNameColorIds by remember { mutableStateOf(statsStore.getUnlockedPlayerNameColorIds()) }
     var unlockedAvatarOutlineColorIds by remember { mutableStateOf(statsStore.getUnlockedPlayerAvatarOutlineColorIds()) }
     var unlockedArchetypeAvatarResourceNames by remember { mutableStateOf(statsStore.getUnlockedArchetypeAvatarResourceNames()) }
+    var unlockedShopUpgradeIds by remember { mutableStateOf(statsStore.getUnlockedShopUpgradeIds()) }
 
     SideEffect {
         engine.setHumanName(playerName)
@@ -625,11 +648,18 @@ private fun TrickleApp() {
 
         delay(400)
         val startingVaultMarbles = statsStore.load().vaultMarbles
+        val ownedUpgradeIds = statsStore.getUnlockedShopUpgradeIds()
+        val humanWon = result.winnerIds.contains(GameEngine.HUMAN_ID)
+        val roosterBonusClaimed = statsStore.claimRoosterDailyBonus()
+        val weatherVaneBonusClaimed = humanWon && statsStore.claimWeatherVaneDailyBonus()
         val payout = buildBonusMarblePayout(
             result = result,
             botTags = botTagSnapshot,
             difficulty = difficulty,
-            startingVaultMarbles = startingVaultMarbles
+            startingVaultMarbles = startingVaultMarbles,
+            ownedUpgradeIds = ownedUpgradeIds,
+            roosterBonusClaimed = roosterBonusClaimed,
+            weatherVaneBonusClaimed = weatherVaneBonusClaimed
         )
         val totalProgressAmount = if (difficulty == Difficulty.EASY) {
             0L
@@ -1365,6 +1395,7 @@ private fun TrickleApp() {
                             unlockedNameColorIds = statsStore.getUnlockedPlayerNameColorIds()
                             unlockedAvatarOutlineColorIds = statsStore.getUnlockedPlayerAvatarOutlineColorIds()
                             unlockedArchetypeAvatarResourceNames = statsStore.getUnlockedArchetypeAvatarResourceNames()
+                            unlockedShopUpgradeIds = statsStore.getUnlockedShopUpgradeIds()
                             playerNameColorId = statsStore.getPlayerNameColorId()
                             playerAvatarOutlineColorId = statsStore.getPlayerAvatarOutlineColorId()
                             screen = AppScreen.SHOP
@@ -1449,6 +1480,7 @@ private fun TrickleApp() {
                             unlockedNameColorIds = statsStore.getUnlockedPlayerNameColorIds()
                             unlockedAvatarOutlineColorIds = statsStore.getUnlockedPlayerAvatarOutlineColorIds()
                             unlockedArchetypeAvatarResourceNames = statsStore.getUnlockedArchetypeAvatarResourceNames()
+                            unlockedShopUpgradeIds = statsStore.getUnlockedShopUpgradeIds()
                             engine.setHumanName(playerName)
                             showResetStatsConfirm = false
                         },
@@ -1488,6 +1520,7 @@ private fun TrickleApp() {
                         unlockedNameColorIds = unlockedNameColorIds,
                         unlockedAvatarOutlineColorIds = unlockedAvatarOutlineColorIds,
                         unlockedArchetypeAvatarResourceNames = unlockedArchetypeAvatarResourceNames,
+                        unlockedShopUpgradeIds = unlockedShopUpgradeIds,
                         onBuyNameColor = { colorId ->
                             if (statsStore.buyPlayerNameColor(colorId, 113L)) {
                                 shopStats = statsStore.load()
@@ -1505,6 +1538,13 @@ private fun TrickleApp() {
                                 shopStats = statsStore.load()
                                 unlockedArchetypeAvatarResourceNames = statsStore.getUnlockedArchetypeAvatarResourceNames()
                                 playerAvatarResourceName = statsStore.getPlayerAvatarResourceName()
+                            }
+                        },
+                        onBuyShopUpgrade = { upgradeId ->
+                            val upgrade = ShopUpgradeItems.firstOrNull { it.id == upgradeId }
+                            if (upgrade != null && upgrade.implemented && statsStore.buyShopUpgrade(upgrade.id, upgrade.cost)) {
+                                shopStats = statsStore.load()
+                                unlockedShopUpgradeIds = statsStore.getUnlockedShopUpgradeIds()
                             }
                         },
                         onBack = { screen = AppScreen.MORE }

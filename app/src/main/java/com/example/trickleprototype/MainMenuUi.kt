@@ -192,91 +192,119 @@ private data class PendingShopPurchase(
     val onConfirm: (String) -> Unit
 )
 
-private data class ShopUpgradePlaceholder(
+data class ShopUpgradeItem(
+    val id: String,
     val name: String,
     val cost: Long,
     val description: String,
-    val spriteName: String
+    val spriteName: String,
+    val implemented: Boolean
 )
 
-private val ShopUpgradePlaceholders = listOf(
-    ShopUpgradePlaceholder(
+val ShopUpgradeItems = listOf(
+    ShopUpgradeItem(
+        id = "faucet",
         name = "Faucet",
         cost = 11L,
         description = "At the end of the game, earn 1 extra marble if you had a 1 trickle through untargeted.",
-        spriteName = "faucet"
+        spriteName = "faucet",
+        implemented = true
     ),
-    ShopUpgradePlaceholder(
+    ShopUpgradeItem(
+        id = "hose",
         name = "Hose",
         cost = 333L,
         description = "At the end of the game, earn 3 extra marbles if you had a 1 trickle through untargeted.",
-        spriteName = "hose"
+        spriteName = "hose",
+        implemented = true
     ),
-    ShopUpgradePlaceholder(
+    ShopUpgradeItem(
+        id = "rooster",
         name = "Rooster",
         cost = 113L,
         description = "Earn 13 extra marbles on the first game you play every 24 hours.",
-        spriteName = "rooster"
+        spriteName = "rooster",
+        implemented = true
     ),
-    ShopUpgradePlaceholder(
+    ShopUpgradeItem(
+        id = "weather_vane",
         name = "Weather Vane",
         cost = 333L,
         description = "Earn 33 extra marbles on the first game you win every 24 hours.",
-        spriteName = "vane"
+        spriteName = "vane",
+        implemented = true
     ),
-    ShopUpgradePlaceholder(
+    ShopUpgradeItem(
+        id = "community_board",
         name = "Community Board",
         cost = 1111L,
         description = "Unlocks daily missions. Missions refresh daily and will award marbles for future tasks.",
-        spriteName = "corkboard"
+        spriteName = "corkboard",
+        implemented = false
     ),
-    ShopUpgradePlaceholder(
+    ShopUpgradeItem(
+        id = "fountain",
         name = "Fountain",
         cost = 11111L,
         description = "At the end of any game, earn 1 extra marble.",
-        spriteName = "fountain"
+        spriteName = "fountain",
+        implemented = true
     ),
-    ShopUpgradePlaceholder(
+    ShopUpgradeItem(
+        id = "waterslide",
         name = "Waterslide",
         cost = 33333L,
         description = "At the end of any game, earn 3 extra marbles.",
-        spriteName = "waterslide"
+        spriteName = "waterslide",
+        implemented = true
     ),
-    ShopUpgradePlaceholder(
+    ShopUpgradeItem(
+        id = "one_pound_weight",
         name = "One-Pound Weight",
         cost = 111L,
         description = "Auto-play placeholder. Later, this will automatically choose 1 when combined with a coin.",
-        spriteName = "weight1"
+        spriteName = "weight1",
+        implemented = false
     ),
-    ShopUpgradePlaceholder(
+    ShopUpgradeItem(
+        id = "three_pound_weight",
         name = "Three-Pound Weight",
         cost = 333L,
         description = "Auto-play placeholder. Later, this will automatically choose 3 when combined with a coin.",
-        spriteName = "weight3"
+        spriteName = "weight3",
+        implemented = false
     ),
-    ShopUpgradePlaceholder(
+    ShopUpgradeItem(
+        id = "patinad_coin",
         name = "Patinad Coin",
         cost = 111L,
         description = "Auto-play placeholder. Later, this will combine with a weight and autopass every turn.",
-        spriteName = "coina"
+        spriteName = "coina",
+        implemented = false
     ),
-    ShopUpgradePlaceholder(
+    ShopUpgradeItem(
+        id = "normal_coin",
         name = "Normal Coin",
         cost = 333L,
         description = "Auto-play placeholder. Later, this will combine with a weight and randomly autopass or auto-target.",
-        spriteName = "coinn"
+        spriteName = "coinn",
+        implemented = false
     ),
-    ShopUpgradePlaceholder(
+    ShopUpgradeItem(
+        id = "polished_coin",
         name = "Polished Coin",
         cost = 1113L,
         description = "Auto-play placeholder. Later, this will combine with a weight and auto-target every turn.",
-        spriteName = "coino"
+        spriteName = "coino",
+        implemented = false
     ),
-    ShopUpgradePlaceholder(
+    ShopUpgradeItem(
+        id = "sealed_coin",
         name = "Sealed Coin",
         cost = 3333L,
         description = "Auto-play placeholder. Later, this will combine with a weight, auto-target every turn, and guess 3.",
-        spriteName = "coins"
+        spriteName = "coins",
+        implemented = false
     )
 )
 val PlayerShopColors = listOf(
@@ -304,9 +332,11 @@ fun ShopMenuScreen(
     unlockedNameColorIds: Set<String>,
     unlockedAvatarOutlineColorIds: Set<String>,
     unlockedArchetypeAvatarResourceNames: Set<String>,
+    unlockedShopUpgradeIds: Set<String>,
     onBuyNameColor: (String) -> Unit,
     onBuyAvatarOutlineColor: (String) -> Unit,
     onBuyArchetypeAvatar: (String) -> Unit,
+    onBuyShopUpgrade: (String) -> Unit,
     onBack: () -> Unit
 ) {
     var pendingPurchase by remember { mutableStateOf<PendingShopPurchase?>(null) }
@@ -397,7 +427,18 @@ fun ShopMenuScreen(
                 }
             )
 
-            ShopUpgradePlaceholderSection()
+            ShopUpgradePurchaseSection(
+                unlockedUpgradeIds = unlockedShopUpgradeIds,
+                onBuy = { upgrade ->
+                    pendingPurchase = PendingShopPurchase(
+                        id = upgrade.id,
+                        label = upgrade.name,
+                        category = "Upgrade",
+                        cost = upgrade.cost,
+                        onConfirm = onBuyShopUpgrade
+                    )
+                }
+            )
 
             Spacer(Modifier.height(8.dp))
             MenuLinkButton(text = "BACK") { onBack() }
@@ -709,28 +750,41 @@ private fun shopUpgradeSpriteResourceId(spriteName: String): Int {
 }
 
 @Composable
-private fun ShopUpgradePlaceholderSection() {
+private fun ShopUpgradePurchaseSection(
+    unlockedUpgradeIds: Set<String>,
+    onBuy: (ShopUpgradeItem) -> Unit
+) {
     Column(
         modifier = Modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(8.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Text(
-            text = "Upgrades - Coming Soon",
+            text = "Upgrades",
             color = Color(0xFF000000),
             fontWeight = FontWeight.Bold,
             textAlign = TextAlign.Center
         )
 
-        ShopUpgradePlaceholders.forEach { upgrade ->
+        ShopUpgradeItems.forEach { upgrade ->
             val spriteResourceId = shopUpgradeSpriteResourceId(upgrade.spriteName)
+            val owned = upgrade.id in unlockedUpgradeIds
+            val available = upgrade.implemented && !owned
 
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .background(Color.White, androidx.compose.foundation.shape.RoundedCornerShape(14.dp))
                     .border(2.dp, Color(0xFF9AA3AD), androidx.compose.foundation.shape.RoundedCornerShape(14.dp))
-                    .padding(horizontal = 10.dp, vertical = 9.dp),
+                    .then(
+                        if (available) {
+                            Modifier.clickable { onBuy(upgrade) }
+                        } else {
+                            Modifier
+                        }
+                    )
+                    .padding(horizontal = 10.dp, vertical = 9.dp)
+                    .alpha(if (upgrade.implemented || owned) 1f else 0.55f),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
@@ -756,6 +810,16 @@ private fun ShopUpgradePlaceholderSection() {
 
                     Text(
                         text = upgrade.description,
+                        color = Color(0xFF666666),
+                        fontSize = 11.sp
+                    )
+
+                    Text(
+                        text = when {
+                            owned -> "Owned"
+                            upgrade.implemented -> "Tap to buy"
+                            else -> "Coming soon"
+                        },
                         color = Color(0xFF666666),
                         fontSize = 11.sp
                     )

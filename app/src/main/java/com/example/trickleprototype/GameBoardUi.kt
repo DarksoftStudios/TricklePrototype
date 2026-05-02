@@ -1977,6 +1977,7 @@ fun engineSnapshot(engine: GameEngine): RoundResult {
         humanCorrectGuessesThisGame = 0,
         humanSubmittedTargetThisGame = false,
         humanStartedAnyRoundThisGame = false,
+        humanHadUntargetedOneTrickleThisGame = false,
         humanPerfectBonusIntact = true
     )
 }

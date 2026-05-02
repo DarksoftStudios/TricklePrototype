@@ -190,6 +190,24 @@ class StatsStore(context: Context) {
 
 
     private companion object {
+        const val UPGRADE_FAUCET = "faucet"
+        const val UPGRADE_HOSE = "hose"
+        const val UPGRADE_ROOSTER = "rooster"
+        const val UPGRADE_WEATHER_VANE = "weather_vane"
+        const val UPGRADE_FOUNTAIN = "fountain"
+        const val UPGRADE_WATERSLIDE = "waterslide"
+        const val UPGRADE_COMMUNITY_BOARD = "community_board"
+        const val UPGRADE_ONE_POUND_WEIGHT = "one_pound_weight"
+        const val UPGRADE_THREE_POUND_WEIGHT = "three_pound_weight"
+        const val UPGRADE_PATINAD_COIN = "patinad_coin"
+        const val UPGRADE_NORMAL_COIN = "normal_coin"
+        const val UPGRADE_POLISHED_COIN = "polished_coin"
+        const val UPGRADE_SEALED_COIN = "sealed_coin"
+        const val KEY_UNLOCKED_SHOP_UPGRADE_IDS = "unlocked_shop_upgrade_ids"
+        const val KEY_LAST_ROOSTER_BONUS_AT = "last_rooster_bonus_at"
+        const val KEY_LAST_WEATHER_VANE_BONUS_AT = "last_weather_vane_bonus_at"
+        const val DAILY_BONUS_WINDOW_MS = 24L * 60L * 60L * 1000L
+
         const val KEY_PLAYER_NAME = "player_name"
         const val KEY_PLAYER_AVATAR_RESOURCE_NAME = "player_avatar_resource_name"
         const val DEFAULT_PLAYER_AVATAR_RESOURCE_NAME = "player"
@@ -226,6 +244,46 @@ class StatsStore(context: Context) {
 
     fun getUnlockedArchetypeAvatarResourceNames(): Set<String> {
         return prefs.getStringSet(KEY_UNLOCKED_ARCHETYPE_AVATAR_RESOURCE_NAMES, emptySet())?.toSet() ?: emptySet()
+    }
+
+    fun getUnlockedShopUpgradeIds(): Set<String> {
+        return prefs.getStringSet(KEY_UNLOCKED_SHOP_UPGRADE_IDS, emptySet())?.toSet() ?: emptySet()
+    }
+
+    fun isShopUpgradeUnlocked(upgradeId: String): Boolean {
+        return upgradeId.trim() in getUnlockedShopUpgradeIds()
+    }
+
+    fun buyShopUpgrade(upgradeId: String, cost: Long): Boolean {
+        val cleaned = upgradeId.trim()
+        if (cleaned.isBlank() || isShopUpgradeUnlocked(cleaned)) return false
+        val stats = load()
+        if (stats.vaultMarbles < cost) return false
+
+        stats.vaultMarbles -= cost
+        save(stats)
+
+        val unlocked = getUnlockedShopUpgradeIds() + cleaned
+        prefs.edit()
+            .putStringSet(KEY_UNLOCKED_SHOP_UPGRADE_IDS, unlocked)
+            .apply()
+        return true
+    }
+
+    fun claimRoosterDailyBonus(nowMs: Long = System.currentTimeMillis()): Boolean {
+        if (!isShopUpgradeUnlocked(UPGRADE_ROOSTER)) return false
+        val lastClaimed = prefs.getLong(KEY_LAST_ROOSTER_BONUS_AT, 0L)
+        if (lastClaimed > 0L && nowMs - lastClaimed < DAILY_BONUS_WINDOW_MS) return false
+        prefs.edit().putLong(KEY_LAST_ROOSTER_BONUS_AT, nowMs).apply()
+        return true
+    }
+
+    fun claimWeatherVaneDailyBonus(nowMs: Long = System.currentTimeMillis()): Boolean {
+        if (!isShopUpgradeUnlocked(UPGRADE_WEATHER_VANE)) return false
+        val lastClaimed = prefs.getLong(KEY_LAST_WEATHER_VANE_BONUS_AT, 0L)
+        if (lastClaimed > 0L && nowMs - lastClaimed < DAILY_BONUS_WINDOW_MS) return false
+        prefs.edit().putLong(KEY_LAST_WEATHER_VANE_BONUS_AT, nowMs).apply()
+        return true
     }
 
     fun isPlayerNameColorUnlocked(colorId: String): Boolean {

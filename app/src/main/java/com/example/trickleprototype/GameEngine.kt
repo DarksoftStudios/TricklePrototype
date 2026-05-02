@@ -59,7 +59,8 @@ data class RoundResult(
     val humanCorrectGuessesThisGame: Int,
     val humanSubmittedTargetThisGame: Boolean,
     val humanStartedAnyRoundThisGame: Boolean,
-    val humanPerfectBonusIntact: Boolean
+    val humanPerfectBonusIntact: Boolean,
+    val humanHadUntargetedOneTrickleThisGame: Boolean
 )
 
 class GameEngine(
@@ -174,6 +175,7 @@ class GameEngine(
     private var gameHumanSubmittedTarget: Boolean = false
     private var gameHumanStartedAnyRound: Boolean = false
     private var gameHumanPerfectBonusBroken: Boolean = false
+    private var gameHumanHadUntargetedOneTrickle: Boolean = false
 
     private var humanCorrectGuessStreak: Int = 0
     private var unlockedOnARollThisGame: Boolean = false
@@ -336,6 +338,7 @@ class GameEngine(
         gameHumanSubmittedTarget = false
         gameHumanStartedAnyRound = false
         gameHumanPerfectBonusBroken = false
+        gameHumanHadUntargetedOneTrickle = false
         humanCorrectGuessStreak = 0
         unlockedOnARollThisGame = false
         unlockedDumbLuckThisGame = false
@@ -430,6 +433,10 @@ class GameEngine(
 
     private fun markHumanScoredFromOwnSelection(actualSelection: Int, gained: Int) {
         if (gained <= 0) return
+
+        if (actualSelection == 1 && HUMAN_ID !in targetedThisRound) {
+            gameHumanHadUntargetedOneTrickle = true
+        }
 
         when (currentWeatherId()) {
             "downpour" -> if (actualSelection == 1) unlockWeatherAchievement("downpour_soaking_it_in")
@@ -2518,7 +2525,8 @@ class GameEngine(
             humanCorrectGuessesThisGame = gameHumanCorrectGuesses,
             humanSubmittedTargetThisGame = gameHumanSubmittedTarget,
             humanStartedAnyRoundThisGame = gameHumanStartedAnyRound,
-            humanPerfectBonusIntact = !gameHumanPerfectBonusBroken
+            humanPerfectBonusIntact = !gameHumanPerfectBonusBroken,
+            humanHadUntargetedOneTrickleThisGame = gameHumanHadUntargetedOneTrickle
         )
     }
 }
