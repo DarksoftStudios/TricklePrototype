@@ -1868,6 +1868,7 @@ private fun TrickleApp() {
                             indicatorPlacement = SeatIndicatorPlacement.INSIDE_RIGHT,
                             modifier = Modifier
                                 .align(Alignment.CenterStart)
+                                .offset(y = (-12).dp)
                                 .fillMaxHeight()
                                 .padding(start = 0.dp, top = 0.dp, bottom = 0.dp)
                         )
@@ -1892,6 +1893,7 @@ private fun TrickleApp() {
                             indicatorPlacement = SeatIndicatorPlacement.INSIDE_LEFT,
                             modifier = Modifier
                                 .align(Alignment.CenterEnd)
+                                .offset(y = (-12).dp)
                                 .fillMaxHeight()
                                 .padding(end = 0.dp, top = 0.dp, bottom = 0.dp)
                         )
