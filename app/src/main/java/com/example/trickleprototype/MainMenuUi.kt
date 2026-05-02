@@ -22,6 +22,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -982,76 +984,100 @@ fun ProfileMenuScreen(
     onAvatarOutlineColorSelected: (String) -> Unit,
     onBack: () -> Unit
 ) {
-    val basePlayerAvatarOptions = listOf(
-        AvatarMenuItem("Player", "player", locked = false),
-        AvatarMenuItem("Fem Player", "playerf", locked = false),
-        AvatarMenuItem("Male Player", "playerm", locked = false),
-        AvatarMenuItem("Dog Player", "playerd", locked = false),
-        AvatarMenuItem("Cat Player", "playerc", locked = false),
-        AvatarMenuItem("Al", "al", locked = false),
-        AvatarMenuItem("Barbara", "barbara", locked = false),
-        AvatarMenuItem("Clark", "clark", locked = false),
-        AvatarMenuItem("David", "david", locked = false),
-        AvatarMenuItem("Erika", "erika", locked = false),
-        AvatarMenuItem("Fred", "fred", locked = false),
-        AvatarMenuItem("Graham", "graham", locked = false),
-        AvatarMenuItem("Harry", "harry", locked = false),
-        AvatarMenuItem("Ian", "ian", locked = false),
-        AvatarMenuItem("Josh", "josh", locked = false),
-        AvatarMenuItem("Kelly", "kelly", locked = false),
-        AvatarMenuItem("Lois", "lois", locked = false)
-    )
-    val archetypeAvatarOptions = ArchetypeAvatarUnlocks.all.map { item ->
-        AvatarMenuItem(
-            label = item.label,
-            resourceName = item.resourceName,
-            locked = item.resourceName !in unlockedArchetypeAvatarResourceNames
+    val basePlayerAvatarOptions = remember {
+        listOf(
+            AvatarMenuItem("Player", "player", locked = false),
+            AvatarMenuItem("Fem Player", "playerf", locked = false),
+            AvatarMenuItem("Male Player", "playerm", locked = false),
+            AvatarMenuItem("Dog Player", "playerd", locked = false),
+            AvatarMenuItem("Cat Player", "playerc", locked = false),
+            AvatarMenuItem("Al", "al", locked = false),
+            AvatarMenuItem("Barbara", "barbara", locked = false),
+            AvatarMenuItem("Clark", "clark", locked = false),
+            AvatarMenuItem("David", "david", locked = false),
+            AvatarMenuItem("Erika", "erika", locked = false),
+            AvatarMenuItem("Fred", "fred", locked = false),
+            AvatarMenuItem("Graham", "graham", locked = false),
+            AvatarMenuItem("Harry", "harry", locked = false),
+            AvatarMenuItem("Ian", "ian", locked = false),
+            AvatarMenuItem("Josh", "josh", locked = false),
+            AvatarMenuItem("Kelly", "kelly", locked = false),
+            AvatarMenuItem("Lois", "lois", locked = false)
         )
     }
-    val playerAvatarOptions = basePlayerAvatarOptions + archetypeAvatarOptions
+    val archetypeAvatarOptions = remember(unlockedArchetypeAvatarResourceNames) {
+        ArchetypeAvatarUnlocks.all.map { item ->
+            AvatarMenuItem(
+                label = item.label,
+                resourceName = item.resourceName,
+                locked = item.resourceName !in unlockedArchetypeAvatarResourceNames
+            )
+        }
+    }
+    val playerAvatarRows = remember(basePlayerAvatarOptions, archetypeAvatarOptions) {
+        (basePlayerAvatarOptions + archetypeAvatarOptions).chunked(3)
+    }
 
-    Column(
+    LazyColumn(
         modifier = Modifier
             .fillMaxSize()
-            .padding(top = 34.dp, start = 18.dp, end = 18.dp)
-            .verticalScroll(rememberScrollState()),
+            .padding(top = 34.dp, start = 18.dp, end = 18.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        MenuLinkButton(text = "STATS") { onStats() }
-        MenuLinkButton(text = "ACHIEVEMENTS") { onAchievements() }
-        MenuLinkButton(text = "CUSTOMIZE") { onCustomize() }
+        item {
+            MenuLinkButton(text = "STATS") { onStats() }
+        }
+        item {
+            MenuLinkButton(text = "ACHIEVEMENTS") { onAchievements() }
+        }
+        item {
+            MenuLinkButton(text = "CUSTOMIZE") { onCustomize() }
+        }
 
-        Spacer(Modifier.height(4.dp))
+        item {
+            Spacer(Modifier.height(4.dp))
+        }
 
-        ProfileColorDropdown(
-            title = "Name Color",
-            colors = PlayerShopColors.filterNot { it.id == "white" },
-            unlockedIds = unlockedNameColorIds,
-            selectedId = selectedNameColorId,
-            emptyLabel = "No name colors unlocked",
-            onSelect = onNameColorSelected
-        )
+        item {
+            ProfileColorDropdown(
+                title = "Name Color",
+                colors = PlayerShopColors.filterNot { it.id == "white" },
+                unlockedIds = unlockedNameColorIds,
+                selectedId = selectedNameColorId,
+                emptyLabel = "No name colors unlocked",
+                onSelect = onNameColorSelected
+            )
+        }
 
-        ProfileColorDropdown(
-            title = "Avatar Outline",
-            colors = PlayerShopColors,
-            unlockedIds = unlockedAvatarOutlineColorIds,
-            selectedId = selectedAvatarOutlineColorId,
-            emptyLabel = "No outline colors unlocked",
-            onSelect = onAvatarOutlineColorSelected
-        )
+        item {
+            ProfileColorDropdown(
+                title = "Avatar Outline",
+                colors = PlayerShopColors,
+                unlockedIds = unlockedAvatarOutlineColorIds,
+                selectedId = selectedAvatarOutlineColorId,
+                emptyLabel = "No outline colors unlocked",
+                onSelect = onAvatarOutlineColorSelected
+            )
+        }
 
-        Spacer(Modifier.height(4.dp))
+        item {
+            Spacer(Modifier.height(4.dp))
+        }
 
-        Text(
-            text = "Player Avatar",
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.Bold,
-            textAlign = TextAlign.Center
-        )
+        item {
+            Text(
+                text = "Player Avatar",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                textAlign = TextAlign.Center
+            )
+        }
 
-        playerAvatarOptions.chunked(3).forEach { rowItems ->
+        items(
+            items = playerAvatarRows,
+            key = { rowItems -> rowItems.joinToString(separator = "|") { it.resourceName } }
+        ) { rowItems ->
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
@@ -1072,10 +1098,16 @@ fun ProfileMenuScreen(
             }
         }
 
-        Spacer(Modifier.height(8.dp))
-        MenuLinkButton(text = "BACK") { onBack() }
+        item {
+            Spacer(Modifier.height(8.dp))
+        }
+        item {
+            MenuLinkButton(text = "BACK") { onBack() }
+        }
 
-        Spacer(Modifier.height(24.dp))
+        item {
+            Spacer(Modifier.height(24.dp))
+        }
     }
 }
 

@@ -133,6 +133,7 @@ import kotlin.math.cos
 import kotlin.math.sin
 import kotlin.random.Random
 import kotlin.math.max
+import java.util.concurrent.ConcurrentHashMap
 
 enum class IndicatorTone {
     NEUTRAL,
@@ -777,14 +778,31 @@ fun BotCupColumn(
     }
 }
 
+
+private val botAvatarDrawableResourceIdCache = ConcurrentHashMap<String, Int>()
+private val botAvatarAssetBitmapCache = ConcurrentHashMap<String, ImageBitmap?>()
+
+private fun botAvatarCacheKey(
+    packageName: String,
+    resourceName: String
+): String = "$packageName/$resourceName"
+
 fun botAvatarDrawableResourceId(
     context: android.content.Context,
     resourceName: String?
 ): Int {
     if (resourceName.isNullOrBlank()) return 0
 
+    val cacheKey = botAvatarCacheKey(context.packageName, resourceName)
+    botAvatarDrawableResourceIdCache[cacheKey]?.let { cachedResourceId ->
+        return cachedResourceId
+    }
+
     val staticResourceId = botAvatarStaticDrawableResourceId(resourceName)
-    if (staticResourceId != 0) return staticResourceId
+    if (staticResourceId != 0) {
+        botAvatarDrawableResourceIdCache[cacheKey] = staticResourceId
+        return staticResourceId
+    }
 
     val candidateNames = listOf(
         resourceName,
@@ -794,13 +812,16 @@ fun botAvatarDrawableResourceId(
         "icon_$resourceName"
     )
 
-    return candidateNames
+    val resourceId = candidateNames
         .asSequence()
         .map { candidateName ->
             context.resources.getIdentifier(candidateName, "drawable", context.packageName)
         }
-        .firstOrNull { resourceId -> resourceId != 0 }
+        .firstOrNull { foundResourceId -> foundResourceId != 0 }
         ?: 0
+
+    botAvatarDrawableResourceIdCache[cacheKey] = resourceId
+    return resourceId
 }
 
 fun loadBotAvatarAsset(
@@ -808,6 +829,11 @@ fun loadBotAvatarAsset(
     resourceName: String?
 ): ImageBitmap? {
     if (resourceName.isNullOrBlank()) return null
+
+    val cacheKey = botAvatarCacheKey(context.packageName, resourceName)
+    if (botAvatarAssetBitmapCache.containsKey(cacheKey)) {
+        return botAvatarAssetBitmapCache[cacheKey]
+    }
 
     val candidatePaths = listOf(
         "icons/$resourceName.png",
@@ -818,13 +844,16 @@ fun loadBotAvatarAsset(
         "$resourceName.webp"
     )
 
-    return candidatePaths.firstNotNullOfOrNull { candidatePath ->
+    val bitmap = candidatePaths.firstNotNullOfOrNull { candidatePath ->
         runCatching {
             context.assets.open(candidatePath).use { input ->
                 BitmapFactory.decodeStream(input)?.asImageBitmap()
             }
         }.getOrNull()
     }
+
+    botAvatarAssetBitmapCache[cacheKey] = bitmap
+    return bitmap
 }
 
 fun greyedOutAvatarResourceNames(resourceName: String?): List<String> {
