@@ -453,24 +453,25 @@ fun extractVisualIndicators(
 
 @Composable
 fun PhaseBadge(
-
     text: String,
     modifier: Modifier = Modifier
 ) {
+    val displayText = text.replaceFirst(Regex("^(Phase \\d+:)\\s*"), "\$1\n")
+
     Surface(
         modifier = modifier
-            .heightIn(min = 56.dp),
+            .fillMaxSize(),
         shape = RoundedCornerShape(18.dp),
         color = Color(0xAA1F2A44)
     ) {
         Box(
             modifier = Modifier
-                .fillMaxWidth()
+                .fillMaxSize()
                 .padding(horizontal = 12.dp, vertical = 8.dp),
             contentAlignment = Alignment.CenterStart
         ) {
             Text(
-                text = text,
+                text = displayText,
                 color = Color.White,
                 textAlign = TextAlign.Start,
                 fontWeight = FontWeight.Bold,

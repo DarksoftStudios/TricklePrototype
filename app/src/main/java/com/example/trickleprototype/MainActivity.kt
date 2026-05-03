@@ -35,6 +35,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -1780,27 +1781,35 @@ private fun TrickleApp() {
                         verticalArrangement = Arrangement.spacedBy(4.dp),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        WeatherInfoBadge(
-                            weatherName = currentWeatherName,
-                            weatherEffect = currentWeatherEffect,
-                            weatherId = currentWeatherId,
-                            forcedGuess = forcedGuess,
-                            mustTarget = mustTarget,
-                            needsSecondTarget = needsSecondTarget,
-                            onBadgeAnchorMeasured = { anchor ->
-                                weatherBadgeCenter = anchor
-                            },
+                        Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .wrapContentHeight()
-                        )
+                                .wrapContentHeight(),
+                            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            PhaseBadge(
+                                text = playerPhaseBadge,
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .aspectRatio(1f)
+                            )
 
-                        PhaseBadge(
-                            text = playerPhaseBadge,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .wrapContentHeight()
-                        )
+                            WeatherInfoBadge(
+                                weatherName = currentWeatherName,
+                                weatherEffect = currentWeatherEffect,
+                                weatherId = currentWeatherId,
+                                forcedGuess = forcedGuess,
+                                mustTarget = mustTarget,
+                                needsSecondTarget = needsSecondTarget,
+                                onBadgeAnchorMeasured = { anchor ->
+                                    weatherBadgeCenter = anchor
+                                },
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .aspectRatio(1f)
+                            )
+                        }
 
                         PlayerStatusStack(
                             playerTitle = playerTitle,
@@ -2430,8 +2439,6 @@ private fun WeatherInfoBadge(
 ) {
     Surface(
         modifier = modifier
-            .fillMaxWidth()
-            .heightIn(min = 90.dp)
             .onGloballyPositioned { coordinates ->
                 onBadgeAnchorMeasured(coordinates.boundsInRoot().centerPoint())
             }
@@ -2441,7 +2448,7 @@ private fun WeatherInfoBadge(
         tonalElevation = 2.dp
     ) {
         Box(
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier.fillMaxSize()
         ) {
             if (!weatherId.isNullOrBlank()) {
                 Box(
@@ -2461,7 +2468,7 @@ private fun WeatherInfoBadge(
 
             Column(
                 modifier = Modifier
-                    .fillMaxWidth()
+                    .fillMaxSize()
                     .padding(horizontal = 12.dp, vertical = 8.dp),
                 verticalArrangement = Arrangement.spacedBy(3.dp)
             ) {
