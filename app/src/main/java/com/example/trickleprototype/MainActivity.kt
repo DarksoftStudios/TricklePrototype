@@ -304,9 +304,15 @@ private fun uniqueCorrectArchetypeTagCount(
     botTags: Map<Int, String>,
     actualArchetypes: Map<Int, String>
 ): Int {
-    val tagCounts = botTags.values.groupingBy { it }.eachCount()
-    return botTags.count { (botId, tag) ->
-        tagCounts[tag] == 1 && actualArchetypes[botId] == tag
+    val cleanedTags = botTags.mapNotNull { (botId, tag) ->
+        val cleanedTag = cleanArchetypeNameForAvatar(tag) ?: return@mapNotNull null
+        botId to cleanedTag
+    }.toMap()
+    val tagCounts = cleanedTags.values.groupingBy { it }.eachCount()
+
+    return cleanedTags.count { (botId, cleanedTag) ->
+        val actualArchetype = cleanArchetypeNameForAvatar(actualArchetypes[botId])
+        tagCounts[cleanedTag] == 1 && actualArchetype == cleanedTag
     }
 }
 

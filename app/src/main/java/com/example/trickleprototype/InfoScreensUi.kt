@@ -128,8 +128,8 @@ fun AdvancedTipsText() {
                 "- At the start of the game, a player is randomly chosen to go first, and normally each round begins with the next player on the list.\n\n" +
                 "BOTS & ARCHETYPES:\n" +
                 "- Each game, bots are randomly assigned an Archetype.\n" +
-                "- On Easy mode, bots have their names replaced with their Archetype (and you can see their score totals).\n" +
-                "- On Normal mode, bots have their names and scores hidden.\n" +
+                "- On Easy mode, bots have their Archetypes and scores shown.\n" +
+                "- On Normal mode, bots have their Archetypes and scores hidden.\n" +
                 "- On Hard mode, there is no Log to review, and Boss archetypes appear.\n" +
                 "- Click on a bot's name to 'tag' them as the archetype you think they are.\n\n" +
                 "JESTER'S HAT RULE:\n" +
@@ -189,7 +189,7 @@ fun ArchetypesText() {
             text = "Echo:\n" +
                     "- Stop copying me! StOp CoPyInG mE!\n" +
                     "- Chooses: 3 on round 1, then copies the Player's choice last round\n" +
-                    "- Targeting Behavior: Copies whether the Player's action last round\n\n"
+                    "- Targeting Behavior: Copies the Player's action last round\n\n"
         )
 
         ArchetypeRuleEntry(
