@@ -925,7 +925,7 @@ fun BotAvatarIcon(
     }
 
     Box(
-        modifier = modifier.size(66.dp),
+        modifier = modifier.size(52.dp),
         contentAlignment = Alignment.Center
     ) {
         when {
@@ -936,7 +936,7 @@ fun BotAvatarIcon(
                     contentScale = ContentScale.Fit,
                     colorFilter = greyFilter,
                     modifier = Modifier
-                        .size(110.dp)
+                        .size(90.dp)
                         .graphicsLayer { scaleX = if (flipHorizontally) -1f else 1f }
                         .alpha(if (useGeneratedGreyFilter) 0.72f else 1f)
                 )
@@ -949,7 +949,7 @@ fun BotAvatarIcon(
                     contentScale = ContentScale.Fit,
                     colorFilter = greyFilter,
                     modifier = Modifier
-                        .size(110.dp)
+                        .size(90.dp)
                         .graphicsLayer { scaleX = if (flipHorizontally) -1f else 1f }
                         .alpha(if (useGeneratedGreyFilter) 0.72f else 1f)
                 )
