@@ -1885,7 +1885,7 @@ private fun TrickleApp() {
                                 .align(Alignment.CenterStart)
                                 .offset(y = (-12).dp)
                                 .fillMaxHeight()
-                                .padding(start = 0.dp, top = 0.dp, bottom = 0.dp)
+                                .padding(start = 0.dp, top = 0.dp, bottom = 56.dp)
                         )
 
                         BotCupColumn(
@@ -1910,7 +1910,7 @@ private fun TrickleApp() {
                                 .align(Alignment.CenterEnd)
                                 .offset(y = (-12).dp)
                                 .fillMaxHeight()
-                                .padding(end = 0.dp, top = 0.dp, bottom = 0.dp)
+                                .padding(end = 0.dp, top = 0.dp, bottom = 56.dp)
                         )
 
                         TableActionPanel(
