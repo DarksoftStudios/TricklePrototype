@@ -1330,8 +1330,8 @@ fun DrawScope.drawTargetArrow(
 
     val directionX = deltaX / distance
     val directionY = deltaY / distance
-    val startInset = 28f
-    val endInset = 20f
+    val startInset = 30f
+    val endInset = 22f
 
     val shaftStart = Offset(
         x = start.x + (directionX * startInset),
@@ -1342,69 +1342,80 @@ fun DrawScope.drawTargetArrow(
         y = end.y - (directionY * endInset)
     )
 
-    val angle = atan2(shaftEnd.y - shaftStart.y, shaftEnd.x - shaftStart.x)
-    val arrowHeadLength = 24f
-    val arrowHeadSpread = (PI / 7.5f).toFloat()
-    val leftHead = Offset(
-        x = shaftEnd.x - (arrowHeadLength * cos(angle - arrowHeadSpread)),
-        y = shaftEnd.y - (arrowHeadLength * sin(angle - arrowHeadSpread))
-    )
-    val rightHead = Offset(
-        x = shaftEnd.x - (arrowHeadLength * cos(angle + arrowHeadSpread)),
-        y = shaftEnd.y - (arrowHeadLength * sin(angle + arrowHeadSpread))
-    )
+    val shaftDeltaX = shaftEnd.x - shaftStart.x
+    val shaftDeltaY = shaftEnd.y - shaftStart.y
+    val shaftLength = kotlin.math.sqrt((shaftDeltaX * shaftDeltaX) + (shaftDeltaY * shaftDeltaY))
+    if (shaftLength < 8f) return
 
-    drawLine(
-        color = Color.White.copy(alpha = 0.24f),
-        start = shaftStart,
-        end = shaftEnd,
-        strokeWidth = 12f,
-        cap = StrokeCap.Round
-    )
-    drawLine(
-        color = Color(0xFFFFF1B8),
-        start = shaftStart,
-        end = shaftEnd,
-        strokeWidth = 6f,
-        cap = StrokeCap.Round,
-        pathEffect = PathEffect.dashPathEffect(floatArrayOf(24f, 14f), 0f)
-    )
-    drawLine(
-        color = Color.White.copy(alpha = 0.35f),
-        start = shaftStart,
-        end = shaftEnd,
-        strokeWidth = 2f,
-        cap = StrokeCap.Round
-    )
-    drawLine(
-        color = Color.White.copy(alpha = 0.24f),
-        start = shaftEnd,
-        end = leftHead,
-        strokeWidth = 10f,
-        cap = StrokeCap.Round
-    )
-    drawLine(
-        color = Color.White.copy(alpha = 0.24f),
-        start = shaftEnd,
-        end = rightHead,
-        strokeWidth = 10f,
-        cap = StrokeCap.Round
-    )
-    drawLine(
-        color = Color(0xFFFFF1B8),
-        start = shaftEnd,
-        end = leftHead,
-        strokeWidth = 5f,
-        cap = StrokeCap.Round
-    )
-    drawLine(
-        color = Color(0xFFFFF1B8),
-        start = shaftEnd,
-        end = rightHead,
-        strokeWidth = 5f,
-        cap = StrokeCap.Round
-    )
+    val angle = atan2(shaftDeltaY, shaftDeltaX)
+    val angleDegrees = angle * 180f / PI.toFloat()
+    val pixel = 4f
+    val headDepth = 36f.coerceAtMost((shaftLength * 0.48f).coerceAtLeast(20f))
+    val headStartX = shaftStart.x + shaftLength - headDepth
+    val shaftEndX = (shaftLength - headDepth + pixel).coerceAtLeast(pixel)
+    val outlineColor = Color.Black.copy(alpha = 0.46f)
+    val midColor = Color(0xFFFFD35C)
+    val highlightColor = Color(0xFFFFF1B8)
+
+    rotate(degrees = angleDegrees, pivot = shaftStart) {
+        drawRect(
+            color = outlineColor,
+            topLeft = Offset(shaftStart.x - pixel, shaftStart.y - 8f),
+            size = Size(shaftEndX + pixel, 16f)
+        )
+        drawRect(
+            color = Color.White.copy(alpha = 0.24f),
+            topLeft = Offset(shaftStart.x, shaftStart.y - 6f),
+            size = Size(shaftEndX, 12f)
+        )
+        drawRect(
+            color = midColor,
+            topLeft = Offset(shaftStart.x, shaftStart.y - 4f),
+            size = Size(shaftEndX, 8f)
+        )
+
+        var tickX = shaftStart.x + pixel
+        while (tickX < shaftStart.x + shaftEndX - pixel) {
+            drawRect(
+                color = highlightColor,
+                topLeft = Offset(tickX, shaftStart.y - 4f),
+                size = Size(pixel, 8f)
+            )
+            tickX += pixel * 3f
+        }
+
+        val outlineHeights = listOf(40f, 40f, 36f, 32f, 28f, 24f, 20f, 16f, 12f, 8f, 4f)
+        outlineHeights.forEachIndexed { index, height ->
+            val x = headStartX + (index * pixel)
+            if (x <= shaftStart.x + shaftLength) {
+                drawRect(
+                    color = outlineColor,
+                    topLeft = Offset(x, shaftStart.y - (height / 2f)),
+                    size = Size(pixel, height)
+                )
+            }
+        }
+
+        val fillHeights = listOf(28f, 28f, 24f, 20f, 16f, 12f, 8f, 4f)
+        fillHeights.forEachIndexed { index, height ->
+            val x = headStartX + pixel + (index * pixel)
+            if (x <= shaftStart.x + shaftLength - pixel) {
+                drawRect(
+                    color = midColor,
+                    topLeft = Offset(x, shaftStart.y - (height / 2f)),
+                    size = Size(pixel, height)
+                )
+            }
+        }
+
+        drawRect(
+            color = highlightColor,
+            topLeft = Offset(headStartX + pixel * 2f, shaftStart.y - 4f),
+            size = Size((headDepth * 0.45f).coerceAtLeast(pixel), 8f)
+        )
+    }
 }
+
 
 @Composable
 fun MarbleFlightOverlay(

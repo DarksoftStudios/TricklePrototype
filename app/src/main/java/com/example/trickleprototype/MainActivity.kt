@@ -401,6 +401,30 @@ private fun parseAchievementPopup(line: String): AchievementPopup? {
     return AchievementPopup(title = title, desc = desc)
 }
 
+private fun targetArrowVisualForResult(
+    result: RoundResult,
+    previousArrow: TargetArrowVisual?
+): TargetArrowVisual? {
+    val incomingArrow = result.activeTargetArrowActorId?.let { actorId ->
+        val targetIds = result.activeTargetArrowTargetIds
+        if (targetIds.isEmpty()) null else TargetArrowVisual(actorId = actorId, targetIds = targetIds)
+    }
+
+    if (incomingArrow != null) {
+        return incomingArrow
+    }
+
+    return if (
+        result.phase == EnginePhase.PLAYER_TURN &&
+        previousArrow != null &&
+        previousArrow.actorId != GameEngine.HUMAN_ID
+    ) {
+        previousArrow
+    } else {
+        null
+    }
+}
+
 @Composable
 private fun TrickleApp() {
     val engine = remember { GameEngine() }
@@ -473,6 +497,7 @@ private fun TrickleApp() {
     var marbleFlights by remember { mutableStateOf<List<MarbleFlightVisual>>(emptyList()) }
     var activeTargetArrow by remember { mutableStateOf<TargetArrowVisual?>(null) }
     var fadingTargetArrow by remember { mutableStateOf<TargetArrowVisual?>(null) }
+    val targetArrowAlpha = remember { Animatable(0f) }
     var nextMarbleFlightId by remember { mutableLongStateOf(1L) }
     var bowlSpawnPoint by remember { mutableStateOf<TablePoint?>(null) }
     val cupCenters = remember { mutableStateMapOf<Int, TablePoint>() }
@@ -713,15 +738,13 @@ private fun TrickleApp() {
     val forcedGuess = lastResult?.forcedGuessForHuman
     val mustTarget = lastResult?.mustTargetForHuman == true
     val needsSecondTarget = lastResult?.requiresSecondTargetForHuman == true
-    val activeTargetArrowFromResult =
+    val activeTargetArrowFromResult = lastResult?.let { result ->
         if (phase == EnginePhase.BOT_TURN || phase == EnginePhase.PLAYER_TURN) {
-            lastResult?.activeTargetArrowActorId?.let { actorId ->
-                val targetIds = lastResult?.activeTargetArrowTargetIds.orEmpty()
-                if (targetIds.isEmpty()) null else TargetArrowVisual(actorId = actorId, targetIds = targetIds)
-            }
+            targetArrowVisualForResult(result = result, previousArrow = activeTargetArrow)
         } else {
             null
         }
+    }
 
     val scrollState = rememberScrollState()
     LaunchedEffect(logText) { scrollState.scrollTo(0) }
@@ -771,6 +794,7 @@ private fun TrickleApp() {
         floatingIndicators = emptyMap()
         marbleFlights = emptyList()
         activeTargetArrow = null
+        fadingTargetArrow = null
         lastQueuedMarbleTransferSignature = null
         achievementQueue = emptyList()
         activeAchievement = null
@@ -846,6 +870,7 @@ private fun TrickleApp() {
         floatingIndicators = emptyMap()
         marbleFlights = emptyList()
         activeTargetArrow = null
+        fadingTargetArrow = null
         lastQueuedMarbleTransferSignature = null
         achievementQueue = emptyList()
         activeAchievement = null
@@ -1008,10 +1033,7 @@ private fun TrickleApp() {
                 )
                 activeTargetArrow =
                     if (result.phase == EnginePhase.BOT_TURN || result.phase == EnginePhase.PLAYER_TURN) {
-                        result.activeTargetArrowActorId?.let { actorId ->
-                            val targetIds = result.activeTargetArrowTargetIds
-                            if (targetIds.isEmpty()) null else TargetArrowVisual(actorId = actorId, targetIds = targetIds)
-                        }
+                        targetArrowVisualForResult(result = result, previousArrow = activeTargetArrow)
                     } else {
                         null
                     }
@@ -1659,21 +1681,36 @@ private fun TrickleApp() {
             }
             val targetArrowCanShow = phase == EnginePhase.BOT_TURN || phase == EnginePhase.PLAYER_TURN
             val targetArrowShouldShow = displayTargetArrow != null && targetArrowCanShow
-            LaunchedEffect(displayTargetArrow, targetArrowShouldShow) {
+            val targetArrowKey = displayTargetArrow?.let { arrow ->
+                "${arrow.actorId}:${arrow.targetIds.joinToString(",")}"
+            }
+            val targetArrowIsLingering =
+                targetArrowShouldShow &&
+                        phase == EnginePhase.PLAYER_TURN &&
+                        pendingHumanAction != PendingHumanAction.TARGET &&
+                        displayTargetArrow?.actorId != GameEngine.HUMAN_ID
+
+            LaunchedEffect(targetArrowKey, targetArrowShouldShow, targetArrowIsLingering) {
                 if (targetArrowShouldShow && displayTargetArrow != null) {
                     fadingTargetArrow = displayTargetArrow
+                    targetArrowAlpha.snapTo(1f)
+
+                    if (targetArrowIsLingering) {
+                        targetArrowAlpha.animateTo(
+                            targetValue = 0f,
+                            animationSpec = tween(durationMillis = 850)
+                        )
+                        fadingTargetArrow = null
+                        activeTargetArrow = null
+                    }
+                } else {
+                    targetArrowAlpha.animateTo(
+                        targetValue = 0f,
+                        animationSpec = tween(durationMillis = 220)
+                    )
+                    fadingTargetArrow = null
                 }
             }
-            val targetArrowAlpha by animateFloatAsState(
-                targetValue = if (targetArrowShouldShow) 1f else 0f,
-                animationSpec = tween(durationMillis = 220),
-                finishedListener = { alpha ->
-                    if (alpha == 0f) {
-                        fadingTargetArrow = null
-                    }
-                },
-                label = "targetArrowAlpha"
-            )
 
             val zeroGuessUnlocked = statsStore.load().zeroHeroUnlocked
 
@@ -1732,10 +1769,7 @@ private fun TrickleApp() {
                 )
                 activeTargetArrow =
                     if (result.phase == EnginePhase.BOT_TURN || result.phase == EnginePhase.PLAYER_TURN) {
-                        result.activeTargetArrowActorId?.let { actorId ->
-                            val targetIds = result.activeTargetArrowTargetIds
-                            if (targetIds.isEmpty()) null else TargetArrowVisual(actorId = actorId, targetIds = targetIds)
-                        }
+                        targetArrowVisualForResult(result = result, previousArrow = activeTargetArrow)
                     } else {
                         null
                     }
@@ -2047,10 +2081,7 @@ private fun TrickleApp() {
                                         )
                                         activeTargetArrow =
                                             if (result.phase == EnginePhase.BOT_TURN || result.phase == EnginePhase.PLAYER_TURN) {
-                                                result.activeTargetArrowActorId?.let { actorId ->
-                                                    val targetIds = result.activeTargetArrowTargetIds
-                                                    if (targetIds.isEmpty()) null else TargetArrowVisual(actorId = actorId, targetIds = targetIds)
-                                                }
+                                                targetArrowVisualForResult(result = result, previousArrow = activeTargetArrow)
                                             } else {
                                                 null
                                             }
@@ -2159,7 +2190,7 @@ private fun TrickleApp() {
                         cupCenters = cupCenters,
                         modifier = Modifier
                             .matchParentSize()
-                            .alpha(targetArrowAlpha)
+                            .alpha(targetArrowAlpha.value)
                             .zIndex(5.5f)
                     )
                 }
