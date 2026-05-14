@@ -111,7 +111,7 @@ private fun pickTargetWhoChose(public: PublicRoundInfo, value: Int, forbid: Set<
     val targets = candidateTargets(public, forbid)
     if (targets.isEmpty()) return null
     val matching = targets.filter { public.lastRoundChoices[it] == value }
-    return (matching.ifEmpty { emptyList() }).firstOrNull()
+    return matching.firstOrNull()
 }
 
 private fun pickAnyTarget(public: PublicRoundInfo, forbid: Set<Int> = emptySet()): Int? {

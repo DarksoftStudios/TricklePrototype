@@ -2361,7 +2361,7 @@ class GameEngine(
     }
 
     private fun chooseBossKind(): BossKind {
-        val choices = BossKind.values().filter { it != lastBossKind }
+        val choices = BossKind.entries.filter { it != lastBossKind }
         val chosen = choices.random(rng)
         lastBossKind = chosen
         return chosen

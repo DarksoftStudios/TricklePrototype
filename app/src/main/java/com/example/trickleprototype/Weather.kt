@@ -413,6 +413,8 @@ object Weather {
         )
     )
 
+    private val cardsById: Map<String, WeatherCard> = allCards.associateBy { it.id }
+
     val enabledCards: List<WeatherCard>
         get() = allCards.filter { it.enabled }
 
@@ -422,8 +424,7 @@ object Weather {
     val enabledDigitalCards: List<WeatherCard>
         get() = enabledCards.filter { it.includedInDeck }
 
-    fun cardById(id: String): WeatherCard? =
-        allCards.firstOrNull { it.id == id }
+    fun cardById(id: String): WeatherCard? = cardsById[id]
 
     fun firstRoundWeather(): WeatherCard =
         cardById(FIRST_ROUND_WEATHER_ID)

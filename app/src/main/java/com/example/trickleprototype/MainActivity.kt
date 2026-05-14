@@ -1,39 +1,24 @@
 package com.example.trickleprototype
 
 import android.app.Activity
-import android.graphics.BitmapFactory
 import android.media.MediaPlayer
 import android.net.Uri
 import android.os.Bundle
-import android.widget.Toast
 import android.widget.VideoView
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.animateColor
-import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.scaleIn
-import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.Box
@@ -41,7 +26,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -57,15 +41,12 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.GenericShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -86,40 +67,20 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
-import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Rect
-import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.ColorFilter
-import androidx.compose.ui.graphics.ColorMatrix
-import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.PathEffect
-import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.graphics.ImageBitmap
-import androidx.compose.ui.graphics.asImageBitmap
-import androidx.compose.ui.graphics.TransformOrigin
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.painter.BitmapPainter
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.graphics.drawscope.DrawScope
-import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.imageResource
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.text.font.FontFamily
-import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.window.DialogProperties
@@ -128,12 +89,7 @@ import androidx.core.view.WindowCompat
 import com.example.trickleprototype.ui.theme.TricklePrototypeTheme
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import kotlin.math.PI
-import kotlin.math.atan2
-import kotlin.math.cos
-import kotlin.math.sin
 import kotlin.random.Random
-import kotlin.math.max
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -490,12 +446,11 @@ private fun TrickleApp() {
     val botTags = remember { mutableStateMapOf<Int, String>() }
     var tagMenuBotId by remember { mutableStateOf<Int?>(null) }
 
-    var dieButtonsEnabled by remember { mutableStateOf(true) }
 
     var lastResult by remember { mutableStateOf<RoundResult?>(null) }
     var logText by remember { mutableStateOf("") }
     var floatingIndicators by remember { mutableStateOf<Map<Int, FloatingIndicator>>(emptyMap()) }
-    var nextIndicatorToken by remember { mutableStateOf(1L) }
+    var nextIndicatorToken by remember { mutableLongStateOf(1L) }
     var marbleFlights by remember { mutableStateOf<List<MarbleFlightVisual>>(emptyList()) }
     var activeTargetArrow by remember { mutableStateOf<TargetArrowVisual?>(null) }
     var fadingTargetArrow by remember { mutableStateOf<TargetArrowVisual?>(null) }
@@ -642,10 +597,6 @@ private fun TrickleApp() {
         )
     }
 
-    var menuVisitKey by remember { mutableIntStateOf(0) }
-    LaunchedEffect(difficulty) {
-        if (difficulty == null) menuVisitKey += 1
-    }
 
     LaunchedEffect(screen, difficultyEntryTransitionActive) {
         if (screen == AppScreen.SPLASH) {
@@ -1027,9 +978,10 @@ private fun TrickleApp() {
 
                 val result = engine.step()
                 lastResult = result
+                val pickedDifficulty = difficulty ?: return@LaunchedEffect
                 logText = buildLogText(
                     result = result,
-                    difficulty = difficulty!!,
+                    difficulty = pickedDifficulty,
                     revealArchetypes = revealArchetypesPostGame && result.phase == EnginePhase.GAME_OVER,
                     botTags = botTags.toMap()
                 )
@@ -1714,9 +1666,8 @@ private fun TrickleApp() {
                 }
             }
 
-            val zeroGuessUnlocked = statsStore.load().zeroHeroUnlocked
+            val zeroGuessUnlocked = shopStats.zeroHeroUnlocked
 
-            val winnerBadgeLabel = buildWinnerBadgeLabel(lastResult)
             val canShowLogPanel = when (difficulty) {
                 Difficulty.HARD -> gameOver
                 else -> showLogOverlay
@@ -1763,9 +1714,10 @@ private fun TrickleApp() {
                     secondTargetId = selectedSecondTargetId
                 )
                 lastResult = result
+                val pickedDifficulty = difficulty ?: return
                 logText = buildLogText(
                     result = result,
-                    difficulty = difficulty!!,
+                    difficulty = pickedDifficulty,
                     revealArchetypes = revealArchetypesPostGame && result.phase == EnginePhase.GAME_OVER,
                     botTags = botTags.toMap()
                 )
@@ -2068,16 +2020,17 @@ private fun TrickleApp() {
                                 EnginePhase.GAME_OVER -> difficulty != null
                                 else -> false
                             },
-                            onSubmit = {
+                            onSubmit = onSubmit@{
                                 when (phase) {
                                     EnginePhase.SELECT, EnginePhase.ROUND_END -> {
                                         startLocked = true
                                         pendingHumanAction = PendingHumanAction.NONE
                                         val result = engine.startRound(choice)
                                         lastResult = result
+                                        val pickedDifficulty = difficulty ?: return@onSubmit
                                         logText = buildLogText(
                                             result = result,
-                                            difficulty = difficulty!!,
+                                            difficulty = pickedDifficulty,
                                             revealArchetypes = revealArchetypesPostGame && result.phase == EnginePhase.GAME_OVER,
                                             botTags = botTags.toMap()
                                         )
@@ -2103,9 +2056,10 @@ private fun TrickleApp() {
                                         startLocked = true
                                         val result = engine.submitTiebreakerChoice(choice)
                                         lastResult = result
+                                        val pickedDifficulty = difficulty ?: return@onSubmit
                                         logText = buildLogText(
                                             result = result,
-                                            difficulty = difficulty!!,
+                                            difficulty = pickedDifficulty,
                                             revealArchetypes = revealArchetypesPostGame && result.phase == EnginePhase.GAME_OVER,
                                             botTags = botTags.toMap()
                                         )

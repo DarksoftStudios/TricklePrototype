@@ -2,11 +2,9 @@ package com.example.trickleprototype
 
 import android.app.Activity
 import android.widget.Toast
-import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.draw.alpha
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -831,43 +829,6 @@ private fun ShopUpgradePurchaseSection(
     }
 }
 
-@Composable
-private fun ShopColorButton(
-    label: String,
-    color: Color,
-    selected: Boolean,
-    unlocked: Boolean,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    val borderColor = if (selected) Color(0xFF2F38CE) else Color(0xFF9AA3AD)
-    val buttonShape = androidx.compose.foundation.shape.RoundedCornerShape(14.dp)
-
-    Row(
-        modifier = modifier
-            .background(Color.White, buttonShape)
-            .border(2.dp, borderColor, buttonShape)
-            .clickable(onClick = onClick)
-            .padding(horizontal = 8.dp, vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(7.dp)
-    ) {
-        Box(
-            modifier = Modifier
-                .size(18.dp)
-                .background(color)
-                .border(1.dp, Color.Black)
-        )
-
-        Text(
-            text = label,
-            color = if (unlocked) Color(0xFF333333) else Color(0xFF666666),
-            fontSize = 11.sp,
-            maxLines = 2,
-            overflow = TextOverflow.Ellipsis
-        )
-    }
-}
 
 @Composable
 fun PlayMenuScreen(

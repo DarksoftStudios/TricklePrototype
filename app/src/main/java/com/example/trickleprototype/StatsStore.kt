@@ -190,19 +190,8 @@ class StatsStore(context: Context) {
 
 
     private companion object {
-        const val UPGRADE_FAUCET = "faucet"
-        const val UPGRADE_HOSE = "hose"
         const val UPGRADE_ROOSTER = "rooster"
         const val UPGRADE_WEATHER_VANE = "weather_vane"
-        const val UPGRADE_FOUNTAIN = "fountain"
-        const val UPGRADE_WATERSLIDE = "waterslide"
-        const val UPGRADE_COMMUNITY_BOARD = "community_board"
-        const val UPGRADE_ONE_POUND_WEIGHT = "one_pound_weight"
-        const val UPGRADE_THREE_POUND_WEIGHT = "three_pound_weight"
-        const val UPGRADE_PATINAD_COIN = "patinad_coin"
-        const val UPGRADE_NORMAL_COIN = "normal_coin"
-        const val UPGRADE_POLISHED_COIN = "polished_coin"
-        const val UPGRADE_SEALED_COIN = "sealed_coin"
         const val KEY_UNLOCKED_SHOP_UPGRADE_IDS = "unlocked_shop_upgrade_ids"
         const val KEY_LAST_ROOSTER_BONUS_AT = "last_rooster_bonus_at"
         const val KEY_LAST_WEATHER_VANE_BONUS_AT = "last_weather_vane_bonus_at"
