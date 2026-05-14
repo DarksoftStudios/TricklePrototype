@@ -105,7 +105,7 @@ data class ArchetypeAvatarUnlockDef(
 )
 
 object ArchetypeAvatarUnlocks {
-    const val COST: Long = 1113L
+    const val COST: Long = 111L
 
     val all: List<ArchetypeAvatarUnlockDef> = listOf(
         ArchetypeAvatarUnlockDef("Auditor", "auditor") { it.taxPaid },

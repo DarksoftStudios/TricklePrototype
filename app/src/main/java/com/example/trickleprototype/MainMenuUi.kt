@@ -223,7 +223,7 @@ val ShopUpgradeItems = listOf(
     ShopUpgradeItem(
         id = "rooster",
         name = "Rooster",
-        cost = 113L,
+        cost = 111L,
         description = "Earn 13 extra marbles on the first game you play every 24 hours.",
         spriteName = "rooster",
         implemented = true
@@ -239,7 +239,7 @@ val ShopUpgradeItems = listOf(
     ShopUpgradeItem(
         id = "community_board",
         name = "Community Board",
-        cost = 1111L,
+        cost = 777L,
         description = "Unlocks daily missions. Missions refresh daily and will award marbles for future tasks.",
         spriteName = "corkboard",
         implemented = false
@@ -247,7 +247,7 @@ val ShopUpgradeItems = listOf(
     ShopUpgradeItem(
         id = "fountain",
         name = "Fountain",
-        cost = 11111L,
+        cost = 1111L,
         description = "At the end of any game, earn 1 extra marble.",
         spriteName = "fountain",
         implemented = true
@@ -255,7 +255,7 @@ val ShopUpgradeItems = listOf(
     ShopUpgradeItem(
         id = "waterslide",
         name = "Waterslide",
-        cost = 33333L,
+        cost = 3333L,
         description = "At the end of any game, earn 3 extra marbles.",
         spriteName = "waterslide",
         implemented = true
@@ -295,7 +295,7 @@ val ShopUpgradeItems = listOf(
     ShopUpgradeItem(
         id = "polished_coin",
         name = "Polished Coin",
-        cost = 1113L,
+        cost = 1111L,
         description = "Auto-play placeholder. Later, this will combine with a weight and auto-target every turn.",
         spriteName = "coino",
         implemented = false
@@ -383,7 +383,7 @@ fun ShopMenuScreen(
 
             ShopColorPurchaseDropdown(
                 title = "Avatar Outline",
-                cost = 13L,
+                cost = 11L,
                 colors = PlayerShopColors,
                 titleAccentColors = shopTitleAccentColors,
                 unlockedIds = unlockedAvatarOutlineColorIds,
@@ -392,7 +392,7 @@ fun ShopMenuScreen(
                         id = item.id,
                         label = item.label,
                         category = "Avatar Outline",
-                        cost = 13L,
+                        cost = 11L,
                         onConfirm = onBuyAvatarOutlineColor
                     )
                 }
@@ -400,7 +400,7 @@ fun ShopMenuScreen(
 
             ShopColorPurchaseDropdown(
                 title = "Name Color",
-                cost = 113L,
+                cost = 33L,
                 colors = PlayerShopColors.filterNot { it.id == "white" },
                 titleAccentColors = shopNameTitleAccentColors,
                 unlockedIds = unlockedNameColorIds,
@@ -409,7 +409,7 @@ fun ShopMenuScreen(
                         id = item.id,
                         label = item.label,
                         category = "Name Color",
-                        cost = 113L,
+                        cost = 33L,
                         onConfirm = onBuyNameColor
                     )
                 }
