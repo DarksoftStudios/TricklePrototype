@@ -666,7 +666,7 @@ private fun AnimatedBonusMarble(
         )
     }
 
-    val marbleImageSize = 28.dp
+    val marbleImageSize = 56.dp
     val visibleMarbleDiameter = marbleImageSize
     val visibleMarbleCenterCorrectionX = 0.dp
     val visibleMarbleCenterCorrectionY = 0.dp

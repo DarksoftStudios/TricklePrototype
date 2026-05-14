@@ -318,7 +318,9 @@ private fun uniqueCorrectArchetypeTagCount(
 
 private const val EASY_BONUS_MARBLES = 1
 private const val HARD_BONUS_MARBLES = 3
+private const val DETECTIVE_BONUS_MARBLES = 3
 private const val ACHIEVEMENT_BONUS_MARBLES = 7
+private const val VICTORY_BONUS_MARBLES = 13
 
 private fun buildBonusMarblePayout(
     result: RoundResult,
@@ -338,7 +340,7 @@ private fun buildBonusMarblePayout(
     }
 
     val detectiveCount = uniqueCorrectArchetypeTagCount(botTags, result.botArchetypeNamesByPlayerId)
-    if (detectiveCount > 0) rows += BonusMarbleRow("Detective", detectiveCount * EASY_BONUS_MARBLES)
+    if (detectiveCount > 0) rows += BonusMarbleRow("Detective", detectiveCount * DETECTIVE_BONUS_MARBLES)
 
     if (!result.humanStartedAnyRoundThisGame) rows += BonusMarbleRow("Drafting", HARD_BONUS_MARBLES)
     if (!result.humanSubmittedTargetThisGame) rows += BonusMarbleRow("Peacekeeper", HARD_BONUS_MARBLES)
@@ -348,7 +350,7 @@ private fun buildBonusMarblePayout(
 
     if (result.humanPerfectBonusIntact) rows += BonusMarbleRow("Perfection", HARD_BONUS_MARBLES)
     if (difficulty == Difficulty.HARD) rows += BonusMarbleRow("Endeavor", HARD_BONUS_MARBLES)
-    if (result.winnerIds.contains(GameEngine.HUMAN_ID)) rows += BonusMarbleRow("Victory", HARD_BONUS_MARBLES)
+    if (result.winnerIds.contains(GameEngine.HUMAN_ID)) rows += BonusMarbleRow("Victory", VICTORY_BONUS_MARBLES)
 
     val achievementAmount = newlyUnlockedAchievementCount(result) * ACHIEVEMENT_BONUS_MARBLES
     if (achievementAmount > 0) rows += BonusMarbleRow("Achievement", achievementAmount)
@@ -827,7 +829,7 @@ private fun TrickleApp() {
         val payout = BonusMarblePayout(
             rows = listOf(
                 BonusMarbleRow("Game Score", 13),
-                BonusMarbleRow("Victory", 7),
+                BonusMarbleRow("Victory", VICTORY_BONUS_MARBLES),
                 BonusMarbleRow("Pacifist", 10)
             ),
             startingVaultMarbles = statsStore.load().vaultMarbles
