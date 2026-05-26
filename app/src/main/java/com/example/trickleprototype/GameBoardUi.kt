@@ -67,6 +67,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.sp
@@ -586,7 +587,10 @@ fun BotCupColumn(
     onBotNameClicked: (Int) -> Unit,
     onCupAnchorMeasured: (Int, TablePoint) -> Unit,
     indicatorPlacement: SeatIndicatorPlacement,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    cupScale: Float = 1f,
+    labelColumnWidth: Dp = 78.dp,
+    rowSpacing: Dp = 2.dp
 ) {
     Column(
         modifier = modifier,
@@ -629,7 +633,7 @@ fun BotCupColumn(
                     if (indicatorPlacement == SeatIndicatorPlacement.INSIDE_RIGHT) {
                         Column(
                             modifier = Modifier
-                                .width(78.dp)
+                                .width(labelColumnWidth)
                                 .padding(end = 2.dp),
                             horizontalAlignment = Alignment.CenterHorizontally
                         ) {
@@ -672,6 +676,7 @@ fun BotCupColumn(
                         marbleCountText = if (showMarbleCounts || bot.id in playersWithForcedMarbleCounts) bot.marbles.toString() else null,
                         targetVisualState = targetVisualState,
                         indicatorPlacement = indicatorPlacement,
+                        scale = cupScale,
                         onCupAnchorMeasured = { measuredAnchor ->
                             onCupAnchorMeasured(bot.id, measuredAnchor)
                         }
@@ -680,7 +685,7 @@ fun BotCupColumn(
                     if (indicatorPlacement == SeatIndicatorPlacement.INSIDE_LEFT) {
                         Column(
                             modifier = Modifier
-                                .width(78.dp)
+                                .width(labelColumnWidth)
                                 .padding(start = 2.dp),
                             horizontalAlignment = Alignment.CenterHorizontally
                         ) {
@@ -712,7 +717,7 @@ fun BotCupColumn(
                     }
                 }
 
-                Spacer(Modifier.height(2.dp))
+                Spacer(Modifier.height(rowSpacing))
             }
         }
     }

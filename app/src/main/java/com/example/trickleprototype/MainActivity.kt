@@ -22,6 +22,7 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -1827,19 +1828,48 @@ private fun TrickleApp() {
                         )
                     }
 
-                    Box(
+                    BoxWithConstraints(
                         modifier = Modifier
                             .fillMaxWidth()
                             .weight(1f)
                     ) {
+                        val compactBoard = maxHeight < 620.dp || maxWidth < 360.dp
+                        val crowdedBoard = maxHeight < 540.dp
+                        val tableWidthFraction = if (compactBoard) 0.72f else 0.64f
+                        val tableHeight = (maxHeight * if (compactBoard) 0.94f else 0.98f)
+                            .coerceIn(420.dp, 660.dp)
+                        val sideCupScale = when {
+                            crowdedBoard -> 0.78f
+                            compactBoard -> 0.88f
+                            else -> 1f
+                        }
+                        val sideLabelWidth = when {
+                            crowdedBoard -> 58.dp
+                            compactBoard -> 66.dp
+                            else -> 78.dp
+                        }
+                        val sideRowSpacing = when {
+                            crowdedBoard -> 0.dp
+                            compactBoard -> 1.dp
+                            else -> 2.dp
+                        }
+                        val sideColumnVerticalPadding = when {
+                            crowdedBoard -> 0.dp
+                            compactBoard -> 4.dp
+                            else -> 0.dp
+                        }
+                        val actionPanelWidth = (maxWidth * 0.40f).coerceIn(132.dp, 164.dp)
+                        val actionPanelTopPadding = (maxHeight * if (compactBoard) 0.10f else 0.14f)
+                            .coerceIn(48.dp, 96.dp)
+
                         GameTableSurface(
                             onBowlSpawnMeasured = { measuredAnchor ->
                                 bowlSpawnPoint = measuredAnchor
                             },
                             modifier = Modifier
                                 .align(Alignment.Center)
-                                .fillMaxWidth(0.64f)
-                                .height(660.dp)
+                                .fillMaxWidth(tableWidthFraction)
+                                .height(tableHeight)
                         )
 
                         val smogVisibleBotIds = if (
@@ -1873,7 +1903,10 @@ private fun TrickleApp() {
                                 .align(Alignment.CenterStart)
                                 .offset(y = (-12).dp)
                                 .fillMaxHeight()
-                                .padding(start = 0.dp, top = 0.dp, bottom = 0.dp)
+                                .padding(start = 0.dp, top = sideColumnVerticalPadding, bottom = sideColumnVerticalPadding),
+                            cupScale = sideCupScale,
+                            labelColumnWidth = sideLabelWidth,
+                            rowSpacing = sideRowSpacing
                         )
 
                         BotCupColumn(
@@ -1898,15 +1931,18 @@ private fun TrickleApp() {
                                 .align(Alignment.CenterEnd)
                                 .offset(y = (-12).dp)
                                 .fillMaxHeight()
-                                .padding(end = 0.dp, top = 0.dp, bottom = 0.dp)
+                                .padding(end = 0.dp, top = sideColumnVerticalPadding, bottom = sideColumnVerticalPadding),
+                            cupScale = sideCupScale,
+                            labelColumnWidth = sideLabelWidth,
+                            rowSpacing = sideRowSpacing
                         )
 
                         TableActionPanel(
                             modifier = Modifier
                                 .align(Alignment.TopCenter)
-                                .width(148.dp)
+                                .width(actionPanelWidth)
                                 .wrapContentHeight()
-                                .padding(top = 96.dp),
+                                .padding(top = actionPanelTopPadding),
                             choice = choice,
                             onChoiceSelected = { choice = it },
                             choiceOptions = if (phase == EnginePhase.TIEBREAKER_CHOICE) listOf(1, 3) else listOf(0, 1, 3),
