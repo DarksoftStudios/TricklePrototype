@@ -94,7 +94,7 @@ data class PlayerStats(
     // Weather achievements
     var unlockedWeatherAchievements: Set<String> = emptySet(),
     var seenWeatherIds: Set<String> = emptySet(),
-    var stormChaser: Boolean = false
+    var stormChaser: Boolean = true
 )
 
 
@@ -461,7 +461,7 @@ class StatsStore(context: Context) {
 
             unlockedWeatherAchievements = prefs.getStringSet("unlockedWeatherAchievements", emptySet())?.toSet() ?: emptySet(),
             seenWeatherIds = prefs.getStringSet("seenWeatherIds", emptySet())?.toSet() ?: emptySet(),
-            stormChaser = prefs.getBoolean("stormChaser", false),
+            stormChaser = prefs.getBoolean("stormChaser", true),
         )
     }
 

@@ -11,6 +11,29 @@ data class PlayerState(
 
 enum class Difficulty { EASY, NORMAL, HARD }
 
+enum class CustomWinMode {
+    SCORE_THRESHOLD,
+    ROUND_LIMIT
+}
+
+enum class CustomWeatherMode {
+    NORMAL,
+    CLEAR_SKIES,
+    CUSTOM_DECK
+}
+
+data class CustomGameSetup(
+    val playerCount: Int = 13,
+    val botArchetypeNames: List<String> = emptyList(),
+    val winMode: CustomWinMode = CustomWinMode.SCORE_THRESHOLD,
+    val winScore: Int = 13,
+    val roundLimit: Int = 33,
+    val bustingEnabled: Boolean = false,
+    val weatherMode: CustomWeatherMode = CustomWeatherMode.NORMAL,
+    val weatherCopiesById: Map<String, Int> = emptyMap()
+)
+
+
 data class RoundLogEvent(val text: String)
 
 enum class MarbleTransferEndpointType {
@@ -74,6 +97,7 @@ class GameEngine(
 
     private var difficulty: Difficulty = Difficulty.NORMAL
     private var weatherEnabled: Boolean = false
+    private var customGameSetup: CustomGameSetup? = null
     private var currentBossId: Int? = null
 
     private var currentWeatherCard: WeatherCard? = null
@@ -87,12 +111,19 @@ class GameEngine(
 
     private val botNames = listOf(
         "Al", "Barbara", "Clark", "David", "Erika", "Fred",
-        "Graham", "Harry", "Ian", "Josh", "Kelly", "Lois"
+        "Graham", "Harry", "Ian", "Josh", "Kelly", "Lois",
+        "Mona", "Nate", "Olive", "Pete", "Quinn", "Rita", "Sam"
     )
+
+    private fun activeBotNames(): List<String> {
+        val customCount = customGameSetup?.playerCount
+        val botCount = ((customCount ?: 13) - 1).coerceIn(2, botNames.size)
+        return botNames.take(botCount)
+    }
 
     private val players: MutableList<PlayerState> = mutableListOf<PlayerState>().apply {
         add(PlayerState(HUMAN_ID, "Player", marbles = 0))
-        for (i in botNames.indices) add(PlayerState(i + 2, botNames[i], marbles = 0))
+        for (i in 0 until 12) add(PlayerState(i + 2, botNames[i], marbles = 0))
     }
 
     private fun ensureBotRoster() {
@@ -100,7 +131,7 @@ class GameEngine(
             ?: PlayerState(HUMAN_ID, "Player", marbles = 0)
 
         val rebuilt = mutableListOf(human)
-        botNames.forEachIndexed { index, botName ->
+        activeBotNames().forEachIndexed { index, botName ->
             val botId = index + 2
             val existing = players.firstOrNull { it.id == botId }
             if (existing != null) {
@@ -245,10 +276,21 @@ class GameEngine(
     fun setDifficulty(d: Difficulty) {
         difficulty = d
         if (phase == EnginePhase.SETUP) {
-            assignRandomArchetypesToBots()
+            if (customGameSetup == null) {
+                assignRandomArchetypesToBots()
+            } else {
+                assignCustomArchetypesToBots()
+            }
             phase = EnginePhase.SELECT
         }
     }
+
+    fun setCustomGameSetup(setup: CustomGameSetup?) {
+        customGameSetup = setup
+        ensureBotRoster()
+    }
+
+    fun isCustomGame(): Boolean = customGameSetup != null
 
     fun setWeatherEnabled(enabled: Boolean) {
         weatherEnabled = enabled
@@ -367,6 +409,33 @@ class GameEngine(
 
 
     private fun drawWeatherForRound() {
+        val customSetup = customGameSetup
+        if (customSetup != null) {
+            currentWeatherCard = when (customSetup.weatherMode) {
+                CustomWeatherMode.CLEAR_SKIES -> null
+                CustomWeatherMode.NORMAL -> {
+                    if (!weatherEnabled) {
+                        null
+                    } else if (roundNumber == 1) {
+                        Weather.firstRoundWeather()
+                    } else {
+                        Weather.drawRandomWeather(
+                            rng = rng,
+                            includeDigitalCards = true,
+                            excludeIds = setOf(Weather.FIRST_ROUND_WEATHER_ID)
+                        )
+                    }
+                }
+                CustomWeatherMode.CUSTOM_DECK -> {
+                    val deck = Weather.allCards.flatMap { card ->
+                        List((customSetup.weatherCopiesById[card.id] ?: 0).coerceIn(0, 4)) { card }
+                    }
+                    if (deck.isEmpty()) null else deck.random(rng)
+                }
+            }
+            return
+        }
+
         if (!weatherEnabled) {
             currentWeatherCard = null
             return
@@ -1789,6 +1858,10 @@ class GameEngine(
 
             statsStore?.let { store ->
                 val s = store.load()
+                if (customGameSetup != null) {
+                    return@let
+                }
+
                 val humanFinal = players.first { it.id == HUMAN_ID }.marbles
                 val humanWon = winnerIds.contains(HUMAN_ID)
                 val winningArchetypes = winnerIds.mapNotNull { archetypeById[it]?.displayName }
@@ -2187,7 +2260,19 @@ class GameEngine(
     }
 
     private fun resolveThresholdWinners(): List<Int> {
-        val winners = players.filter { it.marbles >= WIN_SCORE }
+        val customSetup = customGameSetup
+        if (customSetup != null && customSetup.winMode == CustomWinMode.ROUND_LIMIT && roundNumber >= customSetup.roundLimit.coerceIn(1, 33)) {
+            val top = players.maxOf { it.marbles }
+            val leaders = players.filter { it.marbles == top }
+            return resolveTieGroup(leaders, isFreshTie = true)
+        }
+
+        val targetScore = customSetup?.winScore?.coerceIn(7, 113) ?: WIN_SCORE
+        val winners = if (customSetup?.bustingEnabled == true) {
+            players.filter { it.marbles == targetScore }
+        } else {
+            players.filter { it.marbles >= targetScore }
+        }
         if (winners.isEmpty()) return emptyList()
 
         val top = winners.maxOf { it.marbles }
@@ -2448,6 +2533,52 @@ class GameEngine(
         }
     }
 
+
+    private fun createArchetypeByName(name: String): Archetype {
+        return when (name) {
+            "Auditor" -> Auditor()
+            "Avenger" -> Avenger()
+            "Bully" -> Bully()
+            "Cabal" -> Cabal()
+            "Chaos" -> Chaos()
+            "Cynic" -> Cynic()
+            "Echo" -> Echo()
+            "Glutton" -> Glutton()
+            "Hunter" -> Hunter()
+            "Jester" -> Jester()
+            "Juliet" -> Colluder(code = "R", displayName = "Juliet", partnerId = -999)
+            "Limper" -> Limper()
+            "Lurker" -> Lurker()
+            "Mirror" -> Mirror()
+            "Nemesis" -> Nemesis()
+            "Pacifist" -> Pacifist()
+            "Pitfall" -> Pitfall()
+            "Romeo" -> Colluder(code = "J", displayName = "Romeo", partnerId = -999)
+            "Scout" -> Scout()
+            "Seer" -> Seer()
+            "Strobe" -> Strobe()
+            else -> Strobe()
+        }
+    }
+
+    private fun assignCustomArchetypesToBots() {
+        archetypeById.clear()
+        memById.clear()
+        currentBossId = null
+
+        val botIds = players.map { it.id }.filter { it != HUMAN_ID }.toMutableList()
+        val setup = customGameSetup ?: return
+        val pool = setup.botArchetypeNames.take(botIds.size).toMutableList()
+        pool.shuffle(rng)
+        botIds.shuffle(rng)
+
+        botIds.forEachIndexed { index, botId ->
+            val name = pool.getOrNull(index) ?: "Strobe"
+            archetypeById[botId] = createArchetypeByName(name)
+            memById[botId] = BotMemory()
+        }
+    }
+
     private fun buildTurnOrderFromStarter(activeIds: List<Int>): List<Int> {
         if (activeIds.isEmpty()) return emptyList()
         val activeSet = activeIds.toSet()
@@ -2483,6 +2614,27 @@ class GameEngine(
         }
     }
 
+
+    private fun displayArchetypeNamesByPlayerId(): Map<Int, String> {
+        val baseNames = players
+            .filter { it.id != HUMAN_ID }
+            .mapNotNull { player ->
+                archetypeById[player.id]?.displayName?.let { archetypeName ->
+                    player.id to archetypeName
+                }
+            }
+
+        if (customGameSetup == null) return baseNames.toMap()
+
+        val seen = mutableMapOf<String, Int>()
+        return baseNames.associate { (playerId, name) ->
+            val next = (seen[name] ?: 0) + 1
+            seen[name] = next
+            val display = if (next <= 1) name else "$name ($next)"
+            playerId to display
+        }
+    }
+
     private fun snapshot(): RoundResult {
         val currentActor = when (phase) {
             EnginePhase.BOT_TURN, EnginePhase.PLAYER_TURN -> turnOrder.getOrNull(turnCursor)
@@ -2511,15 +2663,7 @@ class GameEngine(
             activeTargetArrowActorId = activeTargetArrowActorId,
             activeTargetArrowTargetIds = activeTargetArrowTargetIds,
             marbleTransfers = latestMarbleTransfers.toList(),
-            botArchetypeNamesByPlayerId = players
-                .asSequence()
-                .filter { it.id != HUMAN_ID }
-                .mapNotNull { player ->
-                    archetypeById[player.id]?.displayName?.let { archetypeName ->
-                        player.id to archetypeName
-                    }
-                }
-                .toMap(),
+            botArchetypeNamesByPlayerId = displayArchetypeNamesByPlayerId(),
             smogRevealedPlayerIds = smogRevealedPlayerIds,
             humanHeldHatThisGame = gameHumanHeldHat,
             humanCorrectGuessesThisGame = gameHumanCorrectGuesses,

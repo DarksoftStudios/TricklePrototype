@@ -444,6 +444,10 @@ private fun TrickleApp() {
     var pendingHumanAction by remember { mutableStateOf(PendingHumanAction.NONE) }
     var showLogOverlay by remember { mutableStateOf(false) }
     var revealArchetypesPostGame by remember { mutableStateOf(false) }
+    var customModeActive by remember { mutableStateOf(false) }
+    var customArchetypesVisible by remember { mutableStateOf(false) }
+    var customScoresVisible by remember { mutableStateOf(false) }
+    var customLogVisible by remember { mutableStateOf(false) }
     val botTags = remember { mutableStateMapOf<Int, String>() }
     var tagMenuBotId by remember { mutableStateOf<Int?>(null) }
 
@@ -621,12 +625,13 @@ private fun TrickleApp() {
     val displayedRoundFromEngine = lastResult?.roundNumber ?: engine.getRoundNumber()
     val basePlayers = lastResult?.players ?: engine.getPlayersSnapshot()
     val gameOver = (phase == EnginePhase.GAME_OVER)
-    val revealArchetypesActive = revealArchetypesPostGame && gameOver
+    val revealArchetypesActive = (revealArchetypesPostGame && gameOver) || (customModeActive && customArchetypesVisible)
     val botTagSnapshot = botTags.toMap()
 
     LaunchedEffect(lastResult, activeAchievement, achievementQueue, difficulty, botTagSnapshot) {
         val result = lastResult ?: return@LaunchedEffect
         if (result.phase != EnginePhase.GAME_OVER) return@LaunchedEffect
+        if (customModeActive) return@LaunchedEffect
         if (activeAchievement != null || achievementQueue.isNotEmpty()) return@LaunchedEffect
 
         val gameKey = "${result.roundNumber}|${result.log.size}|${result.players.firstOrNull { it.id == GameEngine.HUMAN_ID }?.marbles ?: 0}"
@@ -647,7 +652,7 @@ private fun TrickleApp() {
             roosterBonusClaimed = roosterBonusClaimed,
             weatherVaneBonusClaimed = weatherVaneBonusClaimed
         )
-        val totalProgressAmount = if (difficulty == Difficulty.EASY) {
+        val totalProgressAmount = if (difficulty == Difficulty.EASY || customModeActive) {
             0L
         } else {
             (payout.total - (result.players.firstOrNull { it.id == GameEngine.HUMAN_ID }?.marbles ?: 0))
@@ -745,6 +750,13 @@ private fun TrickleApp() {
         lastResult = null
         logText = ""
         revealArchetypesPostGame = false
+        if (clearDifficulty) {
+            customModeActive = false
+            customArchetypesVisible = false
+            customScoresVisible = false
+            customLogVisible = false
+            engine.setCustomGameSetup(null)
+        }
         floatingIndicators = emptyMap()
         marbleFlights = emptyList()
         activeTargetArrow = null
@@ -798,10 +810,15 @@ private fun TrickleApp() {
     }
 
     fun startGameSession(picked: Difficulty, animateEntry: Boolean) {
+        engine.setCustomGameSetup(null)
         engine.reset()
         engine.attachStatsStore(statsStore)
         difficulty = picked
         lastDifficulty = picked
+        customModeActive = false
+        customArchetypesVisible = false
+        customScoresVisible = false
+        customLogVisible = false
         engine.setDifficulty(picked)
 
         val stats = statsStore.load()
@@ -838,6 +855,88 @@ private fun TrickleApp() {
         showQuitConfirm = false
         botTags.clear()
         tagMenuBotId = null
+
+        humanActionLocked = false
+        startLocked = false
+        screen = AppScreen.GAME
+
+        if (!animateEntry) {
+            difficultyEntryTransitionActive = false
+            return
+        }
+
+        scope.launch {
+            difficultyEntryTransitionActive = true
+            difficultyEntryZoom.snapTo(1f)
+            difficultyEntryFade.snapTo(0f)
+
+            launch {
+                difficultyEntryZoom.animateTo(
+                    targetValue = 1.42f,
+                    animationSpec = tween(durationMillis = 1250, easing = FastOutSlowInEasing)
+                )
+            }
+
+            delay(300L)
+
+            difficultyEntryFade.animateTo(
+                targetValue = 1f,
+                animationSpec = tween(durationMillis = 820, easing = LinearEasing)
+            )
+
+            delay(140L)
+            difficultyEntryTransitionActive = false
+            difficultyEntryZoom.snapTo(1f)
+            difficultyEntryFade.snapTo(0f)
+        }
+    }
+
+
+    fun startCustomGameSession(
+        setup: CustomGameSetup,
+        showArchetypes: Boolean,
+        showScores: Boolean,
+        showLog: Boolean,
+        animateEntry: Boolean
+    ) {
+        engine.setCustomGameSetup(setup)
+        engine.reset()
+        engine.attachStatsStore(statsStore)
+        difficulty = Difficulty.NORMAL
+        customModeActive = true
+        customArchetypesVisible = showArchetypes
+        customScoresVisible = showScores
+        customLogVisible = showLog
+        engine.setWeatherEnabled(setup.weatherMode != CustomWeatherMode.CLEAR_SKIES)
+        engine.setDifficulty(Difficulty.NORMAL)
+        botTags.clear()
+        tagMenuBotId = null
+
+        val snap = engineSnapshot(engine)
+        lastResult = snap
+        revealArchetypesPostGame = false
+        logText = buildLogText(
+            result = snap,
+            difficulty = Difficulty.NORMAL,
+            revealArchetypes = showArchetypes,
+            botTags = botTags.toMap()
+        )
+
+        floatingIndicators = emptyMap()
+        marbleFlights = emptyList()
+        activeTargetArrow = null
+        fadingTargetArrow = null
+        lastQueuedMarbleTransferSignature = null
+        achievementQueue = emptyList()
+        activeAchievement = null
+
+        choice = 1
+        targetId = null
+        secondTargetId = null
+        guess = 3
+        pendingHumanAction = PendingHumanAction.NONE
+        showLogOverlay = showLog
+        showQuitConfirm = false
 
         humanActionLocked = false
         startLocked = false
@@ -983,7 +1082,7 @@ private fun TrickleApp() {
                 logText = buildLogText(
                     result = result,
                     difficulty = pickedDifficulty,
-                    revealArchetypes = revealArchetypesPostGame && result.phase == EnginePhase.GAME_OVER,
+                    revealArchetypes = (revealArchetypesPostGame && result.phase == EnginePhase.GAME_OVER) || (customModeActive && customArchetypesVisible),
                     botTags = botTags.toMap()
                 )
                 activeTargetArrow =
@@ -1364,6 +1463,15 @@ private fun TrickleApp() {
                         weatherEnabled = weatherEnabled,
                         onWeatherEnabledChange = { weatherEnabled = it },
                         onStartGame = { picked -> startGameSession(picked = picked, animateEntry = true) },
+                        onStartCustomGame = { setup, showArchetypes, showScores, showLog ->
+                            startCustomGameSession(
+                                setup = setup,
+                                showArchetypes = showArchetypes,
+                                showScores = showScores,
+                                showLog = showLog,
+                                animateEntry = true
+                            )
+                        },
                         onBack = { screen = AppScreen.MAIN_MENU }
                     )
                     return@Column
@@ -1669,11 +1777,15 @@ private fun TrickleApp() {
 
             val zeroGuessUnlocked = shopStats.zeroHeroUnlocked
 
-            val canShowLogPanel = when (difficulty) {
-                Difficulty.HARD -> gameOver
-                else -> showLogOverlay
+            val canShowLogPanel = if (customModeActive) {
+                customLogVisible
+            } else {
+                when (difficulty) {
+                    Difficulty.HARD -> gameOver
+                    else -> showLogOverlay
+                }
             }
-            val canRevealArchetypes = gameOver && (
+            val canRevealArchetypes = !customModeActive && gameOver && (
                     difficulty == Difficulty.NORMAL || difficulty == Difficulty.HARD
                     )
 
@@ -1719,7 +1831,7 @@ private fun TrickleApp() {
                 logText = buildLogText(
                     result = result,
                     difficulty = pickedDifficulty,
-                    revealArchetypes = revealArchetypesPostGame && result.phase == EnginePhase.GAME_OVER,
+                    revealArchetypes = (revealArchetypesPostGame && result.phase == EnginePhase.GAME_OVER) || (customModeActive && customArchetypesVisible),
                     botTags = botTags.toMap()
                 )
                 activeTargetArrow =
@@ -1887,9 +1999,9 @@ private fun TrickleApp() {
                             hatHolderId = lastResult?.hatHolderId,
                             starterId = lastResult?.currentStarterId,
                             indicators = floatingIndicators,
-                            showMarbleCounts = difficulty == Difficulty.EASY || revealArchetypesActive,
+                            showMarbleCounts = (difficulty == Difficulty.EASY && !customModeActive) || revealArchetypesActive || (customModeActive && customScoresVisible),
                             playersWithForcedMarbleCounts = smogVisibleBotIds,
-                            taggingEnabled = difficulty != Difficulty.EASY && !revealArchetypesActive,
+                            taggingEnabled = difficulty != Difficulty.EASY && !revealArchetypesActive && !customModeActive,
                             avatarResourceNameForBot = { botId -> botAvatarResourceNamesByPlayerId[botId] },
                             avatarGreyedOutForBot = { botId -> botId in botTaggedAvatarIds },
                             targetVisualStateForBot = { botId -> visualStateForTargetablePlayer(botId) },
@@ -1915,9 +2027,9 @@ private fun TrickleApp() {
                             hatHolderId = lastResult?.hatHolderId,
                             starterId = lastResult?.currentStarterId,
                             indicators = floatingIndicators,
-                            showMarbleCounts = difficulty == Difficulty.EASY || revealArchetypesActive,
+                            showMarbleCounts = (difficulty == Difficulty.EASY && !customModeActive) || revealArchetypesActive || (customModeActive && customScoresVisible),
                             playersWithForcedMarbleCounts = smogVisibleBotIds,
-                            taggingEnabled = difficulty != Difficulty.EASY && !revealArchetypesActive,
+                            taggingEnabled = difficulty != Difficulty.EASY && !revealArchetypesActive && !customModeActive,
                             avatarResourceNameForBot = { botId -> botAvatarResourceNamesByPlayerId[botId] },
                             avatarGreyedOutForBot = { botId -> botId in botTaggedAvatarIds },
                             targetVisualStateForBot = { botId -> visualStateForTargetablePlayer(botId) },
@@ -2067,7 +2179,7 @@ private fun TrickleApp() {
                                         logText = buildLogText(
                                             result = result,
                                             difficulty = pickedDifficulty,
-                                            revealArchetypes = revealArchetypesPostGame && result.phase == EnginePhase.GAME_OVER,
+                                            revealArchetypes = (revealArchetypesPostGame && result.phase == EnginePhase.GAME_OVER) || (customModeActive && customArchetypesVisible),
                                             botTags = botTags.toMap()
                                         )
                                         activeTargetArrow =
@@ -2096,7 +2208,7 @@ private fun TrickleApp() {
                                         logText = buildLogText(
                                             result = result,
                                             difficulty = pickedDifficulty,
-                                            revealArchetypes = revealArchetypesPostGame && result.phase == EnginePhase.GAME_OVER,
+                                            revealArchetypes = (revealArchetypesPostGame && result.phase == EnginePhase.GAME_OVER) || (customModeActive && customArchetypesVisible),
                                             botTags = botTags.toMap()
                                         )
                                     }

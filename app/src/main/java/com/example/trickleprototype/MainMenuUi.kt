@@ -830,18 +830,33 @@ private fun ShopUpgradePurchaseSection(
 }
 
 
+private enum class PlayMenuBranch {
+    ROOT,
+    SINGLE_PLAYER,
+    MULTIPLAYER,
+    STANDARD,
+    CUSTOM
+}
+
 @Composable
 fun PlayMenuScreen(
     stats: PlayerStats,
     weatherEnabled: Boolean,
     onWeatherEnabledChange: (Boolean) -> Unit,
     onStartGame: (Difficulty) -> Unit,
+    onStartCustomGame: (CustomGameSetup, Boolean, Boolean, Boolean) -> Unit,
     onBack: () -> Unit
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val normalUnlocked = stats.easyGames > 0
     val hardUnlocked = stats.normalWins > 0
     val weatherUnlocked = stats.wonHard
+    val customUnlocked = stats.stormChaser
+    var branch by remember { mutableStateOf(PlayMenuBranch.ROOT) }
+
+    fun showComingSoon(label: String) {
+        Toast.makeText(context, "$label coming soon", Toast.LENGTH_SHORT).show()
+    }
 
     Box(
         modifier = Modifier.fillMaxSize()
@@ -854,53 +869,376 @@ fun PlayMenuScreen(
             verticalArrangement = Arrangement.spacedBy(35.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            MenuLinkButton(
-                text = when {
-                    !weatherUnlocked -> "WEATHER:(LOCKED)"
-                    weatherEnabled -> "WEATHER: ON"
-                    else -> "WEATHER: OFF"
+            when (branch) {
+                PlayMenuBranch.ROOT -> {
+                    MenuLinkButton(text = "SINGLE PLAYER") { branch = PlayMenuBranch.SINGLE_PLAYER }
+
+                    Spacer(Modifier.height(2.dp))
+                    MenuLinkButton(text = "MULTIPLAYER") { branch = PlayMenuBranch.MULTIPLAYER }
+
+                    Spacer(Modifier.height(16.dp))
+                    MenuLinkButton(text = "BACK") { onBack() }
                 }
-            ) {
-                if (weatherUnlocked) {
-                    onWeatherEnabledChange(!weatherEnabled)
-                } else {
-                    onWeatherEnabledChange(true)
-                    Toast.makeText(context, "Win on HARD to unlock WEATHER", Toast.LENGTH_SHORT).show()
+
+                PlayMenuBranch.SINGLE_PLAYER -> {
+                    MenuLinkButton(text = "STANDARD") { branch = PlayMenuBranch.STANDARD }
+
+                    Spacer(Modifier.height(2.dp))
+                    MenuLinkButton(
+                        text = if (customUnlocked) "CUSTOM" else "CUSTOM (LOCKED)"
+                    ) {
+                        if (customUnlocked) {
+                            branch = PlayMenuBranch.CUSTOM
+                        } else {
+                            Toast.makeText(
+                                context,
+                                "Experience every weather card to unlock CUSTOM",
+                                Toast.LENGTH_SHORT
+                            ).show()
+                        }
+                    }
+
+                    Spacer(Modifier.height(2.dp))
+                    MenuLinkButton(text = "CHALLENGE") { showComingSoon("Challenge mode") }
+
+                    Spacer(Modifier.height(16.dp))
+                    MenuLinkButton(text = "BACK") { branch = PlayMenuBranch.ROOT }
+                }
+
+                PlayMenuBranch.MULTIPLAYER -> {
+                    MenuLinkButton(text = "LOCAL GAME") { showComingSoon("Local game") }
+
+                    Spacer(Modifier.height(2.dp))
+                    MenuLinkButton(text = "PHONE PASS") { showComingSoon("Phone pass") }
+
+                    Spacer(Modifier.height(2.dp))
+                    MenuLinkButton(text = "ONLINE GAME") { showComingSoon("Online game") }
+
+                    Spacer(Modifier.height(16.dp))
+                    MenuLinkButton(text = "BACK") { branch = PlayMenuBranch.ROOT }
+                }
+
+                PlayMenuBranch.CUSTOM -> {
+                    CustomModeSetupScreen(
+                        onStartCustomGame = onStartCustomGame,
+                        onBack = { branch = PlayMenuBranch.SINGLE_PLAYER }
+                    )
+                }
+
+                PlayMenuBranch.STANDARD -> {
+                    MenuLinkButton(
+                        text = when {
+                            !weatherUnlocked -> "WEATHER:(LOCKED)"
+                            weatherEnabled -> "WEATHER: ON"
+                            else -> "WEATHER: OFF"
+                        }
+                    ) {
+                        if (weatherUnlocked) {
+                            onWeatherEnabledChange(!weatherEnabled)
+                        } else {
+                            onWeatherEnabledChange(true)
+                            Toast.makeText(context, "Win on HARD to unlock WEATHER", Toast.LENGTH_SHORT).show()
+                        }
+                    }
+
+                    Spacer(Modifier.height(2.dp))
+                    MenuLinkButton(text = "EASY") { onStartGame(Difficulty.EASY) }
+
+                    Spacer(Modifier.height(2.dp))
+                    MenuLinkButton(
+                        text = if (normalUnlocked) "NORMAL" else "NORMAL (LOCKED)"
+                    ) {
+                        if (normalUnlocked) {
+                            onStartGame(Difficulty.NORMAL)
+                        } else {
+                            Toast.makeText(context, "Finish a game to unlock NORMAL", Toast.LENGTH_SHORT).show()
+                        }
+                    }
+
+                    Spacer(Modifier.height(2.dp))
+                    MenuLinkButton(
+                        text = if (hardUnlocked) "HARD" else "HARD (LOCKED)"
+                    ) {
+                        if (hardUnlocked) {
+                            onStartGame(Difficulty.HARD)
+                        } else {
+                            Toast.makeText(context, "Win a game on NORMAL to unlock HARD", Toast.LENGTH_SHORT).show()
+                        }
+                    }
+
+                    Spacer(Modifier.height(2.dp))
+                    MenuLinkButton(text = "BACK") { branch = PlayMenuBranch.SINGLE_PLAYER }
                 }
             }
-
-            Spacer(Modifier.height(2.dp))
-            MenuLinkButton(text = "EASY") { onStartGame(Difficulty.EASY) }
-
-            Spacer(Modifier.height(2.dp))
-            MenuLinkButton(
-                text = if (normalUnlocked) "NORMAL" else "NORMAL (LOCKED)"
-            ) {
-                if (normalUnlocked) {
-                    onStartGame(Difficulty.NORMAL)
-                } else {
-                    Toast.makeText(context, "Finish a game to unlock NORMAL", Toast.LENGTH_SHORT).show()
-                }
-            }
-
-            Spacer(Modifier.height(2.dp))
-            MenuLinkButton(
-                text = if (hardUnlocked) "HARD" else "HARD (LOCKED)"
-            ) {
-                if (hardUnlocked) {
-                    onStartGame(Difficulty.HARD)
-                } else {
-                    Toast.makeText(context, "Win a game on NORMAL to unlock HARD", Toast.LENGTH_SHORT).show()
-                }
-            }
-
-            Spacer(Modifier.height(2.dp))
-            MenuLinkButton(text = "BACK") { onBack() }
 
             Spacer(Modifier.height(16.dp))
         }
     }
 }
+
+
+private val CUSTOM_ARCHETYPE_NAMES = listOf(
+    "Auditor", "Avenger", "Bully", "Cabal", "Chaos", "Cynic", "Echo", "Glutton",
+    "Hunter", "Jester", "Juliet", "Limper", "Lurker", "Mirror", "Nemesis",
+    "Pacifist", "Pitfall", "Romeo", "Scout", "Seer", "Strobe"
+)
+
+@Composable
+private fun CustomModeSetupScreen(
+    onStartCustomGame: (CustomGameSetup, Boolean, Boolean, Boolean) -> Unit,
+    onBack: () -> Unit
+) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    var playerCount by remember { mutableStateOf(13) }
+    var winMode by remember { mutableStateOf(CustomWinMode.SCORE_THRESHOLD) }
+    var winScore by remember { mutableStateOf(13) }
+    var roundLimit by remember { mutableStateOf(33) }
+    var bustingEnabled by remember { mutableStateOf(false) }
+    var weatherMode by remember { mutableStateOf(CustomWeatherMode.NORMAL) }
+    var archetypeSlots by remember { mutableStateOf(List(playerCount - 1) { "Strobe" }) }
+    var archetypePickerIndex by remember { mutableStateOf<Int?>(null) }
+    var weatherCopies by remember { mutableStateOf(Weather.allCards.associate { it.id to it.copies.coerceIn(1, 4) }) }
+    var savedSetups by remember { mutableStateOf<List<CustomGameSetup>>(emptyList()) }
+
+    fun syncSlotCount(newPlayerCount: Int) {
+        val botCount = (newPlayerCount - 1).coerceIn(2, 19)
+        archetypeSlots = when {
+            archetypeSlots.size < botCount -> archetypeSlots + List(botCount - archetypeSlots.size) { "Strobe" }
+            archetypeSlots.size > botCount -> archetypeSlots.take(botCount)
+            else -> archetypeSlots
+        }
+    }
+
+    fun makeSetup(): CustomGameSetup {
+        return CustomGameSetup(
+            playerCount = playerCount.coerceIn(3, 20),
+            botArchetypeNames = archetypeSlots,
+            winMode = winMode,
+            winScore = winScore.coerceIn(7, 113),
+            roundLimit = roundLimit.coerceIn(1, 33),
+            bustingEnabled = bustingEnabled,
+            weatherMode = weatherMode,
+            weatherCopiesById = weatherCopies
+        )
+    }
+
+    fun duplicateLabel(name: String, index: Int): String {
+        val countBefore = archetypeSlots.take(index + 1).count { it == name }
+        return if (countBefore <= 1) name else "$name ($countBefore)"
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 14.dp, vertical = 20.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text("CUSTOM MODE", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 28.sp)
+        Text("Custom mode is sandbox play and does not award marbles.", color = Color.White, textAlign = TextAlign.Center)
+
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+            SmallCustomButton("-") {
+                playerCount = (playerCount - 1).coerceIn(3, 20)
+                syncSlotCount(playerCount)
+            }
+            Text("Players: $playerCount", color = Color.White, fontWeight = FontWeight.Bold)
+            SmallCustomButton("+") {
+                playerCount = (playerCount + 1).coerceIn(3, 20)
+                syncSlotCount(playerCount)
+            }
+        }
+
+        Text("Archetype pool: ${archetypeSlots.size} bots", color = Color.White, fontWeight = FontWeight.Bold)
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            CUSTOM_ARCHETYPE_NAMES.take(3).forEach { name ->
+                SmallCustomButton("All $name") {
+                    archetypeSlots = List(playerCount - 1) { name }
+                }
+            }
+        }
+
+        archetypeSlots.forEachIndexed { index, name ->
+            val resourceId = botAvatarDrawableResourceId(context, name.lowercase())
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(Color(0xAA101010), RoundedCornerShape(14.dp))
+                    .clickable { archetypePickerIndex = index }
+                    .padding(8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                if (resourceId != 0) {
+                    Image(
+                        painter = painterResource(resourceId),
+                        contentDescription = null,
+                        modifier = Modifier.size(38.dp),
+                        contentScale = ContentScale.Fit
+                    )
+                }
+                Text("Slot ${index + 1}: ${duplicateLabel(name, index)}", color = Color.White, fontWeight = FontWeight.Bold)
+            }
+        }
+
+        Text("Win condition", color = Color.White, fontWeight = FontWeight.Bold)
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            SmallCustomButton(if (winMode == CustomWinMode.SCORE_THRESHOLD) "Score: ON" else "Score") {
+                winMode = CustomWinMode.SCORE_THRESHOLD
+            }
+            SmallCustomButton(if (winMode == CustomWinMode.ROUND_LIMIT) "Rounds: ON" else "Rounds") {
+                winMode = CustomWinMode.ROUND_LIMIT
+            }
+        }
+
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+            SmallCustomButton("-") { winScore = (winScore - 1).coerceIn(7, 113) }
+            Text("Score target: $winScore", color = Color.White)
+            SmallCustomButton("+") { winScore = (winScore + 1).coerceIn(7, 113) }
+        }
+
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+            SmallCustomButton("-") { roundLimit = (roundLimit - 1).coerceIn(1, 33) }
+            Text("Round limit: $roundLimit", color = Color.White)
+            SmallCustomButton("+") { roundLimit = (roundLimit + 1).coerceIn(1, 33) }
+        }
+
+        SmallCustomButton(if (bustingEnabled) "Busting: ON" else "Busting: OFF") {
+            bustingEnabled = !bustingEnabled
+        }
+
+        Text("Weather", color = Color.White, fontWeight = FontWeight.Bold)
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            SmallCustomButton(if (weatherMode == CustomWeatherMode.NORMAL) "Normal: ON" else "Normal") {
+                weatherMode = CustomWeatherMode.NORMAL
+            }
+            SmallCustomButton(if (weatherMode == CustomWeatherMode.CLEAR_SKIES) "Clear Skies: ON" else "Clear Skies") {
+                weatherMode = CustomWeatherMode.CLEAR_SKIES
+            }
+            SmallCustomButton(if (weatherMode == CustomWeatherMode.CUSTOM_DECK) "Custom: ON" else "Custom") {
+                weatherMode = CustomWeatherMode.CUSTOM_DECK
+            }
+        }
+
+        if (weatherMode == CustomWeatherMode.CUSTOM_DECK) {
+            Weather.allCards.forEach { card ->
+                val count = weatherCopies[card.id] ?: 0
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    SmallCustomButton("-") {
+                        weatherCopies = weatherCopies + (card.id to (count - 1).coerceIn(0, 4))
+                    }
+                    Text("${card.displayName}: $count", color = Color.White, modifier = Modifier.weight(1f))
+                    SmallCustomButton("+") {
+                        weatherCopies = weatherCopies + (card.id to (count + 1).coerceIn(0, 4))
+                    }
+                }
+            }
+        }
+
+        Text("Difficulty modifiers", color = Color.White, fontWeight = FontWeight.Bold)
+        var showArchetypes by remember { mutableStateOf(false) }
+        var showScores by remember { mutableStateOf(false) }
+        var showLog by remember { mutableStateOf(false) }
+        SmallCustomButton(if (showArchetypes) "Bot archetypes visible: ON" else "Bot archetypes visible: OFF") { showArchetypes = !showArchetypes }
+        SmallCustomButton(if (showScores) "Bot scores visible: ON" else "Bot scores visible: OFF") { showScores = !showScores }
+        SmallCustomButton(if (showLog) "Log visible: ON" else "Log visible: OFF") { showLog = !showLog }
+
+        savedSetups.forEachIndexed { index, setup ->
+            SmallCustomButton("Load saved ${index + 1}") {
+                playerCount = setup.playerCount
+                winMode = setup.winMode
+                winScore = setup.winScore
+                roundLimit = setup.roundLimit
+                bustingEnabled = setup.bustingEnabled
+                weatherMode = setup.weatherMode
+                weatherCopies = setup.weatherCopiesById
+                archetypeSlots = setup.botArchetypeNames
+            }
+        }
+
+        MenuLinkButton(text = "SAVE SETTINGS") {
+            savedSetups = savedSetups + makeSetup()
+            Toast.makeText(context, "Custom settings saved", Toast.LENGTH_SHORT).show()
+        }
+
+        MenuLinkButton(text = "START GAME") {
+            if (archetypeSlots.size != playerCount - 1 || archetypeSlots.any { it.isBlank() }) {
+                Toast.makeText(context, "Please fill out remaining bots", Toast.LENGTH_SHORT).show()
+            } else {
+                onStartCustomGame(makeSetup(), showArchetypes, showScores, showLog)
+            }
+        }
+
+        MenuLinkButton(text = "BACK") { onBack() }
+    }
+
+    val pickerIndex = archetypePickerIndex
+    if (pickerIndex != null) {
+        AlertDialog(
+            onDismissRequest = { archetypePickerIndex = null },
+            title = { Text("Pick archetype") },
+            text = {
+                LazyColumn {
+                    items(CUSTOM_ARCHETYPE_NAMES) { name ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    archetypeSlots = archetypeSlots.mapIndexed { i, old ->
+                                        if (i == pickerIndex) name else old
+                                    }
+                                    archetypePickerIndex = null
+                                }
+                                .padding(10.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            val resourceId = botAvatarDrawableResourceId(context, name.lowercase())
+                            if (resourceId != 0) {
+                                Image(
+                                    painter = painterResource(resourceId),
+                                    contentDescription = null,
+                                    modifier = Modifier.size(38.dp),
+                                    contentScale = ContentScale.Fit
+                                )
+                            }
+                            Text(name)
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    archetypeSlots = List(playerCount - 1) { archetypeSlots[pickerIndex] }
+                    archetypePickerIndex = null
+                }) {
+                    Text("Make all")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { archetypePickerIndex = null }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+}
+
+@Composable
+private fun SmallCustomButton(text: String, onClick: () -> Unit) {
+    Button(
+        onClick = onClick,
+        shape = RoundedCornerShape(12.dp),
+        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp)
+    ) {
+        Text(text = text, fontSize = 12.sp, textAlign = TextAlign.Center)
+    }
+}
+
 
 @Composable
 fun RulesMenuScreen(
