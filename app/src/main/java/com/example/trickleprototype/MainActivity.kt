@@ -2322,100 +2322,26 @@ private fun TrickleApp() {
     tagMenuBotId?.let { selectedBotId ->
         val selectedBot = players.firstOrNull { it.id == selectedBotId }
         if (selectedBot != null) {
-            SimpleDialog(
+            val tagsUsedByOtherBots = botTags
+                .filterKeys { botId -> botId != selectedBotId }
+                .values
+                .mapNotNull { tag -> cleanArchetypeNameForAvatar(tag) }
+                .toSet()
+
+            ArchetypePickerDialog(
                 title = "Tag ${selectedBot.baseName}",
-                onClose = { tagMenuBotId = null },
-                accentColor = Color(0xFFFFF59D)
-            ) {
-                Column(
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    val tagsUsedByOtherBots = botTags
-                        .filterKeys { botId -> botId != selectedBotId }
-                        .values
-                        .mapNotNull { tag -> cleanArchetypeNameForAvatar(tag) }
-                        .toSet()
-
-                    TAGGABLE_ARCHETYPE_NAMES
-                        .sortedBy { it.lowercase() }
-                        .chunked(3)
-                        .forEach { archetypeRow ->
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(6.dp)
-                            ) {
-                                archetypeRow.forEach { archetypeName ->
-                                    val tagAlreadyUsed = cleanArchetypeNameForAvatar(archetypeName) in tagsUsedByOtherBots
-                                    val avatarResourceId = botAvatarDrawableResourceId(
-                                        context = context,
-                                        resourceName = botAvatarResourceNameForArchetype(archetypeName)
-                                    )
-
-                                    Button(
-                                        onClick = {
-                                            if (!tagAlreadyUsed) {
-                                                botTags[selectedBotId] = "$archetypeName(?)"
-                                                tagMenuBotId = null
-                                            }
-                                        },
-                                        enabled = !tagAlreadyUsed,
-                                        modifier = Modifier
-                                            .weight(1f)
-                                            .heightIn(min = 74.dp),
-                                        contentPadding = PaddingValues(horizontal = 3.dp, vertical = 5.dp),
-                                        colors = ButtonDefaults.buttonColors(
-                                            containerColor = if (tagAlreadyUsed) Color(0xFF4A4A4A) else Color(0xFF263238),
-                                            contentColor = if (tagAlreadyUsed) Color(0xFF9E9E9E) else Color.White,
-                                            disabledContainerColor = Color(0xFF4A4A4A),
-                                            disabledContentColor = Color(0xFF9E9E9E)
-                                        )
-                                    ) {
-                                        Column(
-                                            horizontalAlignment = Alignment.CenterHorizontally,
-                                            verticalArrangement = Arrangement.spacedBy(3.dp)
-                                        ) {
-                                            if (avatarResourceId != 0) {
-                                                Image(
-                                                    painter = painterResource(avatarResourceId),
-                                                    contentDescription = null,
-                                                    contentScale = ContentScale.Fit,
-                                                    modifier = Modifier.size(39.dp)
-                                                )
-                                            }
-
-                                            Text(
-                                                text = archetypeName,
-                                                fontSize = 10.sp,
-                                                lineHeight = 11.sp,
-                                                maxLines = 1,
-                                                overflow = TextOverflow.Ellipsis,
-                                                textAlign = TextAlign.Center
-                                            )
-                                        }
-                                    }
-                                }
-
-                                repeat(3 - archetypeRow.size) {
-                                    Spacer(modifier = Modifier.weight(1f))
-                                }
-                            }
-                        }
-
-                    OutlinedButton(
-                        onClick = {
-                            botTags.remove(selectedBotId)
-                            tagMenuBotId = null
-                        },
-                        modifier = Modifier.fillMaxWidth(),
-                        border = BorderStroke(1.dp, Color(0xFFFFF59D)),
-                        colors = ButtonDefaults.outlinedButtonColors(
-                            contentColor = Color(0xFFFFF59D)
-                        )
-                    ) {
-                        OneLineButtonText("Clear Tag")
-                    }
-                }
-            }
+                archetypeNames = TAGGABLE_ARCHETYPE_NAMES,
+                disabledNames = tagsUsedByOtherBots,
+                onPick = { archetypeName ->
+                    botTags[selectedBotId] = "$archetypeName(?)"
+                    tagMenuBotId = null
+                },
+                onClear = {
+                    botTags.remove(selectedBotId)
+                    tagMenuBotId = null
+                },
+                onDismiss = { tagMenuBotId = null }
+            )
         }
     }
 

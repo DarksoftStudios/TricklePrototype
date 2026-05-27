@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -983,6 +984,115 @@ private val CUSTOM_ARCHETYPE_NAMES = listOf(
     "Pacifist", "Pitfall", "Romeo", "Scout", "Seer", "Strobe"
 )
 
+data class NamedCustomGameSetup(
+    val name: String,
+    val setup: CustomGameSetup
+)
+
+@Composable
+fun ArchetypePickerDialog(
+    title: String,
+    archetypeNames: List<String>,
+    disabledNames: Set<String> = emptySet(),
+    onPick: (String) -> Unit,
+    onClear: (() -> Unit)? = null,
+    onDismiss: () -> Unit
+) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(
+                text = title,
+                fontWeight = FontWeight.Bold
+            )
+        },
+        text = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 4.dp, bottom = 4.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                archetypeNames
+                    .sortedBy { it.lowercase() }
+                    .chunked(3)
+                    .forEach { rowItems ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            rowItems.forEach { archetypeName ->
+                                val isDisabled = archetypeName.lowercase() in disabledNames
+                                val resourceId = botAvatarDrawableResourceId(context, archetypeName.lowercase())
+
+                                Button(
+                                    onClick = {
+                                        if (!isDisabled) {
+                                            onPick(archetypeName)
+                                        }
+                                    },
+                                    enabled = !isDisabled,
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .heightIn(min = 58.dp),
+                                    contentPadding = PaddingValues(horizontal = 3.dp, vertical = 4.dp)
+                                ) {
+                                    Column(
+                                        horizontalAlignment = Alignment.CenterHorizontally,
+                                        verticalArrangement = Arrangement.spacedBy(2.dp)
+                                    ) {
+                                        if (resourceId != 0) {
+                                            Image(
+                                                painter = painterResource(resourceId),
+                                                contentDescription = null,
+                                                modifier = Modifier.size(31.dp),
+                                                contentScale = ContentScale.Fit
+                                            )
+                                        }
+
+                                        Text(
+                                            text = archetypeName,
+                                            fontSize = 9.sp,
+                                            lineHeight = 10.sp,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis,
+                                            textAlign = TextAlign.Center
+                                        )
+                                    }
+                                }
+                            }
+
+                            repeat(3 - rowItems.size) {
+                                Spacer(modifier = Modifier.weight(1f))
+                            }
+                        }
+                    }
+
+                if (onClear != null) {
+                    OutlinedButton(
+                        onClick = onClear,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Clear Tag")
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        },
+        shape = RoundedCornerShape(16.dp),
+        properties = DialogProperties(
+            dismissOnBackPress = true,
+            dismissOnClickOutside = true
+        )
+    )
+}
+
 @Composable
 private fun CustomModeSetupScreen(
     onStartCustomGame: (CustomGameSetup, Boolean, Boolean, Boolean) -> Unit,
@@ -992,13 +1102,17 @@ private fun CustomModeSetupScreen(
     var playerCount by remember { mutableStateOf(13) }
     var winMode by remember { mutableStateOf(CustomWinMode.SCORE_THRESHOLD) }
     var winScore by remember { mutableStateOf(13) }
-    var roundLimit by remember { mutableStateOf(33) }
+    var roundLimit by remember { mutableStateOf(5) }
     var bustingEnabled by remember { mutableStateOf(false) }
     var weatherMode by remember { mutableStateOf(CustomWeatherMode.NORMAL) }
     var archetypeSlots by remember { mutableStateOf(List(playerCount - 1) { "Strobe" }) }
     var archetypePickerIndex by remember { mutableStateOf<Int?>(null) }
+    var allArchetypePickerOpen by remember { mutableStateOf(false) }
     var weatherCopies by remember { mutableStateOf(Weather.allCards.associate { it.id to it.copies.coerceIn(1, 4) }) }
-    var savedSetups by remember { mutableStateOf<List<CustomGameSetup>>(emptyList()) }
+    var savedSetups by remember { mutableStateOf<List<NamedCustomGameSetup>>(emptyList()) }
+    var saveNameDialogOpen by remember { mutableStateOf(false) }
+    var pendingSaveName by remember { mutableStateOf("") }
+    var deleteSavedSetupIndex by remember { mutableStateOf<Int?>(null) }
 
     fun syncSlotCount(newPlayerCount: Int) {
         val botCount = (newPlayerCount - 1).coerceIn(2, 19)
@@ -1050,11 +1164,9 @@ private fun CustomModeSetupScreen(
         }
 
         Text("Archetype pool: ${archetypeSlots.size} bots", color = Color.White, fontWeight = FontWeight.Bold)
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            CUSTOM_ARCHETYPE_NAMES.take(3).forEach { name ->
-                SmallCustomButton("All $name") {
-                    archetypeSlots = List(playerCount - 1) { name }
-                }
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
+            SmallCustomButton("All-") {
+                allArchetypePickerOpen = true
             }
         }
 
@@ -1103,9 +1215,15 @@ private fun CustomModeSetupScreen(
             SmallCustomButton("+") { roundLimit = (roundLimit + 1).coerceIn(1, 33) }
         }
 
-        SmallCustomButton(if (bustingEnabled) "Busting: ON" else "Busting: OFF") {
+        SmallCustomButton(if (bustingEnabled) "Exact score: ON" else "Exact score: OFF") {
             bustingEnabled = !bustingEnabled
         }
+        Text(
+            "Exact score means a score-target game must end exactly on the target. Going over does not win.",
+            color = Color.White,
+            fontSize = 12.sp,
+            textAlign = TextAlign.Center
+        )
 
         Text("Weather", color = Color.White, fontWeight = FontWeight.Bold)
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -1147,22 +1265,40 @@ private fun CustomModeSetupScreen(
         SmallCustomButton(if (showScores) "Bot scores visible: ON" else "Bot scores visible: OFF") { showScores = !showScores }
         SmallCustomButton(if (showLog) "Log visible: ON" else "Log visible: OFF") { showLog = !showLog }
 
-        savedSetups.forEachIndexed { index, setup ->
-            SmallCustomButton("Load saved ${index + 1}") {
-                playerCount = setup.playerCount
-                winMode = setup.winMode
-                winScore = setup.winScore
-                roundLimit = setup.roundLimit
-                bustingEnabled = setup.bustingEnabled
-                weatherMode = setup.weatherMode
-                weatherCopies = setup.weatherCopiesById
-                archetypeSlots = setup.botArchetypeNames
+        savedSetups.forEachIndexed { index, saved ->
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Button(
+                    onClick = {
+                        val setup = saved.setup
+                        playerCount = setup.playerCount
+                        winMode = setup.winMode
+                        winScore = setup.winScore
+                        roundLimit = setup.roundLimit
+                        bustingEnabled = setup.bustingEnabled
+                        weatherMode = setup.weatherMode
+                        weatherCopies = setup.weatherCopiesById
+                        archetypeSlots = setup.botArchetypeNames
+                    },
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(12.dp),
+                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp)
+                ) {
+                    Text("Load ${saved.name}", fontSize = 12.sp, textAlign = TextAlign.Center)
+                }
+
+                SmallCustomButton("x") {
+                    deleteSavedSetupIndex = index
+                }
             }
         }
 
         MenuLinkButton(text = "SAVE SETTINGS") {
-            savedSetups = savedSetups + makeSetup()
-            Toast.makeText(context, "Custom settings saved", Toast.LENGTH_SHORT).show()
+            pendingSaveName = "Custom ${savedSetups.size + 1}"
+            saveNameDialogOpen = true
         }
 
         MenuLinkButton(text = "START GAME") {
@@ -1178,54 +1314,87 @@ private fun CustomModeSetupScreen(
 
     val pickerIndex = archetypePickerIndex
     if (pickerIndex != null) {
-        AlertDialog(
-            onDismissRequest = { archetypePickerIndex = null },
-            title = { Text("Pick archetype") },
-            text = {
-                LazyColumn {
-                    items(CUSTOM_ARCHETYPE_NAMES) { name ->
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable {
-                                    archetypeSlots = archetypeSlots.mapIndexed { i, old ->
-                                        if (i == pickerIndex) name else old
-                                    }
-                                    archetypePickerIndex = null
-                                }
-                                .padding(10.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(10.dp)
-                        ) {
-                            val resourceId = botAvatarDrawableResourceId(context, name.lowercase())
-                            if (resourceId != 0) {
-                                Image(
-                                    painter = painterResource(resourceId),
-                                    contentDescription = null,
-                                    modifier = Modifier.size(38.dp),
-                                    contentScale = ContentScale.Fit
-                                )
-                            }
-                            Text(name)
-                        }
-                    }
+        ArchetypePickerDialog(
+            title = "Pick archetype",
+            archetypeNames = CUSTOM_ARCHETYPE_NAMES,
+            onPick = { name ->
+                archetypeSlots = archetypeSlots.mapIndexed { i, old ->
+                    if (i == pickerIndex) name else old
                 }
+                archetypePickerIndex = null
+            },
+            onDismiss = { archetypePickerIndex = null }
+        )
+    }
+
+    if (allArchetypePickerOpen) {
+        ArchetypePickerDialog(
+            title = "Set all bots",
+            archetypeNames = CUSTOM_ARCHETYPE_NAMES,
+            onPick = { name ->
+                archetypeSlots = List(playerCount - 1) { name }
+                allArchetypePickerOpen = false
+            },
+            onDismiss = { allArchetypePickerOpen = false }
+        )
+    }
+
+    if (saveNameDialogOpen) {
+        AlertDialog(
+            onDismissRequest = { saveNameDialogOpen = false },
+            title = { Text("Name custom setting") },
+            text = {
+                OutlinedTextField(
+                    value = pendingSaveName,
+                    onValueChange = { pendingSaveName = it.take(24) },
+                    singleLine = true,
+                    label = { Text("Name") },
+                    modifier = Modifier.fillMaxWidth()
+                )
             },
             confirmButton = {
-                TextButton(onClick = {
-                    archetypeSlots = List(playerCount - 1) { archetypeSlots[pickerIndex] }
-                    archetypePickerIndex = null
-                }) {
-                    Text("Make all")
+                TextButton(
+                    onClick = {
+                        val cleanedName = pendingSaveName.trim().ifBlank { "Custom ${savedSetups.size + 1}" }
+                        savedSetups = savedSetups + NamedCustomGameSetup(cleanedName, makeSetup())
+                        saveNameDialogOpen = false
+                        Toast.makeText(context, "Custom settings saved", Toast.LENGTH_SHORT).show()
+                    }
+                ) {
+                    Text("Save")
                 }
             },
             dismissButton = {
-                TextButton(onClick = { archetypePickerIndex = null }) {
+                TextButton(onClick = { saveNameDialogOpen = false }) {
                     Text("Cancel")
                 }
             }
         )
     }
+
+    deleteSavedSetupIndex?.let { index ->
+        AlertDialog(
+            onDismissRequest = { deleteSavedSetupIndex = null },
+            title = { Text("Delete setting?") },
+            text = { Text("Are you sure you want to delete this custom game setting?") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        savedSetups = savedSetups.filterIndexed { savedIndex, _ -> savedIndex != index }
+                        deleteSavedSetupIndex = null
+                    }
+                ) {
+                    Text("Yes")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { deleteSavedSetupIndex = null }) {
+                    Text("No")
+                }
+            }
+        )
+    }
+
 }
 
 @Composable
