@@ -2238,7 +2238,9 @@ private fun TrickleApp() {
                             }
                         }
 
-                        if (difficulty != Difficulty.HARD) {
+                        val showLogToggleButton =
+                            difficulty != Difficulty.HARD && (!customModeActive || customLogVisible)
+                        if (showLogToggleButton) {
                             Button(
                                 onClick = { showLogOverlay = !showLogOverlay },
                                 modifier = Modifier

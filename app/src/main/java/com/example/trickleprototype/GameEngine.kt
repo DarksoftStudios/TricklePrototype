@@ -995,7 +995,14 @@ class GameEngine(
         for (pid in players.map { it.id }.filter { it != HUMAN_ID }) {
             if (pid !in activeIds) continue
 
-            val arch = archetypeById[pid]!!
+            val arch = archetypeById[pid] ?: run {
+                // Defensive fallback: if a bot somehow lacks an assigned archetype
+                // (e.g. custom-mode roster expansion mismatch), give it a Strobe so
+                // chooseDie still resolves instead of crashing with NPE.
+                val fallback = Strobe()
+                archetypeById[pid] = fallback
+                fallback
+            }
             val mem = memById.getOrPut(pid) { BotMemory() }
 
             val pub = PublicRoundInfo(
@@ -1202,7 +1209,14 @@ class GameEngine(
 
     private fun queueBotTurn(actorId: Int) {
         val starterId = players[starterIndex].id
-        val arch = archetypeById[actorId]!!
+        val arch = archetypeById[actorId] ?: run {
+            // Defensive fallback: if a bot somehow lacks an assigned archetype
+            // (e.g. custom-mode roster expansion mismatch), give it a Strobe so
+            // the turn still resolves instead of crashing with NPE.
+            val fallback = Strobe()
+            archetypeById[actorId] = fallback
+            fallback
+        }
         val mem = memById.getOrPut(actorId) { BotMemory() }
 
         val legalTargets = legalTargetIdsForActor(actorId)
@@ -2261,12 +2275,18 @@ class GameEngine(
 
     private fun resolveThresholdWinners(): List<Int> {
         val customSetup = customGameSetup
-        if (customSetup != null && customSetup.winMode == CustomWinMode.ROUND_LIMIT && roundNumber >= customSetup.roundLimit.coerceIn(1, 33)) {
+
+        // ROUND_LIMIT mode: ignore score threshold entirely; only end at the round limit.
+        if (customSetup != null && customSetup.winMode == CustomWinMode.ROUND_LIMIT) {
+            if (roundNumber < customSetup.roundLimit.coerceIn(1, 33)) {
+                return emptyList()
+            }
             val top = players.maxOf { it.marbles }
             val leaders = players.filter { it.marbles == top }
             return resolveTieGroup(leaders, isFreshTie = true)
         }
 
+        // SCORE_THRESHOLD mode (or vanilla games).
         val targetScore = customSetup?.winScore?.coerceIn(7, 113) ?: WIN_SCORE
         val winners = if (customSetup?.bustingEnabled == true) {
             players.filter { it.marbles == targetScore }
