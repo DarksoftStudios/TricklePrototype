@@ -84,12 +84,15 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.zIndex
 import androidx.core.view.WindowCompat
 import com.example.trickleprototype.ui.theme.TricklePrototypeTheme
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import androidx.compose.runtime.snapshotFlow
 import kotlin.random.Random
 
 class MainActivity : ComponentActivity() {
@@ -241,7 +244,8 @@ fun botAvatarResourceNameForBotName(name: String?): String? {
 
 data class BonusMarbleRow(
     val label: String,
-    val amount: Int
+    val amount: Int,
+    val breakdown: String? = null
 )
 
 data class BonusMarblePayout(
@@ -293,24 +297,38 @@ private fun buildBonusMarblePayout(
 
     if (result.humanHeldHatThisGame) rows += BonusMarbleRow("Hat Holder", EASY_BONUS_MARBLES)
     if (result.humanCorrectGuessesThisGame > 0) {
-        rows += BonusMarbleRow("Accuracy", result.humanCorrectGuessesThisGame * EASY_BONUS_MARBLES)
+        val accuracyTotal = result.humanCorrectGuessesThisGame * EASY_BONUS_MARBLES
+        val accuracyBreakdown = if (result.humanCorrectGuessesThisGame > 1) "${result.humanCorrectGuessesThisGame}x${EASY_BONUS_MARBLES}=${accuracyTotal}" else null
+        rows += BonusMarbleRow("Accuracy", accuracyTotal, accuracyBreakdown)
     }
 
     val detectiveCount = uniqueCorrectArchetypeTagCount(botTags, result.botArchetypeNamesByPlayerId)
-    if (detectiveCount > 0) rows += BonusMarbleRow("Detective", detectiveCount * DETECTIVE_BONUS_MARBLES)
+    if (detectiveCount > 0) {
+        val detectiveTotal = detectiveCount * DETECTIVE_BONUS_MARBLES
+        val detectiveBreakdown = if (detectiveCount > 1) "${detectiveCount}x${DETECTIVE_BONUS_MARBLES}=${detectiveTotal}" else null
+        rows += BonusMarbleRow("Detective", detectiveTotal, detectiveBreakdown)
+    }
 
     if (!result.humanStartedAnyRoundThisGame) rows += BonusMarbleRow("Drafting", HARD_BONUS_MARBLES)
     if (!result.humanSubmittedTargetThisGame) rows += BonusMarbleRow("Peacekeeper", HARD_BONUS_MARBLES)
 
-    val patienceAmount = maxOf(0, result.roundNumber - 5) * HARD_BONUS_MARBLES
-    if (patienceAmount > 0) rows += BonusMarbleRow("Patience", patienceAmount)
+    val patienceCount = maxOf(0, result.roundNumber - 5)
+    val patienceAmount = patienceCount * HARD_BONUS_MARBLES
+    if (patienceAmount > 0) {
+        val patienceBreakdown = if (patienceCount > 1) "${patienceCount}x${HARD_BONUS_MARBLES}=${patienceAmount}" else null
+        rows += BonusMarbleRow("Patience", patienceAmount, patienceBreakdown)
+    }
 
     if (result.humanPerfectBonusIntact) rows += BonusMarbleRow("Perfection", HARD_BONUS_MARBLES)
     if (difficulty == Difficulty.HARD) rows += BonusMarbleRow("Endeavor", HARD_BONUS_MARBLES)
     if (result.winnerIds.contains(GameEngine.HUMAN_ID)) rows += BonusMarbleRow("Victory", VICTORY_BONUS_MARBLES)
 
-    val achievementAmount = newlyUnlockedAchievementCount(result) * ACHIEVEMENT_BONUS_MARBLES
-    if (achievementAmount > 0) rows += BonusMarbleRow("Achievement", achievementAmount)
+    val achievementCount = newlyUnlockedAchievementCount(result)
+    val achievementAmount = achievementCount * ACHIEVEMENT_BONUS_MARBLES
+    if (achievementAmount > 0) {
+        val achievementBreakdown = if (achievementCount > 1) "${achievementCount}x${ACHIEVEMENT_BONUS_MARBLES}=${achievementAmount}" else null
+        rows += BonusMarbleRow("Achievement", achievementAmount, achievementBreakdown)
+    }
 
     if ("faucet" in ownedUpgradeIds && result.humanHadUntargetedOneTrickleThisGame) {
         rows += BonusMarbleRow("Faucet", 1)
@@ -592,6 +610,8 @@ private fun TrickleApp() {
     var startLocked by remember { mutableStateOf(false) }
 
     var turbo by remember { mutableStateOf(false) }
+    var showSettingsOverlay by remember { mutableStateOf(false) }
+    var gameDescriptor by remember { mutableStateOf("") }
 
     var turboOnColor by remember { mutableStateOf(Color(0xFFFFFFFF)) }
     val turboPalette = remember {
@@ -825,6 +845,13 @@ private fun TrickleApp() {
         val weatherControlUnlocked = stats.wonHard
         val effectiveWeatherEnabled = if (weatherControlUnlocked) weatherEnabled else false
         engine.setWeatherEnabled(effectiveWeatherEnabled)
+        val diffLabel = when (picked) {
+            Difficulty.EASY -> "Easy"
+            Difficulty.NORMAL -> "Normal"
+            Difficulty.HARD -> "Hard"
+        }
+        val weatherLabel = if (effectiveWeatherEnabled) "Weather On" else "No Weather"
+        gameDescriptor = "1 Player • Standard • $diffLabel • $weatherLabel"
         botTags.clear()
         tagMenuBotId = null
 
@@ -907,8 +934,10 @@ private fun TrickleApp() {
         customArchetypesVisible = showArchetypes
         customScoresVisible = showScores
         customLogVisible = showLog
-        engine.setWeatherEnabled(setup.weatherMode != CustomWeatherMode.CLEAR_SKIES)
+        val customWeatherOn = setup.weatherMode != CustomWeatherMode.CLEAR_SKIES
+        engine.setWeatherEnabled(customWeatherOn)
         engine.setDifficulty(Difficulty.NORMAL)
+        gameDescriptor = "1 Player • Custom • ${if (customWeatherOn) "Weather On" else "No Weather"}"
         botTags.clear()
         tagMenuBotId = null
 
@@ -1071,6 +1100,9 @@ private fun TrickleApp() {
     LaunchedEffect(phase, turbo) {
         if (phase == EnginePhase.BOT_TURN) {
             while (true) {
+                // Pause while settings overlay is open
+                snapshotFlow { showSettingsOverlay }.first { !it }
+
                 val current = lastResult?.phase ?: engine.getPhase()
                 if (current != EnginePhase.BOT_TURN) break
 
@@ -1238,45 +1270,84 @@ private fun TrickleApp() {
             }
 
             if (screen != AppScreen.SPLASH) {
-                Box(modifier = Modifier.fillMaxWidth()) {
-                    if (difficulty != null) {
-                        Button(
-                            onClick = {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    // Exit / Quit button
+                    Button(
+                        onClick = {
+                            if (difficulty != null) {
                                 if (gameOver) {
                                     engine.reset()
                                     engine.attachStatsStore(statsStore)
                                     resetRunUiState(clearDifficulty = true)
                                     screen = AppScreen.MAIN_MENU
-                                } else {
+                                } else if (screen == AppScreen.GAME) {
                                     showQuitConfirm = true
+                                } else {
+                                    screen = AppScreen.MAIN_MENU
                                 }
-                            },
-                            modifier = Modifier.align(Alignment.CenterStart),
-                            shape = RoundedCornerShape(8.dp),
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = Color(0xFF6A6A6A),
-                                contentColor = Color.White
-                            ),
-                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
-                        ) {
-                            Text(text = if (gameOver) "Main Menu" else "Quit", maxLines = 1)
-                        }
-                    }
-
-                    val turboContainerColor = if (turbo) turboOnColor else Color(0xFF6A6A6A)
-                    val turboContentColor = if (turbo && turboOnColor == Color.Yellow) Color.Black else Color.White
-
-                    if (screen == AppScreen.GAME) {
+                            } else {
+                                screen = AppScreen.MAIN_MENU
+                            }
+                        },
+                        shape = RoundedCornerShape(8.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFF6A6A6A),
+                            contentColor = Color.White
+                        ),
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                    ) {
                         Text(
-                            text = "Trickle",
-                            modifier = Modifier.align(Alignment.Center),
-                            color = Color.White,
-                            fontWeight = FontWeight.Black,
-                            fontSize = 22.sp
+                            text = if (gameOver) "Main Menu" else if (screen == AppScreen.GAME) "Quit" else "Back",
+                            maxLines = 1
                         )
                     }
 
+                    Spacer(Modifier.width(8.dp))
+
+                    // Jug + vault marble count
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Image(
+                            painter = painterResource(R.drawable.jug),
+                            contentDescription = "Marble bank",
+                            modifier = Modifier.size(26.dp)
+                        )
+                        Spacer(Modifier.width(3.dp))
+                        Text(
+                            text = shopStats.vaultMarbles.toString(),
+                            color = Color.White,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 13.sp,
+                            maxLines = 1
+                        )
+                    }
+
+                    Spacer(Modifier.weight(1f))
+
+                    // Settings button
+                    Button(
+                        onClick = { showSettingsOverlay = true },
+                        shape = RoundedCornerShape(8.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFF6A6A6A),
+                            contentColor = Color.White
+                        ),
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                    ) {
+                        Text(text = "Settings", maxLines = 1)
+                    }
+
+                    // Turbo button (game only)
                     if (screen == AppScreen.GAME) {
+                        Spacer(Modifier.width(8.dp))
+                        val turboContainerColor = if (turbo) turboOnColor else Color(0xFF6A6A6A)
+                        val turboContentColor = if (turbo && turboOnColor == Color.Yellow) Color.Black else Color.White
                         Button(
                             onClick = {
                                 if (!turbo) {
@@ -1285,9 +1356,8 @@ private fun TrickleApp() {
                                 turbo = !turbo
                             },
                             modifier = Modifier
-                                .align(Alignment.CenterEnd)
                                 .height(40.dp)
-                                .widthIn(min = 130.dp),
+                                .widthIn(min = 100.dp),
                             shape = RoundedCornerShape(8.dp),
                             colors = ButtonDefaults.buttonColors(
                                 containerColor = turboContainerColor,
@@ -2343,6 +2413,93 @@ private fun TrickleApp() {
                 onDismiss = { tagMenuBotId = null }
             )
         }
+    }
+
+    if (showSettingsOverlay) {
+        Dialog(
+            onDismissRequest = { showSettingsOverlay = false },
+            properties = DialogProperties(dismissOnClickOutside = true, dismissOnBackPress = true)
+        ) {
+            Surface(
+                shape = RoundedCornerShape(16.dp),
+                color = Color(0xFF1A1A1A)
+            ) {
+                Column(
+                    modifier = Modifier.padding(horizontal = 32.dp, vertical = 28.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text(
+                        text = "SETTINGS",
+                        color = Color.White,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 16.sp
+                    )
+                    Spacer(Modifier.height(4.dp))
+                    MenuLinkButton(
+                        text = if (soundEnabled) "SOUND: ON" else "SOUND: OFF"
+                    ) {
+                        soundEnabled = !soundEnabled
+                        if (!soundEnabled) {
+                            splashSoundPlayer?.stop()
+                            splashSoundPlayer?.release()
+                            splashSoundPlayer = null
+                        }
+                    }
+                    MenuLinkButton(
+                        text = if (musicEnabled) "MUSIC: ON" else "MUSIC: OFF"
+                    ) {
+                        musicEnabled = !musicEnabled
+                        if (!musicEnabled) {
+                            bgmPlayer?.pause()
+                        } else {
+                            if (bgmPlayer?.isPlaying != true) bgmPlayer?.start()
+                        }
+                    }
+                    MenuLinkButton(
+                        text = if (passTargetConfirmEnabled) "PASS CONFIRM: ON" else "PASS CONFIRM: OFF"
+                    ) {
+                        passTargetConfirmEnabled = !passTargetConfirmEnabled
+                    }
+                    MenuLinkButton(text = "RESET STATS") {
+                        showResetStatsConfirm = true
+                    }
+                    Spacer(Modifier.height(4.dp))
+                    MenuLinkButton(text = "CLOSE") {
+                        showSettingsOverlay = false
+                    }
+                }
+            }
+        }
+    }
+
+    if (showResetStatsConfirm) {
+        AlertDialog(
+            onDismissRequest = { showResetStatsConfirm = false },
+            title = { Text("ARE YOU SURE?") },
+            text = { Text("This will reset all stats and unlocks.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    statsStore.resetAll()
+                    playerName = statsStore.getPlayerName()
+                    playerAvatarResourceName = statsStore.getPlayerAvatarResourceName()
+                    playerNameColorId = statsStore.getPlayerNameColorId()
+                    playerAvatarOutlineColorId = statsStore.getPlayerAvatarOutlineColorId()
+                    shopStats = statsStore.load()
+                    unlockedNameColorIds = statsStore.getUnlockedPlayerNameColorIds()
+                    unlockedAvatarOutlineColorIds = statsStore.getUnlockedPlayerAvatarOutlineColorIds()
+                    unlockedArchetypeAvatarResourceNames = statsStore.getUnlockedArchetypeAvatarResourceNames()
+                    unlockedShopUpgradeIds = statsStore.getUnlockedShopUpgradeIds()
+                    engine.setHumanName(playerName)
+                    showResetStatsConfirm = false
+                    showSettingsOverlay = false
+                }) { Text("RESET") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showResetStatsConfirm = false }) { Text("CANCEL") }
+            },
+            properties = DialogProperties(dismissOnClickOutside = true)
+        )
     }
 
     if (showQuitConfirm) {

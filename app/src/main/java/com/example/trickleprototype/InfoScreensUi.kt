@@ -541,7 +541,11 @@ fun BonusMarblesAnimationOverlay(
                             .height(bonusRowHeight)
                             .alpha(if (rowVisible) 1f else 0f)
                     ) {
-                        val amountText = if (index == 0) "${row.amount}" else "+${row.amount}"
+                        val amountText = when {
+                            index == 0 -> "${row.amount}"
+                            row.breakdown != null -> "+${row.breakdown}"
+                            else -> "+${row.amount}"
+                        }
 
                         Text(
                             text = if (rowVisible) "$displayLabel: $amountText" else "",
