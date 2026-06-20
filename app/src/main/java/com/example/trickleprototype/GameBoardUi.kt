@@ -485,7 +485,8 @@ fun PlayerStatusStack(
             BotAvatarIcon(
                 resourceName = playerAvatarResourceName,
                 greyedOut = false,
-                modifier = Modifier.size(52.dp),
+                modifier = Modifier.size(70.dp),
+                imageSize = 150.dp,
                 flipHorizontally = true
             )
         }
@@ -827,7 +828,8 @@ fun BotAvatarIcon(
     resourceName: String?,
     greyedOut: Boolean,
     modifier: Modifier = Modifier,
-    flipHorizontally: Boolean = false
+    flipHorizontally: Boolean = false,
+    imageSize: Dp = 135.dp
 ) {
     val context = LocalContext.current
     val displayResourceName = remember(resourceName, greyedOut) {
@@ -880,7 +882,7 @@ fun BotAvatarIcon(
                     contentScale = ContentScale.Fit,
                     colorFilter = greyFilter,
                     modifier = Modifier
-                        .size(90.dp)
+                        .size(imageSize)
                         .graphicsLayer { scaleX = if (flipHorizontally) -1f else 1f }
                         .alpha(if (useGeneratedGreyFilter) 0.72f else 1f)
                 )
@@ -893,7 +895,7 @@ fun BotAvatarIcon(
                     contentScale = ContentScale.Fit,
                     colorFilter = greyFilter,
                     modifier = Modifier
-                        .size(90.dp)
+                        .size(imageSize)
                         .graphicsLayer { scaleX = if (flipHorizontally) -1f else 1f }
                         .alpha(if (useGeneratedGreyFilter) 0.72f else 1f)
                 )
@@ -922,16 +924,16 @@ fun TableCup(
         TargetVisualState.DISABLED -> 0.78f
         else -> 1f
     }
-    val holderWidth = (58.dp * scale).coerceAtLeast(38.dp)
-    val cupBodyWidth = (40.dp * scale).coerceAtLeast(28.dp)
-    val cupBodyHeight = (46.dp * scale).coerceAtLeast(32.dp)
+    val holderWidth = (72.5.dp * scale).coerceAtLeast(47.5.dp)
+    val cupBodyWidth = (50.dp * scale).coerceAtLeast(35.dp)
+    val cupBodyHeight = (57.5.dp * scale).coerceAtLeast(40.dp)
     val holderHeight = when (indicatorPlacement) {
-        SeatIndicatorPlacement.BELOW -> (78.dp * scale).coerceAtLeast(58.dp)
+        SeatIndicatorPlacement.BELOW -> (97.5.dp * scale).coerceAtLeast(72.5.dp)
         SeatIndicatorPlacement.INSIDE_LEFT,
         SeatIndicatorPlacement.INSIDE_RIGHT -> cupBodyHeight
     }
-    val cupImageWidth = (72.dp * scale).coerceAtLeast(48.dp)
-    val cupImageHeight = (84.dp * scale).coerceAtLeast(56.dp)
+    val cupImageWidth = (90.dp * scale).coerceAtLeast(60.dp)
+    val cupImageHeight = (105.dp * scale).coerceAtLeast(70.dp)
     val cupImageOffsetY = 8.dp * scale
     val cupBodyTopPadding = when (indicatorPlacement) {
         SeatIndicatorPlacement.BELOW -> 4.dp * scale
@@ -1074,9 +1076,9 @@ fun SeatIndicatorLane(
     scale: Float = 1f,
     modifier: Modifier = Modifier
 ) {
-    val starterSize = (18.dp * scale).coerceAtLeast(11.dp)
-    val hatSize = (14.dp * scale).coerceAtLeast(9.dp)
-    val choiceSize = (16.dp * scale).coerceAtLeast(10.dp)
+    val starterSize = (22.5.dp * scale).coerceAtLeast(13.5.dp)
+    val hatSize = (17.5.dp * scale).coerceAtLeast(11.dp)
+    val choiceSize = (20.dp * scale).coerceAtLeast(12.5.dp)
     val spacing = (1.dp * scale).coerceAtLeast(0.5.dp)
 
     Row(
@@ -1124,9 +1126,9 @@ fun SideSeatIndicatorStack(
     scale: Float = 1f,
     modifier: Modifier = Modifier
 ) {
-    val starterSize = (14.dp * scale).coerceAtLeast(11.dp)
-    val hatSize = (12.dp * scale).coerceAtLeast(10.dp)
-    val choiceSize = (14.dp * scale).coerceAtLeast(11.dp)
+    val starterSize = (17.5.dp * scale).coerceAtLeast(13.5.dp)
+    val hatSize = (15.dp * scale).coerceAtLeast(12.5.dp)
+    val choiceSize = (17.5.dp * scale).coerceAtLeast(13.5.dp)
     val spacing = (0.5.dp * scale).coerceAtLeast(0.dp)
 
     Column(

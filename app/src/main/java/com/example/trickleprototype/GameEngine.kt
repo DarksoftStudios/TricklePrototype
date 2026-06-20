@@ -46,7 +46,8 @@ data class MarbleTransferEvent(
     val fromPlayerId: Int? = null,
     val toType: MarbleTransferEndpointType,
     val toPlayerId: Int? = null,
-    val amount: Int
+    val amount: Int,
+    val isTrickle: Boolean = false
 )
 
 
@@ -589,7 +590,8 @@ class GameEngine(
         fromPlayerId: Int? = null,
         toType: MarbleTransferEndpointType,
         toPlayerId: Int? = null,
-        amount: Int
+        amount: Int,
+        isTrickle: Boolean = false
     ) {
         if (amount <= 0) return
         latestMarbleTransfers += MarbleTransferEvent(
@@ -597,7 +599,8 @@ class GameEngine(
             fromPlayerId = fromPlayerId,
             toType = toType,
             toPlayerId = toPlayerId,
-            amount = amount
+            amount = amount,
+            isTrickle = isTrickle
         )
     }
 
@@ -628,14 +631,16 @@ class GameEngine(
         return applyPositiveGainInternal(
             player = player,
             amount = amount,
-            allowDuringDrought = true
+            allowDuringDrought = true,
+            isTrickle = true
         )
     }
 
     private fun applyPositiveGainInternal(
         player: PlayerState,
         amount: Int,
-        allowDuringDrought: Boolean
+        allowDuringDrought: Boolean,
+        isTrickle: Boolean = false
     ): Int {
         if (amount <= 0) return 0
         if (noMarblesMoveThisRound() && !(allowDuringDrought && currentWeatherId() == "drought")) return 0
@@ -650,7 +655,8 @@ class GameEngine(
             fromType = MarbleTransferEndpointType.BOWL,
             toType = MarbleTransferEndpointType.PLAYER,
             toPlayerId = player.id,
-            amount = amount
+            amount = amount,
+            isTrickle = isTrickle
         )
         if (weatherHas(WeatherEffectTag.ONE_POSITIVE_SCORING_EVENT_PER_PLAYER)) {
             playersWithPositiveScoringEventThisRound += player.id
@@ -1768,7 +1774,7 @@ class GameEngine(
                     val c = selectionsThisRound[p.id]!!
                     val trickle = trickleScoreForSelection(c)
                     revealedThisRound[p.id] = c
-                    p.revealedChoice = c
+                    if (!hideTrickles) p.revealedChoice = c
                     val awarded = applyTrickleGain(p, trickle)
 
                     if (p.id == HUMAN_ID) {

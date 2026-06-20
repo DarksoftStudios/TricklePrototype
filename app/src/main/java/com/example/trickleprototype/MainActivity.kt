@@ -1018,13 +1018,11 @@ private fun TrickleApp() {
     LaunchedEffect(lastResult, bowlSpawnPoint, cupCenters.size, currentWeatherId) {
         val result = lastResult ?: return@LaunchedEffect
 
-        if (currentWeatherId == "whiteout") {
-            lastQueuedMarbleTransferSignature = null
-            marbleFlights = emptyList()
-            return@LaunchedEffect
+        val transfers = if (currentWeatherId == "whiteout") {
+            result.marbleTransfers.filter { !it.isTrickle }
+        } else {
+            result.marbleTransfers
         }
-
-        val transfers = result.marbleTransfers
         if (transfers.isEmpty()) return@LaunchedEffect
 
         val transferSignature = buildString {
@@ -1096,14 +1094,14 @@ private fun TrickleApp() {
                     val base = if (result.lastEventKind == LogEventKind.PASS) 300L else 1000L
                     val baseDelayMs = if (turbo) (base / 4).coerceAtLeast(35L) else base
 
-                    val marbleAnimationDelayMs =
-                        if (currentWeatherId == "whiteout") {
-                            0L
-                        } else {
-                            result.marbleTransfers.maxOfOrNull { transfer ->
-                                ((transfer.amount - 1).coerceAtLeast(0) * 170L) + 520L
-                            } ?: 0L
-                        }
+                    val visibleTransfers = if (currentWeatherId == "whiteout") {
+                        result.marbleTransfers.filter { !it.isTrickle }
+                    } else {
+                        result.marbleTransfers
+                    }
+                    val marbleAnimationDelayMs = visibleTransfers.maxOfOrNull { transfer ->
+                        ((transfer.amount - 1).coerceAtLeast(0) * 170L) + 520L
+                    } ?: 0L
 
                     val totalDelayMs = maxOf(baseDelayMs, marbleAnimationDelayMs + 80L)
                     delay(totalDelayMs)
